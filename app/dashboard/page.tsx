@@ -18,8 +18,10 @@ import {
   Snowflake, // Icono del congelador
   LogOut,
   BarChart2,
+  Shield,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import TicketDetailsModal from "@/components/TicketDetailsModal";
 
 // --- DEFINICIÓN DE TIPOS (Incluyendo campos SLA) ---
@@ -69,6 +71,7 @@ export default function AgentDashboard() {
   const [currentUser, setCurrentUser] = useState<{
     id: string;
     full_name: string;
+    role?: string;
   } | null>(null);
   const [isResolvedCollapsed, setIsResolvedCollapsed] = useState(false);
   const [solutionTexts, setSolutionTexts] = useState<Record<number, string>>(
@@ -637,6 +640,16 @@ export default function AgentDashboard() {
           </div>
 
           <div className="flex items-center gap-4">
+            {currentUser?.role === "admin" && (
+              <Link
+                href="/admin"
+                className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all border cursor-pointer bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200 shadow-sm"
+                title="Volver al Panel Admin"
+              >
+                <Shield className="w-4 h-4" />
+                <span className="hidden sm:inline">Admin Panel</span>
+              </Link>
+            )}
             <button
               onClick={toggleAvailability}
               className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all border cursor-pointer ${
