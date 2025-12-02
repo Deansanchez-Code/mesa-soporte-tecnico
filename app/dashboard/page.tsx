@@ -27,7 +27,9 @@ interface Ticket {
   category: string;
   status: string;
   location: string;
+  description?: string;
   created_at: string;
+  updated_at?: string;
   user_id: string;
   assigned_agent_id?: string; // ID del técnico asignado
   // Campos específicos para el SLA
@@ -62,6 +64,24 @@ export default function AgentDashboard() {
     null
   );
   const [showMetricsModal, setShowMetricsModal] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    full_name: string;
+  } | null>(null);
+  const [isResolvedCollapsed, setIsResolvedCollapsed] = useState(false);
+  const [solutionTexts, setSolutionTexts] = useState<Record<number, string>>(
+    {}
+  );
+
+  // Estados para filtros de métricas
+  const [metricsStartDate, setMetricsStartDate] = useState(
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      .toISOString()
+      .split("T")[0]
+  );
+  const [metricsEndDate, setMetricsEndDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
 
   // --- 1. CARGA DE DATOS ---
   const fetchTickets = async () => {
@@ -128,6 +148,8 @@ export default function AgentDashboard() {
   // --- 2. TIEMPO REAL (Supabase Realtime) ---
   useEffect(() => {
     const loadData = async () => {
+      const userStr = safeGetItem("tic_user");
+      if (userStr) setCurrentUser(JSON.parse(userStr));
       await fetchTickets(); // Carga inicial
     };
     void loadData();
@@ -218,6 +240,47 @@ export default function AgentDashboard() {
     }
   };
 
+  // --- 3.1 CAMBIAR CATEGORÍA ---
+  const handleCategoryChange = async (
+    ticketId: number,
+    newCategory: string
+  ) => {
+    const { error } = await supabase
+      .from("tickets")
+      .update({ category: newCategory })
+      .eq("id", ticketId);
+
+    if (error) {
+      alert("Error actualizando categoría");
+    } else {
+      fetchTickets();
+    }
+  };
+
+  // --- 3.2 AGREGAR COMENTARIO (SEGUIMIENTO) ---
+  const addComment = async (ticketId: number, currentDescription: string) => {
+    const comment = prompt(
+      "Ingrese su comentario de seguimiento (Min. 1 vez/semana):"
+    );
+    if (!comment) return;
+
+    const dateStr = new Date().toLocaleString();
+    const newDescription =
+      (currentDescription || "") + `\n\n[${dateStr}] SEGUIMIENTO: ${comment}`;
+
+    const { error } = await supabase
+      .from("tickets")
+      .update({ description: newDescription })
+      .eq("id", ticketId);
+
+    if (error) {
+      alert("Error al guardar comentario");
+    } else {
+      alert("Comentario agregado correctamente");
+      fetchTickets();
+    }
+  };
+
   // --- 4. ACTUALIZAR ESTADO SIMPLE Y ATRIBUCIÓN ---
   const updateStatus = async (ticketId: number, newStatus: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -239,6 +302,12 @@ export default function AgentDashboard() {
         // Asignar al usuario actual si cierra el caso ("El que cierra gana")
         if (user && user.id) {
           updates.assigned_agent_id = user.id;
+        }
+        // Guardar la solución si existe
+        if (solutionTexts[ticketId]) {
+          updates.solution = solutionTexts[ticketId]; // Asumimos que existe la columna 'solution'
+          // Si no existe columna solution, podríamos concatenar en description:
+          // updates.description = ticket.description + "\n\nSOLUCIÓN:\n" + solutionTexts[ticketId];
         }
       }
     } catch (e) {
@@ -320,9 +389,70 @@ export default function AgentDashboard() {
   const pendingTickets = tickets.filter((t) => t.status === "PENDIENTE");
   const inProgressTickets = tickets.filter((t) => t.status === "EN_PROGRESO");
   const waitingTickets = tickets.filter((t) => t.status === "EN_ESPERA"); // Tickets Congelados
-  const resolvedTickets = tickets.filter(
-    (t) => t.status === "RESUELTO" || t.status === "CERRADO"
-  );
+  const resolvedTickets = tickets.filter((t) => {
+    const isResolved = t.status === "RESUELTO" || t.status === "CERRADO";
+    if (!isResolved) return false;
+
+    // Archivar casos resueltos hace más de 12 días
+    const dateToCheck = new Date(t.updated_at || t.created_at);
+    const diffTime = Math.abs(new Date().getTime() - dateToCheck.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 12;
+  });
+
+  const downloadReport = () => {
+    if (!currentUser) return;
+
+    const filteredTickets = tickets.filter((t) => {
+      const isResolved = t.status === "RESUELTO" || t.status === "CERRADO";
+      const isMine =
+        t.assigned_agent_id === currentUser.id ||
+        (t.assigned_agent &&
+          t.assigned_agent.full_name === currentUser.full_name);
+
+      const ticketDate = new Date(t.created_at);
+      const start = new Date(metricsStartDate);
+      const end = new Date(metricsEndDate);
+      end.setHours(23, 59, 59); // Incluir todo el día final
+
+      return isResolved && isMine && ticketDate >= start && ticketDate <= end;
+    });
+
+    const csvContent = [
+      [
+        "ID",
+        "Fecha",
+        "Usuario",
+        "Ubicación",
+        "Categoría",
+        "Modelo Equipo",
+        "Estado",
+      ],
+      ...filteredTickets.map((t) => [
+        t.id,
+        new Date(t.created_at).toLocaleDateString(),
+        t.users?.full_name || "N/A",
+        t.location,
+        t.category,
+        t.assets?.model || "N/A",
+        t.status,
+      ]),
+    ]
+      .map((e) => e.join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `reporte_agente_${metricsStartDate}_${metricsEndDate}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <AuthGuard allowedRoles={["agent", "admin"]}>
@@ -353,6 +483,22 @@ export default function AgentDashboard() {
               </div>
 
               <div className="bg-blue-50 rounded-xl p-6 text-center border border-blue-100 mb-6">
+                <div className="flex gap-2 mb-4 justify-center">
+                  <input
+                    type="date"
+                    value={metricsStartDate}
+                    onChange={(e) => setMetricsStartDate(e.target.value)}
+                    className="border rounded p-1 text-xs"
+                  />
+                  <span className="self-center">-</span>
+                  <input
+                    type="date"
+                    value={metricsEndDate}
+                    onChange={(e) => setMetricsEndDate(e.target.value)}
+                    className="border rounded p-1 text-xs"
+                  />
+                </div>
+
                 <p className="text-sm text-blue-600 font-bold uppercase mb-1">
                   Casos Resueltos
                 </p>
@@ -360,23 +506,43 @@ export default function AgentDashboard() {
                   {
                     tickets.filter((t) => {
                       try {
-                        const userStr = safeGetItem("tic_user");
-                        if (!userStr) return false;
-                        const user = JSON.parse(userStr);
-                        // Filtramos por: Resuelto/Cerrado, Asignado a mí, Mes actual
+                        if (!currentUser) return false;
+                        // Filtramos por: Resuelto/Cerrado, Asignado a mí, Rango de fechas
                         const isResolved =
                           t.status === "RESUELTO" || t.status === "CERRADO";
-                        const isMine = t.assigned_agent_id === user.id; // Nota: assigned_agent_id no está en la interfaz Ticket aún, pero viene de Supabase
-                        const isThisMonth =
-                          new Date(t.created_at).getMonth() ===
-                          new Date().getMonth();
-                        return isResolved && isMine && isThisMonth;
+                        // Usamos currentUser.id que cargamos del localStorage
+                        // Nota: assigned_agent_id es el ID, currentUser.id debería coincidir
+                        // Si assigned_agent_id es string y user.id es number, ojo. Supabase devuelve string uuid usualmente.
+                        const isMine =
+                          t.assigned_agent_id === currentUser.id ||
+                          (t.assigned_agent &&
+                            t.assigned_agent.full_name ===
+                              currentUser.full_name);
+
+                        const ticketDate = new Date(t.created_at);
+                        const start = new Date(metricsStartDate);
+                        const end = new Date(metricsEndDate);
+                        end.setHours(23, 59, 59);
+
+                        return (
+                          isResolved &&
+                          isMine &&
+                          ticketDate >= start &&
+                          ticketDate <= end
+                        );
                       } catch {
                         return false;
                       }
                     }).length
                   }
                 </p>
+
+                <button
+                  onClick={downloadReport}
+                  className="mt-4 bg-sena-blue text-white text-xs px-4 py-2 rounded-lg hover:bg-blue-800 transition flex items-center gap-2 mx-auto"
+                >
+                  <BarChart2 className="w-4 h-4" /> Descargar Reporte
+                </button>
               </div>
 
               <p className="text-xs text-center text-gray-400">
@@ -394,6 +560,11 @@ export default function AgentDashboard() {
             </div>
             <h1 className="font-bold text-sena-blue text-xl tracking-tight hidden sm:block">
               Mesa de Ayuda <span className="text-sena-green">TIC</span>
+              {currentUser && (
+                <span className="ml-2 text-sm font-normal text-gray-500">
+                  | {currentUser.full_name}
+                </span>
+              )}
             </h1>
           </div>
 
@@ -456,7 +627,7 @@ export default function AgentDashboard() {
                   waitingTickets.length > 0 ? "animate-pulse" : ""
                 }`}
               />
-              El Congelador ({waitingTickets.length})
+              Rep. y Garantías ({waitingTickets.length})
             </button>
 
             <button
@@ -477,8 +648,7 @@ export default function AgentDashboard() {
           {showFreezer && (
             <div className="mb-8 bg-purple-50 rounded-xl p-5 border-2 border-dashed border-purple-200 animate-in slide-in-from-top-4">
               <h3 className="font-bold text-purple-800 flex items-center gap-2 mb-4 text-lg">
-                <Snowflake className="w-6 h-6" /> Tickets en Espera de Repuestos
-                / Garantía
+                <Snowflake className="w-6 h-6" /> Repuestos y Garantías
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -501,6 +671,16 @@ export default function AgentDashboard() {
                       <Monitor className="w-3 h-3" />{" "}
                       {ticket.assets?.model || "Equipo General"}
                     </p>
+
+                    <button
+                      onClick={() =>
+                        addComment(ticket.id, ticket.description || "")
+                      }
+                      className="w-full mb-2 bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 text-xs py-1.5 rounded-lg font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+                    >
+                      <span className="text-[10px]">💬</span> Agregar
+                      Seguimiento
+                    </button>
 
                     {/* Botón para REANUDAR */}
                     <button
@@ -624,23 +804,38 @@ export default function AgentDashboard() {
                     className="bg-white p-4 rounded-xl shadow-md border border-gray-200 border-l-4 border-l-blue-500 hover:shadow-lg transition-all duration-200 animate-in fade-in slide-in-from-left-2 cursor-grab active:cursor-grabbing"
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 flex items-center gap-1">
-                        #{ticket.id} • Activo
-                        {(() => {
-                          const userStr = safeGetItem("tic_user");
-                          if (userStr) {
-                            const user = JSON.parse(userStr);
-                            if (ticket.assigned_agent_id === user.id) {
-                              return (
-                                <span className="ml-1 bg-blue-600 text-white px-1 rounded text-[9px]">
-                                  MÍO
-                                </span>
-                              );
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 flex items-center gap-1 w-fit">
+                          #{ticket.id} • Activo
+                          {(() => {
+                            const userStr = safeGetItem("tic_user");
+                            if (userStr) {
+                              const user = JSON.parse(userStr);
+                              if (ticket.assigned_agent_id === user.id) {
+                                return (
+                                  <span className="ml-1 bg-blue-600 text-white px-1 rounded text-[9px]">
+                                    MÍO
+                                  </span>
+                                );
+                              }
                             }
+                            return null;
+                          })()}
+                        </span>
+                        {/* SELECTOR DE CATEGORÍA */}
+                        <select
+                          className="text-[10px] border border-blue-200 rounded px-1 py-0.5 bg-white text-gray-600 outline-none cursor-pointer hover:border-blue-400"
+                          value={ticket.category}
+                          onChange={(e) =>
+                            handleCategoryChange(ticket.id, e.target.value)
                           }
-                          return null;
-                        })()}
-                      </span>
+                        >
+                          <option value="HARDWARE">HARDWARE</option>
+                          <option value="SOFTWARE">SOFTWARE</option>
+                          <option value="REDES">REDES</option>
+                          <option value="OTROS">OTROS</option>
+                        </select>
+                      </div>
                       <PlayCircle className="w-4 h-4 text-blue-400 animate-pulse" />
                     </div>
 
@@ -682,21 +877,53 @@ export default function AgentDashboard() {
                         </select>
                       </div>
 
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => updateStatus(ticket.id, "RESUELTO")}
-                          className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-2 rounded-lg font-bold cursor-pointer transition-colors shadow-sm"
-                        >
-                          Resolver
-                        </button>
-                        <button
-                          onClick={() => updateStatus(ticket.id, "PENDIENTE")}
-                          className="px-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-                          title="Devolver a Pendientes"
-                        >
-                          Soltar
-                        </button>
-                      </div>
+                      {/* CAMPO DE SOLUCIÓN */}
+                      <textarea
+                        className="w-full text-xs border border-gray-300 rounded-lg p-2 mb-2 h-20 focus:ring-2 focus:ring-green-100 outline-none resize-none"
+                        placeholder="Detalle la solución (mínimo 20 palabras)..."
+                        value={solutionTexts[ticket.id] || ""}
+                        onChange={(e) =>
+                          setSolutionTexts({
+                            ...solutionTexts,
+                            [ticket.id]: e.target.value,
+                          })
+                        }
+                      />
+
+                      <button
+                        onClick={() => updateStatus(ticket.id, "RESUELTO")}
+                        disabled={
+                          !solutionTexts[ticket.id] ||
+                          solutionTexts[ticket.id].trim().split(/\s+/).length <
+                            20
+                        }
+                        className={`w-full text-white text-xs py-2 rounded-lg font-bold transition-colors shadow-sm flex items-center justify-center gap-2 ${
+                          !solutionTexts[ticket.id] ||
+                          solutionTexts[ticket.id].trim().split(/\s+/).length <
+                            20
+                            ? "bg-gray-300 cursor-not-allowed"
+                            : "bg-green-600 hover:bg-green-700 cursor-pointer"
+                        }`}
+                        title={
+                          !solutionTexts[ticket.id] ||
+                          solutionTexts[ticket.id].trim().split(/\s+/).length <
+                            20
+                            ? "Escriba al menos 20 palabras para resolver"
+                            : "Resolver Ticket"
+                        }
+                      >
+                        Resolver{" "}
+                        {(!solutionTexts[ticket.id] ||
+                          solutionTexts[ticket.id].trim().split(/\s+/).length <
+                            20) &&
+                          `(${
+                            solutionTexts[ticket.id]
+                              ? solutionTexts[ticket.id].trim().split(/\s+/)
+                                  .length
+                              : 0
+                          }/20)`}
+                      </button>
+
                       {/* BOTÓN PARA CONGELAR/PAUSAR */}
                       <button
                         onClick={() => toggleHold(ticket)}
@@ -721,33 +948,41 @@ export default function AgentDashboard() {
                 <h2 className="font-bold text-gray-700 flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
                   Resueltos
+                  <button
+                    onClick={() => setIsResolvedCollapsed(!isResolvedCollapsed)}
+                    className="ml-2 text-xs text-green-600 hover:text-green-800 underline"
+                  >
+                    {isResolvedCollapsed ? "Mostrar" : "Ocultar"}
+                  </button>
                 </h2>
                 <span className="bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-extrabold">
                   {resolvedTickets.length}
                 </span>
               </div>
 
-              <div className="p-3 space-y-3 flex-1">
-                {resolvedTickets.map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-l-green-500 opacity-75 hover:opacity-100 transition-all duration-200 hover:shadow-sm"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-100">
-                        #{ticket.id} • Resuelto
-                      </span>
-                      <CheckCircle className="w-4 h-4 text-green-500" />
+              {!isResolvedCollapsed && (
+                <div className="p-3 space-y-3 flex-1">
+                  {resolvedTickets.map((ticket) => (
+                    <div
+                      key={ticket.id}
+                      className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-l-green-500 opacity-75 hover:opacity-100 transition-all duration-200 hover:shadow-sm"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-100">
+                          #{ticket.id} • Resuelto
+                        </span>
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                      </div>
+                      <h3 className="font-bold text-gray-800 text-sm decoration-2">
+                        {ticket.users?.full_name}
+                      </h3>
+                      <p className="text-xs text-gray-400 mt-1 italic">
+                        Ticket cerrado
+                      </p>
                     </div>
-                    <h3 className="font-bold text-gray-800 text-sm line-through decoration-gray-400 decoration-2">
-                      {ticket.users?.full_name}
-                    </h3>
-                    <p className="text-xs text-gray-400 mt-1 italic">
-                      Ticket cerrado
-                    </p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </main>
