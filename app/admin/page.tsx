@@ -1,0 +1,1139 @@
+"use client";
+
+import AuthGuard from "@/components/AuthGuard";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { safeRemoveItem } from "@/lib/storage";
+import {
+  Shield,
+  Users,
+  Activity,
+  UserPlus,
+  BarChart3,
+  Trash2,
+  Monitor,
+  Plus,
+  Laptop,
+  Download,
+  PieChart as PieChartIcon,
+  QrCode,
+  Printer,
+  LogOut,
+  Edit,
+  Key,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import QRCode from "react-qr-code";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+
+// --- TIPOS DE DATOS ---
+interface Agent {
+  id: string;
+  full_name: string;
+  username: string;
+  role: string;
+  area?: string;
+  created_at: string;
+}
+
+interface Asset {
+  id: number;
+  serial_number: string;
+  type: string;
+  brand: string;
+  model: string;
+  assigned_to_user_id: string;
+  users?: { full_name: string }; // Join para saber de quién es
+}
+
+interface Stats {
+  totalTickets: number;
+  pendingTickets: number;
+  totalAssets: number;
+}
+
+interface UserSimple {
+  id: string;
+  full_name: string;
+}
+
+export default function AdminDashboard() {
+  const router = useRouter();
+  // Estados Generales
+  const [activeTab, setActiveTab] = useState<
+    "agents" | "assets" | "metrics" | "qr"
+  >("agents");
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [stats, setStats] = useState<Stats>({
+    totalTickets: 0,
+    pendingTickets: 0,
+    totalAssets: 0,
+  });
+
+  // Estados Datos
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [usersList, setUsersList] = useState<UserSimple[]>([]); // Para el select de asignar
+  // Estado para métricas
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [metricsData, setMetricsData] = useState<any>({
+    statusData: [],
+    monthlyData: [],
+    agentData: [],
+  });
+  // Estado para QR
+  const [qrLocation, setQrLocation] = useState("");
+
+  // Estados Modales
+  const [showAgentModal, setShowAgentModal] = useState(false);
+  const [showAssetModal, setShowAssetModal] = useState(false);
+
+  // Forms
+  const [newAgent, setNewAgent] = useState({
+    id: "", // Para edición
+    fullName: "",
+    username: "",
+    password: "",
+    role: "agent",
+    area: "Mesa de Ayuda",
+    isEditing: false,
+  });
+  const [newAsset, setNewAsset] = useState({
+    serial: "",
+    type: "Portátil",
+    brand: "",
+    model: "",
+    userId: "",
+  });
+
+  // --- 1. CARGA INICIAL DE DATOS ---
+  const fetchData = async () => {
+    setLoading(true);
+
+    // A. Cargar Agentes
+    const { data: agentsData } = await supabase
+      .from("users")
+      .select("*")
+      .in("role", ["agent", "admin"])
+      .order("created_at", { ascending: false });
+    if (agentsData) setAgents(agentsData as Agent[]);
+
+    // B. Cargar Activos (con dueño)
+    const { data: assetsData } = await supabase
+      .from("assets")
+      .select("*, users(full_name)")
+      .order("created_at", { ascending: false });
+    if (assetsData) setAssets(assetsData as unknown as Asset[]);
+
+    // C. Cargar Lista de Usuarios (Para asignar equipos)
+    const { data: allUsers } = await supabase
+      .from("users")
+      .select("id, full_name");
+    if (allUsers) setUsersList(allUsers);
+
+    // D. Estadísticas Rápidas y Datos para Gráficos
+    const { data: allTickets, count: ticketCount } = await supabase
+      .from("tickets")
+      .select("*, users(full_name)", { count: "exact" });
+
+    const { count: pendingCount } = await supabase
+      .from("tickets")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "PENDIENTE");
+
+    setStats({
+      totalTickets: ticketCount || 0,
+      pendingTickets: pendingCount || 0,
+      totalAssets: assetsData?.length || 0,
+    });
+
+    // PROCESAR DATOS PARA GRÁFICOS
+    if (allTickets) {
+      // 1. Por Estado
+      const statusCounts = allTickets.reduce(
+        (acc: Record<string, number>, ticket) => {
+          acc[ticket.status] = (acc[ticket.status] || 0) + 1;
+          return acc;
+        },
+        {}
+      );
+      const statusData = [
+        {
+          name: "Pendientes",
+          value: statusCounts.PENDIENTE || 0,
+          color: "#EF4444",
+        },
+        {
+          name: "En Curso",
+          value: statusCounts.EN_PROGRESO || 0,
+          color: "#3B82F6",
+        },
+        {
+          name: "Resueltos",
+          value: statusCounts.RESUELTO || 0,
+          color: "#22C55E",
+        },
+        {
+          name: "En Espera",
+          value: statusCounts.EN_ESPERA || 0,
+          color: "#A855F7",
+        },
+      ].filter((d) => d.value > 0);
+
+      // 2. Por Mes (Últimos 6 meses)
+      const monthlyCounts = allTickets.reduce(
+        (acc: Record<string, number>, ticket) => {
+          const month = new Date(ticket.created_at).toLocaleString("es-CO", {
+            month: "short",
+          });
+          acc[month] = (acc[month] || 0) + 1;
+          return acc;
+        },
+        {}
+      );
+      const monthlyData = Object.keys(monthlyCounts).map((key) => ({
+        name: key,
+        tickets: monthlyCounts[key],
+      }));
+
+      // 3. Top Agentes (Simulado por ahora ya que assigned_agent_id es string)
+      // En un caso real, haríamos join con la tabla de agentes
+      const agentCounts = allTickets.reduce(
+        (acc: Record<string, number>, ticket) => {
+          if (ticket.assigned_agent_id) {
+            // Buscamos el nombre del agente en el estado 'agents'
+            const agentName =
+              agentsData?.find((a) => a.id === ticket.assigned_agent_id)
+                ?.full_name || "Desconocido";
+            acc[agentName] = (acc[agentName] || 0) + 1;
+          }
+          return acc;
+        },
+        {}
+      );
+      const agentData = Object.keys(agentCounts)
+        .map((key) => ({
+          name: key.split(" ")[0], // Solo primer nombre para el gráfico
+          tickets: agentCounts[key],
+        }))
+        .sort((a, b) => b.tickets - a.tickets)
+        .slice(0, 5); // Top 5
+
+      setMetricsData({ statusData, monthlyData, agentData });
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // --- 2. LOGICA AGENTES / USUARIOS ---
+  const handleCreateOrUpdateUser = async () => {
+    if (!newAgent.fullName || !newAgent.username || !newAgent.password)
+      return alert("Faltan datos obligatorios (Nombre, Usuario, Contraseña)");
+
+    try {
+      if (newAgent.isEditing) {
+        // ACTUALIZAR
+        const { error } = await supabase
+          .from("users")
+          .update({
+            full_name: newAgent.fullName,
+            username: newAgent.username.toLowerCase(),
+            role: newAgent.role,
+            area: newAgent.area,
+            password: newAgent.password,
+          })
+          .eq("id", newAgent.id);
+        if (error) throw error;
+        alert("✅ Usuario actualizado");
+      } else {
+        // CREAR
+        const { error } = await supabase.from("users").insert({
+          full_name: newAgent.fullName,
+          username: newAgent.username.toLowerCase(),
+          role: newAgent.role,
+          area: newAgent.area,
+          password: newAgent.password,
+        });
+        if (error) throw error;
+        alert("✅ Usuario creado");
+      }
+
+      setShowAgentModal(false);
+      resetUserForm();
+      fetchData();
+    } catch {
+      alert("Error al guardar. Verifica si el usuario ya existe.");
+    }
+  };
+
+  const handleEditUser = (user: Agent) => {
+    setNewAgent({
+      id: user.id,
+      fullName: user.full_name,
+      username: user.username,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      password: (user as any).password || "",
+      role: user.role,
+      area: user.area || "",
+      isEditing: true,
+    });
+    setShowAgentModal(true);
+  };
+
+  const resetUserForm = () => {
+    setNewAgent({
+      id: "",
+      fullName: "",
+      username: "",
+      password: "",
+      role: "agent",
+      area: "Mesa de Ayuda",
+      isEditing: false,
+    });
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm("¿Seguro que deseas eliminar este usuario?")) return;
+
+    try {
+      const { error } = await supabase.from("users").delete().eq("id", id);
+
+      if (error) {
+        if (error.code === "23503") {
+          alert(
+            "❌ No se puede eliminar este usuario porque tiene tickets o activos asignados.\n\nPor favor, reasigna sus responsabilidades antes de eliminarlo."
+          );
+        } else {
+          throw error;
+        }
+      } else {
+        alert("✅ Usuario eliminado correctamente");
+        fetchData();
+      }
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      alert(
+        "Error al eliminar el usuario. Consulta la consola para más detalles."
+      );
+    }
+  };
+
+  const handleLogout = () => {
+    safeRemoveItem("tic_user");
+    router.push("/login");
+  };
+
+  // --- 3. LOGICA ACTIVOS ---
+  const handleCreateAsset = async () => {
+    if (!newAsset.serial || !newAsset.userId)
+      return alert("Serial y Asignado A son obligatorios");
+    try {
+      const { error } = await supabase.from("assets").insert({
+        serial_number: newAsset.serial,
+        type: newAsset.type,
+        brand: newAsset.brand,
+        model: newAsset.model,
+        assigned_to_user_id: newAsset.userId,
+      });
+      if (error) throw error;
+      alert("✅ Equipo registrado en inventario");
+      setShowAssetModal(false);
+      setNewAsset({
+        serial: "",
+        type: "Portátil",
+        brand: "",
+        model: "",
+        userId: "",
+      });
+      fetchData();
+    } catch (error) {
+      console.error(error);
+      alert("Error creando activo. El serial podría estar duplicado.");
+    }
+  };
+
+  // --- 4. EXPORTAR CSV ---
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      // 1. Obtener datos completos
+      const { data, error } = await supabase.from("tickets").select(`
+          id,
+          created_at,
+          status,
+          category,
+          location,
+          description,
+          users ( full_name, area, username ),
+          assets ( serial_number, model )
+        `);
+
+      if (error) throw error;
+      if (!data || data.length === 0)
+        return alert("No hay datos para exportar");
+
+      // Definimos el tipo esperado de la respuesta de Supabase
+      interface TicketExport {
+        id: number;
+        created_at: string;
+        status: string;
+        category: string;
+        location: string;
+        description: string;
+        users: { full_name: string; area: string; username: string } | null;
+        assets: { serial_number: string; model: string } | null;
+      }
+
+      const tickets = data as unknown as TicketExport[];
+
+      // 2. Construir CSV
+      const headers = [
+        "ID Ticket",
+        "Fecha Creación",
+        "Estado",
+        "Categoría",
+        "Solicitante",
+        "Usuario",
+        "Área",
+        "Ubicación",
+        "Equipo (Serial)",
+        "Equipo (Modelo)",
+        "Descripción",
+      ];
+
+      const csvRows = [
+        headers.join(","), // Encabezado
+        ...tickets.map((t) => {
+          // Verificamos si users/assets son arrays (por si acaso) o objetos
+          const user = Array.isArray(t.users) ? t.users[0] : t.users;
+          const asset = Array.isArray(t.assets) ? t.assets[0] : t.assets;
+
+          const row = [
+            t.id,
+            new Date(t.created_at).toLocaleDateString("es-CO"),
+            t.status,
+            t.category,
+            `"${user?.full_name || "N/A"}"`,
+            user?.username || "N/A",
+            user?.area || "N/A",
+            `"${t.location || ""}"`,
+            asset?.serial_number || "N/A",
+            `"${asset?.model || "N/A"}"`,
+            `"${(t.description || "").replace(/"/g, '""')}"`,
+          ];
+          return row.join(",");
+        }),
+      ];
+
+      const csvContent = "\uFEFF" + csvRows.join("\n"); // BOM para Excel
+
+      // 3. Descargar
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute(
+        "download",
+        `reporte_gestion_tic_${new Date().toISOString().split("T")[0]}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error(error);
+      alert("Error generando el reporte");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <AuthGuard allowedRoles={["admin"]}>
+      <div className="min-h-screen bg-gray-100 font-sans">
+        {/* NAVBAR */}
+        <header className="bg-sena-blue text-white h-16 px-6 flex items-center justify-between shadow-md sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/10 p-2 rounded-lg">
+              <Shield className="w-6 h-6 text-sena-green" />
+            </div>
+            <div>
+              <h1 className="font-bold text-lg leading-tight">
+                Panel de Control
+              </h1>
+              <p className="text-[10px] text-gray-300 tracking-wider">
+                SUPERADMINISTRADOR TIC
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleExportCSV}
+              disabled={exporting}
+              className="flex items-center gap-2 bg-sena-green hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {exporting ? (
+                <span className="animate-pulse">Generando...</span>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" /> Exportar Reporte
+                </>
+              )}
+            </button>
+            <div
+              className="h-10 w-10 rounded-full bg-sena-green flex items-center justify-center font-bold border-2 border-white cursor-default"
+              title="Admin"
+            >
+              AD
+            </div>
+            <button
+              onClick={handleLogout}
+              className="text-white/80 hover:text-white hover:bg-white/10 p-2 rounded-full transition"
+              title="Cerrar Sesión"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </header>
+
+        <main className="p-6 max-w-7xl mx-auto space-y-8">
+          {/* --- KPIs --- */}
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-xl shadow-sm border-b-4 border-sena-green flex justify-between items-center">
+              <div>
+                <p className="text-gray-500 text-xs font-bold uppercase">
+                  Gestión Total
+                </p>
+                <h2 className="text-3xl font-bold text-gray-800">
+                  {stats.totalTickets}{" "}
+                  <span className="text-sm font-normal text-gray-400">
+                    tickets
+                  </span>
+                </h2>
+              </div>
+              <Activity className="w-10 h-10 text-sena-green opacity-20" />
+            </div>
+            <div className="bg-white p-6 rounded-xl shadow-sm border-b-4 border-red-500 flex justify-between items-center">
+              <div>
+                <p className="text-gray-500 text-xs font-bold uppercase">
+                  Pendientes
+                </p>
+                <h2 className="text-3xl font-bold text-gray-800">
+                  {stats.pendingTickets}{" "}
+                  <span className="text-sm font-normal text-gray-400">
+                    casos
+                  </span>
+                </h2>
+              </div>
+              <BarChart3 className="w-10 h-10 text-red-500 opacity-20" />
+            </div>
+            <div className="bg-white p-6 rounded-xl shadow-sm border-b-4 border-blue-500 flex justify-between items-center">
+              <div>
+                <p className="text-gray-500 text-xs font-bold uppercase">
+                  Inventario Total
+                </p>
+                <h2 className="text-3xl font-bold text-gray-800">
+                  {stats.totalAssets}{" "}
+                  <span className="text-sm font-normal text-gray-400">
+                    equipos
+                  </span>
+                </h2>
+              </div>
+              <Monitor className="w-10 h-10 text-blue-500 opacity-20" />
+            </div>
+          </section>
+
+          {/* --- PESTAÑAS DE NAVEGACIÓN --- */}
+          <div className="flex gap-4 border-b border-gray-300">
+            <button
+              onClick={() => setActiveTab("agents")}
+              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
+                activeTab === "agents"
+                  ? "border-b-4 border-sena-blue text-sena-blue"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Users className="w-4 h-4" /> Personal de Mesa
+            </button>
+            <button
+              onClick={() => setActiveTab("metrics")}
+              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
+                activeTab === "metrics"
+                  ? "border-b-4 border-sena-blue text-sena-blue"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <PieChartIcon className="w-4 h-4" /> Métricas y Gráficos
+            </button>
+            <button
+              onClick={() => setActiveTab("assets")}
+              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
+                activeTab === "assets"
+                  ? "border-b-4 border-sena-blue text-sena-blue"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Laptop className="w-4 h-4" /> Inventario de Equipos
+            </button>
+            <button
+              onClick={() => setActiveTab("qr")}
+              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
+                activeTab === "qr"
+                  ? "border-b-4 border-sena-blue text-sena-blue"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <QrCode className="w-4 h-4" /> Códigos QR
+            </button>
+          </div>
+
+          {/* --- CONTENIDO PESTAÑA: MÉTRICAS --- */}
+          {activeTab === "metrics" && (
+            <section className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* GRÁFICO 1: ESTADO DE TICKETS */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                  <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
+                    <PieChartIcon className="w-5 h-5 text-sena-blue" />{" "}
+                    Distribución de Casos
+                  </h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={metricsData.statusData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={80}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {metricsData.statusData.map(
+                            (
+                              entry: {
+                                name: string;
+                                value: number;
+                                color: string;
+                              },
+                              index: number
+                            ) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            )
+                          )}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* GRÁFICO 2: TOP AGENTES */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                  <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-sena-green" /> Top Agentes
+                    (Tickets)
+                  </h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={metricsData.agentData} layout="vertical">
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          horizontal={false}
+                        />
+                        <XAxis type="number" />
+                        <YAxis dataKey="name" type="category" width={80} />
+                        <Tooltip />
+                        <Bar
+                          dataKey="tickets"
+                          fill="#39A900"
+                          radius={[0, 4, 4, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* GRÁFICO 3: EVOLUCIÓN MENSUAL (Ocupa todo el ancho) */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 md:col-span-2">
+                  <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-purple-500" />{" "}
+                    Solicitudes por Mes
+                  </h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={metricsData.monthlyData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar
+                          dataKey="tickets"
+                          fill="#00324D"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* --- CONTENIDO PESTAÑA: CÓDIGOS QR --- */}
+          {activeTab === "qr" && (
+            <section className="animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 max-w-2xl mx-auto">
+                <div className="text-center mb-8">
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                    Generador de Etiquetas QR
+                  </h2>
+                  <p className="text-gray-500">
+                    Crea códigos QR para pegar en las salas. Al escanearlos, los
+                    usuarios reportarán fallas con la ubicación ya configurada.
+                  </p>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      Nombre de la Ubicación / Sala
+                    </label>
+                    <input
+                      type="text"
+                      value={qrLocation}
+                      onChange={(e) => setQrLocation(e.target.value)}
+                      placeholder="Ej: Sala de Juntas - Bloque A"
+                      className="w-full border-2 border-gray-200 p-4 rounded-xl text-lg focus:border-sena-blue focus:ring-4 focus:ring-blue-50 transition-all outline-none"
+                    />
+                  </div>
+
+                  {qrLocation && (
+                    <div className="bg-gray-50 p-8 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center animate-in zoom-in duration-300">
+                      <div className="bg-white p-4 rounded-lg shadow-sm mb-4">
+                        <QRCode
+                          value={`${
+                            typeof window !== "undefined"
+                              ? window.location.origin
+                              : ""
+                          }/?location=${encodeURIComponent(qrLocation)}`}
+                          size={200}
+                        />
+                      </div>
+                      <p className="font-bold text-gray-800 text-lg mb-1">
+                        {qrLocation}
+                      </p>
+                      <p className="text-xs text-gray-400 mb-6">
+                        Escanear para reportar falla aquí
+                      </p>
+
+                      <button
+                        onClick={() => window.print()}
+                        className="bg-sena-blue hover:bg-blue-800 text-white px-6 py-3 rounded-full font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+                      >
+                        <Printer className="w-5 h-5" /> Imprimir Etiqueta
+                      </button>
+                    </div>
+                  )}
+
+                  {!qrLocation && (
+                    <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                      <QrCode className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                      <p>Escribe una ubicación para generar el código</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* --- CONTENIDO PESTAÑA: AGENTES / USUARIOS --- */}
+          {activeTab === "agents" && (
+            <section className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-800">
+                  Gestión de Usuarios (Técnicos y Admins)
+                </h2>
+                <button
+                  onClick={() => {
+                    resetUserForm();
+                    setShowAgentModal(true);
+                  }}
+                  className="bg-sena-blue hover:bg-blue-900 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition"
+                >
+                  <UserPlus className="w-4 h-4" /> Nuevo Usuario
+                </button>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="p-4 text-xs font-bold text-gray-500 uppercase">
+                        Nombre
+                      </th>
+                      <th className="p-4 text-xs font-bold text-gray-500 uppercase">
+                        Usuario
+                      </th>
+                      <th className="p-4 text-xs font-bold text-gray-500 uppercase">
+                        Rol
+                      </th>
+                      <th className="p-4 text-xs font-bold text-gray-500 uppercase">
+                        Área
+                      </th>
+                      <th className="p-4 text-xs font-bold text-gray-500 uppercase text-right">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {agents.map((agent) => (
+                      <tr key={agent.id} className="hover:bg-gray-50">
+                        <td className="p-4 font-medium text-gray-800">
+                          {agent.full_name}
+                        </td>
+                        <td className="p-4 text-gray-600">{agent.username}</td>
+                        <td className="p-4">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-bold uppercase ${
+                              agent.role === "admin"
+                                ? "bg-purple-100 text-purple-700"
+                                : "bg-blue-100 text-blue-700"
+                            }`}
+                          >
+                            {agent.role === "admin" ? "Super Admin" : "Técnico"}
+                          </span>
+                        </td>
+                        <td className="p-4 text-gray-500">
+                          {agent.area || "-"}
+                        </td>
+                        <td className="p-4 text-right flex justify-end gap-2">
+                          <button
+                            onClick={() => handleEditUser(agent)}
+                            className="text-gray-400 hover:text-sena-blue p-1"
+                            title="Editar Usuario"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(agent.id)}
+                            className="text-gray-400 hover:text-red-500 p-1"
+                            title="Eliminar Usuario"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {/* --- CONTENIDO PESTAÑA: ACTIVOS --- */}
+          {activeTab === "assets" && (
+            <section className="animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800">
+                  Inventario Tecnológico
+                </h2>
+                <button
+                  onClick={() => setShowAssetModal(true)}
+                  className="bg-sena-green hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow transition"
+                >
+                  <Plus className="w-4 h-4" /> Agregar Equipo
+                </button>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="p-4 text-xs font-bold text-gray-500 uppercase">
+                        Serial
+                      </th>
+                      <th className="p-4 text-xs font-bold text-gray-500 uppercase">
+                        Tipo / Modelo
+                      </th>
+                      <th className="p-4 text-xs font-bold text-gray-500 uppercase">
+                        Asignado A
+                      </th>
+                      <th className="p-4 text-xs font-bold text-gray-500 uppercase text-right">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {loading ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="p-8 text-center text-gray-400"
+                        >
+                          Cargando inventario...
+                        </td>
+                      </tr>
+                    ) : (
+                      assets.map((asset) => (
+                        <tr key={asset.id} className="hover:bg-gray-50">
+                          <td className="p-4 font-mono text-sm font-bold text-sena-blue">
+                            {asset.serial_number}
+                          </td>
+                          <td className="p-4 text-sm text-gray-600">
+                            {asset.type} - {asset.brand} {asset.model}
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 font-bold">
+                                {asset.users?.full_name.charAt(0)}
+                              </div>
+                              <span className="text-sm font-medium">
+                                {asset.users?.full_name || "Sin Asignar"}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-4 text-right">
+                            <button className="text-gray-400 hover:text-red-500 p-2">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                    {assets.length === 0 && !loading && (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="p-8 text-center text-gray-500"
+                        >
+                          No hay equipos registrados.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </main>
+
+        {/* --- MODAL 1: CREAR/EDITAR USUARIO --- */}
+        {showAgentModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-in fade-in">
+            <div className="bg-white w-full max-w-md rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
+              <h3 className="font-bold text-xl mb-4 text-gray-800">
+                {newAgent.isEditing ? "Editar Usuario" : "Nuevo Usuario"}
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                    Nombre Completo
+                  </label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg p-2"
+                    value={newAgent.fullName}
+                    onChange={(e) =>
+                      setNewAgent({ ...newAgent, fullName: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                      Usuario
+                    </label>
+                    <input
+                      className="w-full border border-gray-300 rounded-lg p-2"
+                      value={newAgent.username}
+                      onChange={(e) =>
+                        setNewAgent({ ...newAgent, username: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                      Rol
+                    </label>
+                    <select
+                      className="w-full border border-gray-300 rounded-lg p-2"
+                      value={newAgent.role}
+                      onChange={(e) =>
+                        setNewAgent({ ...newAgent, role: e.target.value })
+                      }
+                    >
+                      <option value="agent">Técnico</option>
+                      <option value="admin">Super Admin</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                    Contraseña
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text" // Visible para facilitar gestión
+                      className="w-full border border-gray-300 rounded-lg p-2 pl-8 font-mono text-sm"
+                      value={newAgent.password}
+                      onChange={(e) =>
+                        setNewAgent({ ...newAgent, password: e.target.value })
+                      }
+                      placeholder="Asignar clave..."
+                    />
+                    <Key className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                    Área
+                  </label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg p-2"
+                    value={newAgent.area}
+                    onChange={(e) =>
+                      setNewAgent({ ...newAgent, area: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setShowAgentModal(false)}
+                    className="flex-1 text-gray-500 hover:bg-gray-100 py-2 rounded-lg font-bold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleCreateOrUpdateUser}
+                    className="flex-1 bg-sena-blue hover:bg-blue-900 text-white py-2 rounded-lg font-bold"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- MODAL 2: CREAR ACTIVO (INVENTARIO) --- */}
+        {showAssetModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-in fade-in">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+              <div className="bg-sena-green p-4 flex justify-between items-center text-white">
+                <h3 className="font-bold flex gap-2">
+                  <Monitor className="w-5 h-5" /> Nuevo Equipo
+                </h3>
+                <button
+                  onClick={() => setShowAssetModal(false)}
+                  className="hover:text-gray-200 font-bold text-xl"
+                >
+                  &times;
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">
+                    Datos del Equipo
+                  </label>
+                  <div className="grid grid-cols-2 gap-3 mt-1">
+                    <select
+                      className="border p-3 rounded-lg w-full"
+                      value={newAsset.type}
+                      onChange={(e) =>
+                        setNewAsset({ ...newAsset, type: e.target.value })
+                      }
+                    >
+                      <option>Portátil</option>
+                      <option>Escritorio</option>
+                      <option>Monitor</option>
+                      <option>Periférico</option>
+                    </select>
+                    <input
+                      type="text"
+                      className="border p-3 rounded-lg w-full"
+                      placeholder="Marca (HP, Dell)"
+                      value={newAsset.brand}
+                      onChange={(e) =>
+                        setNewAsset({ ...newAsset, brand: e.target.value })
+                      }
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    className="border p-3 rounded-lg w-full mt-3"
+                    placeholder="Modelo (Ej: ProBook 450 G9)"
+                    value={newAsset.model}
+                    onChange={(e) =>
+                      setNewAsset({ ...newAsset, model: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    className="border p-3 rounded-lg w-full mt-3 font-mono"
+                    placeholder="SERIAL (S/N)"
+                    value={newAsset.serial}
+                    onChange={(e) =>
+                      setNewAsset({ ...newAsset, serial: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase">
+                    Asignar A:
+                  </label>
+                  <select
+                    className="border p-3 rounded-lg w-full mt-1"
+                    value={newAsset.userId}
+                    onChange={(e) =>
+                      setNewAsset({ ...newAsset, userId: e.target.value })
+                    }
+                  >
+                    <option value="">-- Seleccionar Funcionario --</option>
+                    {usersList.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setShowAssetModal(false)}
+                    className="flex-1 py-3 text-gray-600 font-bold bg-gray-100 rounded-lg"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleCreateAsset}
+                    className="flex-1 py-3 bg-sena-green text-white font-bold rounded-lg hover:bg-green-700"
+                  >
+                    Guardar en Inventario
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </AuthGuard>
+  );
+}
