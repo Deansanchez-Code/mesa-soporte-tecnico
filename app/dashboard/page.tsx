@@ -20,6 +20,7 @@ import {
   BarChart2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import TicketDetailsModal from "@/components/TicketDetailsModal";
 
 // --- DEFINICIÓN DE TIPOS (Incluyendo campos SLA) ---
 interface Ticket {
@@ -63,6 +64,7 @@ export default function AgentDashboard() {
   const [selectedAssetSerial, setSelectedAssetSerial] = useState<string | null>(
     null
   );
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showMetricsModal, setShowMetricsModal] = useState(false);
   const [currentUser, setCurrentUser] = useState<{
     id: string;
@@ -94,7 +96,8 @@ export default function AgentDashboard() {
           `
         *,
         users:users!tickets_user_id_fkey ( full_name, area ),
-        assigned_agent:users!tickets_assigned_agent_id_fkey ( full_name )
+        assigned_agent:users!tickets_assigned_agent_id_fkey ( full_name ),
+        assets ( model, type, serial_number )
       `
         )
         .order("created_at", { ascending: false });
@@ -454,6 +457,22 @@ export default function AgentDashboard() {
     document.body.removeChild(link);
   };
 
+  // --- 6. HELPER FECHAS ---
+  const getTimeAgo = (dateString?: string) => {
+    if (!dateString) return "Reciente";
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return "Hace un momento";
+    if (diffMins < 60) return `Hace ${diffMins} min`;
+    if (diffHours < 24) return `Hace ${diffHours} h`;
+    return `Hace ${diffDays} días`;
+  };
+
   return (
     <AuthGuard allowedRoles={["agent", "admin"]}>
       <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -462,6 +481,14 @@ export default function AgentDashboard() {
           <AssetHistoryModal
             serialNumber={selectedAssetSerial}
             onClose={() => setSelectedAssetSerial(null)}
+          />
+        )}
+
+        {/* MODAL DE DETALLES DEL TICKET (TRAZABILIDAD) */}
+        {selectedTicket && (
+          <TicketDetailsModal
+            ticket={selectedTicket}
+            onClose={() => setSelectedTicket(null)}
           />
         )}
 
@@ -543,6 +570,47 @@ export default function AgentDashboard() {
                 >
                   <BarChart2 className="w-4 h-4" /> Descargar Reporte
                 </button>
+              </div>
+
+              {/* TOP EQUIPOS CON FALLAS */}
+              <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+                <h4 className="font-bold text-gray-700 text-sm mb-3 flex items-center gap-2">
+                  <Monitor className="w-4 h-4 text-orange-500" />
+                  Equipos con más fallas
+                </h4>
+                <div className="space-y-2">
+                  {Object.entries(
+                    tickets.reduce((acc, ticket) => {
+                      if (!ticket.assets) return acc;
+                      const key = `${ticket.assets.type} ${ticket.assets.model} (${ticket.assets.serial_number})`;
+                      acc[key] = (acc[key] || 0) + 1;
+                      return acc;
+                    }, {} as Record<string, number>)
+                  )
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 5)
+                    .map(([name, count], index) => (
+                      <div
+                        key={index}
+                        className="flex justify-between items-center text-xs border-b border-gray-50 pb-2 last:border-0"
+                      >
+                        <span
+                          className="text-gray-600 truncate max-w-[200px]"
+                          title={name}
+                        >
+                          {index + 1}. {name}
+                        </span>
+                        <span className="font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+                          {count} fallas
+                        </span>
+                      </div>
+                    ))}
+                  {tickets.filter((t) => t.assets).length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-2">
+                      No hay datos de equipos aún.
+                    </p>
+                  )}
+                </div>
               </div>
 
               <p className="text-xs text-center text-gray-400">
@@ -655,13 +723,26 @@ export default function AgentDashboard() {
                 {waitingTickets.map((ticket) => (
                   <div
                     key={ticket.id}
-                    className="bg-white p-4 rounded-lg border border-purple-100 shadow-sm opacity-90 hover:opacity-100 transition hover:shadow-md"
+                    className="bg-white p-4 rounded-lg border border-purple-100 shadow-sm opacity-90 hover:opacity-100 transition hover:shadow-md cursor-pointer"
+                    onClick={(e) => {
+                      // Evitar abrir modal si se hace clic en botones
+                      if ((e.target as HTMLElement).closest("button")) return;
+                      setSelectedTicket(ticket);
+                    }}
                   >
                     <div className="flex justify-between mb-3">
                       <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-1 rounded uppercase tracking-wider">
                         #{ticket.id} • PAUSADO
                       </span>
-                      <Clock className="w-4 h-4 text-purple-300" />
+                      <div
+                        className="flex items-center gap-1 text-[10px] text-gray-400"
+                        title={`Actualizado: ${new Date(
+                          ticket.updated_at || ticket.created_at
+                        ).toLocaleString()}`}
+                      >
+                        <Clock className="w-3 h-3" />
+                        {getTimeAgo(ticket.updated_at || ticket.created_at)}
+                      </div>
                     </div>
 
                     <p className="font-bold text-gray-800 text-sm mb-1">
@@ -694,7 +775,8 @@ export default function AgentDashboard() {
 
                 {waitingTickets.length === 0 && (
                   <p className="text-sm text-purple-400 italic py-4 col-span-full text-center">
-                    No hay equipos congelados actualmente. ¡Buen trabajo! 🧊
+                    No hay equipos para repuestos ni garantias... ¡Buen trabajo!
+                    👌👍
                   </p>
                 )}
               </div>
@@ -732,12 +814,24 @@ export default function AgentDashboard() {
                     draggable
                     onDragStart={(e) => handleDragStart(e, ticket.id)}
                     className="bg-white p-4 rounded-xl shadow-md border border-gray-200 border-l-4 border-l-red-500 hover:shadow-lg transition-all duration-200 group animate-in fade-in slide-in-from-bottom-2 cursor-grab active:cursor-grabbing"
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest("button")) return;
+                      setSelectedTicket(ticket);
+                    }}
                   >
                     <div className="flex justify-between items-start mb-2">
                       <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded border border-red-100">
                         #{ticket.id} • {ticket.category}
                       </span>
-                      <Clock className="w-4 h-4 text-gray-300 group-hover:text-red-400 transition-colors" />
+                      <div
+                        className="flex items-center gap-1 text-[10px] text-gray-400"
+                        title={`Actualizado: ${new Date(
+                          ticket.updated_at || ticket.created_at
+                        ).toLocaleString()}`}
+                      >
+                        <Clock className="w-3 h-3" />
+                        {getTimeAgo(ticket.updated_at || ticket.created_at)}
+                      </div>
                     </div>
                     <h3 className="font-bold text-gray-800 text-base mb-1">
                       {ticket.users?.full_name || "Usuario desconocido"}
@@ -802,6 +896,15 @@ export default function AgentDashboard() {
                     draggable
                     onDragStart={(e) => handleDragStart(e, ticket.id)}
                     className="bg-white p-4 rounded-xl shadow-md border border-gray-200 border-l-4 border-l-blue-500 hover:shadow-lg transition-all duration-200 animate-in fade-in slide-in-from-left-2 cursor-grab active:cursor-grabbing"
+                    onClick={(e) => {
+                      if (
+                        (e.target as HTMLElement).closest("button") ||
+                        (e.target as HTMLElement).closest("select") ||
+                        (e.target as HTMLElement).closest("textarea")
+                      )
+                        return;
+                      setSelectedTicket(ticket);
+                    }}
                   >
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex flex-col gap-1">
@@ -836,7 +939,15 @@ export default function AgentDashboard() {
                           <option value="OTROS">OTROS</option>
                         </select>
                       </div>
-                      <PlayCircle className="w-4 h-4 text-blue-400 animate-pulse" />
+                      <div
+                        className="flex items-center gap-1 text-[10px] text-gray-400"
+                        title={`Actualizado: ${new Date(
+                          ticket.updated_at || ticket.created_at
+                        ).toLocaleString()}`}
+                      >
+                        <Clock className="w-3 h-3" />
+                        {getTimeAgo(ticket.updated_at || ticket.created_at)}
+                      </div>
                     </div>
 
                     <h3 className="font-bold text-gray-800 mb-1">
@@ -965,13 +1076,25 @@ export default function AgentDashboard() {
                   {resolvedTickets.map((ticket) => (
                     <div
                       key={ticket.id}
-                      className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-l-green-500 opacity-75 hover:opacity-100 transition-all duration-200 hover:shadow-sm"
+                      className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-l-green-500 opacity-75 hover:opacity-100 transition-all duration-200 hover:shadow-sm cursor-pointer"
+                      onClick={(e) => {
+                        if ((e.target as HTMLElement).closest("button")) return;
+                        setSelectedTicket(ticket);
+                      }}
                     >
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-100">
                           #{ticket.id} • Resuelto
                         </span>
-                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        <div
+                          className="flex items-center gap-1 text-[10px] text-gray-400"
+                          title={`Actualizado: ${new Date(
+                            ticket.updated_at || ticket.created_at
+                          ).toLocaleString()}`}
+                        >
+                          <Clock className="w-3 h-3" />
+                          {getTimeAgo(ticket.updated_at || ticket.created_at)}
+                        </div>
                       </div>
                       <h3 className="font-bold text-gray-800 text-sm decoration-2">
                         {ticket.users?.full_name}
