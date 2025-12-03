@@ -34,6 +34,7 @@ import {
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import QRCode from "react-qr-code";
+import * as XLSX from "xlsx";
 import AssetHistoryModal from "@/components/AssetHistoryModal";
 import AssetHistoryTimeline from "@/components/AssetHistoryTimeline";
 import AssetActionModal from "@/components/AssetActionModal";
@@ -63,6 +64,7 @@ interface Agent {
   perm_create_assets: boolean;
   perm_transfer_assets: boolean;
   perm_decommission_assets: boolean;
+  is_vip: boolean;
 }
 
 interface ConfigItem {
@@ -104,11 +106,18 @@ interface UserSimple {
   full_name: string;
 }
 
+interface StaffUploadRow {
+  "Nombre Completo": string;
+  Usuario: string;
+  Ubicación: string;
+  VIP?: string;
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   // Estados Generales
   const [activeTab, setActiveTab] = useState<
-    "agents" | "assets" | "metrics" | "qr" | "settings" | "tickets"
+    "agents" | "assets" | "metrics" | "qr" | "settings" | "tickets" | "staff"
   >("agents");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -180,6 +189,7 @@ export default function AdminDashboard() {
     perm_create_assets: false,
     perm_transfer_assets: false,
     perm_decommission_assets: false,
+    is_vip: false,
     isEditing: false,
   });
   const [newAsset, setNewAsset] = useState({
@@ -218,11 +228,11 @@ export default function AdminDashboard() {
       .order("created_at", { ascending: false });
     if (assetsData) setAssets(assetsData as unknown as Asset[]);
 
-    // C. Cargar Lista de Usuarios (Para asignar equipos)
+    // C. Cargar Lista de Usuarios (Para asignar equipos y gestión de funcionarios)
     const { data: allUsers } = await supabase
       .from("users")
-      .select("id, full_name")
-      .eq("is_active", true);
+      .select("*")
+      .order("full_name");
     if (allUsers) setUsersList(allUsers);
 
     // D. Cargar Configuración (Áreas y Categorías)
@@ -392,6 +402,7 @@ export default function AdminDashboard() {
             perm_create_assets: newAgent.perm_create_assets,
             perm_transfer_assets: newAgent.perm_transfer_assets,
             perm_decommission_assets: newAgent.perm_decommission_assets,
+            is_vip: newAgent.is_vip,
           })
           .eq("id", newAgent.id);
         if (error) throw error;
@@ -408,6 +419,7 @@ export default function AdminDashboard() {
           perm_create_assets: newAgent.perm_create_assets,
           perm_transfer_assets: newAgent.perm_transfer_assets,
           perm_decommission_assets: newAgent.perm_decommission_assets,
+          is_vip: newAgent.is_vip,
         });
         if (error) throw error;
         alert("✅ Usuario creado");
@@ -419,6 +431,84 @@ export default function AdminDashboard() {
     } catch {
       alert("Error al guardar. Verifica si el usuario ya existe.");
     }
+  };
+
+  // --- CARGUE MASIVO DE FUNCIONARIOS ---
+  const handleBulkStaffUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const row of data as StaffUploadRow[]) {
+          // Mapeo de columnas
+          const fullName = row["Nombre Completo"];
+          const username = row["Usuario"];
+          const location = row["Ubicación"];
+          const isVip = row["VIP"]?.toString().toUpperCase() === "SI";
+
+          if (!fullName || !username || !location) {
+            errorCount++;
+            continue;
+          }
+
+          const { error } = await supabase.from("users").insert({
+            full_name: fullName,
+            username: username.toLowerCase(),
+            role: "user",
+            area: location,
+            password: "Sena2024*",
+            is_vip: isVip,
+            is_active: true,
+            perm_create_assets: false,
+            perm_transfer_assets: false,
+            perm_decommission_assets: false,
+          });
+
+          if (error) {
+            console.error("Error importando usuario:", username, error);
+            errorCount++;
+          } else {
+            successCount++;
+          }
+        }
+
+        alert(
+          `Carga finalizada.\n✅ Exitosos: ${successCount}\n❌ Fallidos: ${errorCount}`
+        );
+        fetchData();
+      } catch (error) {
+        console.error("Error procesando archivo:", error);
+        alert("Error al procesar el archivo Excel.");
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleDownloadStaffTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        "Nombre Completo": "Juan Perez",
+        Usuario: "jperez",
+        Ubicación: "Coordinación Académica",
+        VIP: "NO",
+      },
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
+    XLSX.writeFile(wb, "plantilla_funcionarios.xlsx");
   };
 
   const handleEditUser = (user: Agent) => {
@@ -434,6 +524,7 @@ export default function AdminDashboard() {
       perm_create_assets: user.perm_create_assets,
       perm_transfer_assets: user.perm_transfer_assets,
       perm_decommission_assets: user.perm_decommission_assets,
+      is_vip: user.is_vip,
       isEditing: true,
     });
     setShowAgentModal(true);
@@ -451,6 +542,7 @@ export default function AdminDashboard() {
       perm_create_assets: false,
       perm_transfer_assets: false,
       perm_decommission_assets: false,
+      is_vip: false,
       isEditing: false,
     });
   };
@@ -856,7 +948,6 @@ export default function AdminDashboard() {
           {/* --- PESTAÑAS DE NAVEGACIÓN --- */}
           <div className="flex gap-4 border-b border-gray-300">
             <button
-              onClick={() => setActiveTab("agents")}
               className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
                 activeTab === "agents"
                   ? "border-b-4 border-sena-blue text-sena-blue"
@@ -864,6 +955,16 @@ export default function AdminDashboard() {
               }`}
             >
               <Users className="w-4 h-4" /> Personal de Mesa
+            </button>
+            <button
+              onClick={() => setActiveTab("staff")}
+              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
+                activeTab === "staff"
+                  ? "border-b-4 border-sena-blue text-sena-blue"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Users className="w-4 h-4" /> Funcionarios
             </button>
             <button
               onClick={() => setActiveTab("metrics")}
@@ -1054,13 +1155,20 @@ export default function AdminDashboard() {
                     <label className="block text-sm font-bold text-gray-700 mb-2">
                       Nombre de la Ubicación / Sala
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={qrLocation}
                       onChange={(e) => setQrLocation(e.target.value)}
-                      placeholder="Ej: Sala de Juntas - Bloque A"
                       className="w-full border-2 border-gray-200 p-4 rounded-xl text-lg focus:border-sena-blue focus:ring-4 focus:ring-blue-50 transition-all outline-none"
-                    />
+                    >
+                      <option value="" disabled>
+                        Seleccionar Ubicación...
+                      </option>
+                      {configData.areas.map((area) => (
+                        <option key={area.id} value={area.name}>
+                          {area.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {qrLocation && (
@@ -1319,6 +1427,134 @@ export default function AdminDashboard() {
                 </table>
               </div>
             </section>
+          )}
+
+          {/* --- CONTENIDO PESTAÑA: FUNCIONARIOS --- */}
+          {activeTab === "staff" && (
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row justify-between gap-4">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      resetUserForm();
+                      setNewAgent({ ...newAgent, role: "user" });
+                      setShowAgentModal(true);
+                    }}
+                    className="flex items-center gap-2 bg-sena-green text-white px-4 py-2 rounded-lg hover:bg-green-700 transition shadow-sm font-bold"
+                  >
+                    <UserPlus className="w-4 h-4" /> Nuevo Funcionario
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition cursor-pointer font-medium">
+                      <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                      Carga Masiva
+                      <input
+                        type="file"
+                        accept=".xlsx, .xls"
+                        className="hidden"
+                        onChange={handleBulkStaffUpload}
+                      />
+                    </label>
+                    <button
+                      onClick={handleDownloadStaffTemplate}
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      Descargar Plantilla
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar funcionario..."
+                    className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-green focus:border-transparent w-full md:w-64"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-6 py-3 font-semibold text-gray-600">
+                          Nombre
+                        </th>
+                        <th className="px-6 py-3 font-semibold text-gray-600">
+                          Usuario
+                        </th>
+                        <th className="px-6 py-3 font-semibold text-gray-600">
+                          Ubicación
+                        </th>
+                        <th className="px-6 py-3 font-semibold text-gray-600">
+                          VIP
+                        </th>
+                        <th className="px-6 py-3 font-semibold text-gray-600 text-right">
+                          Acciones
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {agents
+                        .filter((u) => {
+                          return (
+                            u.role === "user" &&
+                            (u.full_name
+                              .toLowerCase()
+                              .includes(searchTerm.toLowerCase()) ||
+                              u.username
+                                .toLowerCase()
+                                .includes(searchTerm.toLowerCase()))
+                          );
+                        })
+                        .map((user) => (
+                          <tr key={user.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-3 font-medium text-gray-900">
+                              {user.full_name}
+                            </td>
+                            <td className="px-6 py-3 text-gray-600">
+                              {user.username}
+                            </td>
+                            <td className="px-6 py-3 text-gray-600">
+                              {user.area || "N/A"}
+                            </td>
+                            <td className="px-6 py-3">
+                              {user.is_vip ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                  VIP
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-3 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleEditUser(user)}
+                                  className="p-1 hover:bg-gray-100 rounded text-blue-600 transition"
+                                  title="Editar"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteUser(user.id)}
+                                  className="p-1 hover:bg-gray-100 rounded text-red-600 transition"
+                                  title="Eliminar"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* --- CONTENIDO PESTAÑA: ACTIVOS --- */}
@@ -1621,7 +1857,8 @@ export default function AdminDashboard() {
                         setNewAgent({ ...newAgent, role: e.target.value })
                       }
                     >
-                      <option value="agent">Técnico</option>
+                      <option value="user">Usuario (Planta)</option>
+                      <option value="agent">Técnico de Mesa</option>
                       <option value="admin">Super Admin</option>
                     </select>
                   </div>
@@ -1654,6 +1891,9 @@ export default function AdminDashboard() {
                     }
                     className="w-full border border-gray-300 rounded-lg p-2"
                   >
+                    <option value="" disabled>
+                      Seleccionar Área...
+                    </option>
                     {configData.areas.map((area) => (
                       <option key={area.id} value={area.name}>
                         {area.name}
@@ -1681,6 +1921,23 @@ export default function AdminDashboard() {
                     />
                     <span className="text-sm font-medium text-gray-700">
                       Usuario Activo (Puede iniciar sesión)
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newAgent.is_vip}
+                      onChange={(e) =>
+                        setNewAgent({
+                          ...newAgent,
+                          is_vip: e.target.checked,
+                        })
+                      }
+                      className="w-4 h-4 text-sena-orange rounded focus:ring-sena-orange"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Usuario VIP (Prioridad en Reservas)
                     </span>
                   </label>
 
