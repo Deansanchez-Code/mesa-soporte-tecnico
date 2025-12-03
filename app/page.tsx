@@ -39,6 +39,11 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const locationParam = searchParams.get("location");
 
+  // Estado para controlar el ancho del contenedor según la vista interna del formulario
+  const [requestView, setRequestView] = useState<
+    "SELECTION" | "TICKET" | "RESERVATION"
+  >("SELECTION");
+
   // --- LOGIN CORPORATIVO ---
   const handleCorporateLogin = async () => {
     if (!username) return;
@@ -124,7 +129,15 @@ function HomeContent() {
       <div className="fixed top-0 left-0 w-full h-2 bg-sena-green"></div>
 
       {/* TARJETA PRINCIPAL */}
-      <div className="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden border-t-4 border-sena-green transition-all duration-300">
+      <div
+        className={`bg-white w-full rounded-xl shadow-2xl overflow-hidden border-t-4 border-sena-green transition-all duration-300 ${
+          viewState === "request"
+            ? requestView === "SELECTION"
+              ? "max-w-md"
+              : "max-w-5xl"
+            : "max-w-md"
+        }`}
+      >
         {/* HEADER (Solo visible si no estamos en el formulario de solicitud) */}
         {viewState !== "request" && (
           <div className="p-8 text-center space-y-4">
@@ -200,7 +213,7 @@ function HomeContent() {
                 onClick={() => setViewState("contractor")}
                 className="w-full bg-white border-2 border-sena-orange text-sena-orange hover:bg-orange-50 font-bold py-3 rounded-lg transition text-sm cursor-pointer"
               >
-                SOY CONTRATISTA / EXTERNO
+                SOY CONTRATISTA
               </button>
             </>
           )}
@@ -251,7 +264,7 @@ function HomeContent() {
                         : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
                     }`}
                   >
-                    Contratista
+                    Funcionario
                   </button>
                   <button
                     onClick={() => setContractorArea("Instructor")}
@@ -305,8 +318,10 @@ function HomeContent() {
                   // Reset contractor form
                   setContractorName("");
                   setContractorEmail("");
+                  setRequestView("SELECTION"); // Reset view state
                 }}
                 initialLocation={locationParam || undefined}
+                onViewChange={setRequestView}
               />
             </div>
           )}
