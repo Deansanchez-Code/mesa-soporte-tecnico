@@ -22,7 +22,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className="bg-gray-50 text-gray-900 antialiased">{children}</body>
+      <body className="bg-gray-50 text-gray-900 antialiased flex flex-col min-h-screen">
+        <main className="flex-1 flex flex-col">{children}</main>
+        <footer className="py-6 text-center text-xs text-gray-400 font-medium">
+          <p>
+            Desarrollado por{" "}
+            <span className="font-bold text-gray-500">DashDev.co</span> - Todos
+            los derechos reservados
+          </p>
+        </footer>
+      </body>
     </html>
   );
 }

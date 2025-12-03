@@ -1,8 +1,15 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
-import { User, ArrowRight, Loader2, Lock } from "lucide-react"; // Agregamos Lock
+import {
+  User,
+  ArrowRight,
+  Loader2,
+  Lock,
+  Monitor,
+  Calendar,
+} from "lucide-react"; // Agregamos Lock, Monitor, Calendar
 import UserRequestForm from "@/components/UserRequestForm";
 import Link from "next/link"; // Importante para la navegación
 import { useSearchParams } from "next/navigation";
@@ -43,6 +50,56 @@ function HomeContent() {
   const [requestView, setRequestView] = useState<
     "SELECTION" | "TICKET" | "RESERVATION"
   >("SELECTION");
+
+  // Sincronización con URL para soporte de botón "Atrás"
+  useEffect(() => {
+    // Función para manejar cambios en la URL (popstate)
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const view = params.get("view");
+      const step = params.get("step");
+
+      if (view === "request") {
+        setViewState("request");
+        if (step === "TICKET") setRequestView("TICKET");
+        else if (step === "RESERVATION") setRequestView("RESERVATION");
+        else setRequestView("SELECTION");
+      } else if (view === "contractor") {
+        setViewState("contractor");
+      } else {
+        setViewState("login");
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Actualizar URL cuando cambia el estado
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const currentView = params.get("view");
+    const currentStep = params.get("step");
+
+    let newUrl = "";
+
+    if (viewState === "login") {
+      if (currentView !== null) newUrl = "/";
+    } else if (viewState === "contractor") {
+      if (currentView !== "contractor") newUrl = "/?view=contractor";
+    } else if (viewState === "request") {
+      if (requestView === "SELECTION") {
+        if (currentView !== "request" || currentStep) newUrl = "/?view=request";
+      } else {
+        if (currentStep !== requestView)
+          newUrl = `/?view=request&step=${requestView}`;
+      }
+    }
+
+    if (newUrl) {
+      window.history.pushState(null, "", newUrl);
+    }
+  }, [viewState, requestView]);
 
   // --- LOGIN CORPORATIVO ---
   const handleCorporateLogin = async () => {
@@ -124,7 +181,7 @@ function HomeContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+    <div className="flex-1 w-full flex flex-col items-center justify-center p-4">
       {/* CINTILLO SUPERIOR */}
       <div className="fixed top-0 left-0 w-full h-2 bg-sena-green"></div>
 
@@ -134,7 +191,7 @@ function HomeContent() {
           viewState === "request"
             ? requestView === "SELECTION"
               ? "max-w-md"
-              : "max-w-5xl"
+              : "max-w-3xl"
             : "max-w-md"
         }`}
       >
@@ -145,13 +202,41 @@ function HomeContent() {
               <User className="text-white w-12 h-12" />
             </div>
 
-            <h1 className="text-2xl font-bold text-sena-blue">
-              Soporte TIC <span className="text-sena-green">En Sitio</span>
-            </h1>
+            <div className="space-y-1">
+              <h1 className="text-2xl font-bold text-sena-blue">
+                Mesa de Ayuda <span className="text-sena-green">TIC</span>
+              </h1>
+              <p className="text-sena-orange font-semibold text-sm">
+                Centro Agroempresarial y Desarrollo Pecuario del Huila
+              </p>
+            </div>
 
             <p className="text-gray-500 text-sm">
               Gestión de Incidentes y Requerimientos
             </p>
+          </div>
+        )}
+
+        {/* HEADER DINÁMICO (Visible en todos los formularios internos) */}
+        {viewState === "request" && userData && (
+          <div className="bg-sena-green p-6 flex items-center gap-4 text-white animate-in slide-in-from-top duration-300">
+            <div className="bg-white/20 p-3 rounded-lg backdrop-blur-sm border border-white/30">
+              {requestView === "TICKET" ? (
+                <Monitor className="w-8 h-8 text-white" />
+              ) : requestView === "RESERVATION" ? (
+                <Calendar className="w-8 h-8 text-white" />
+              ) : (
+                <User className="w-8 h-8 text-white" />
+              )}
+            </div>
+            <div>
+              <h2 className="text-xl font-bold leading-none text-white">
+                Mesa de Ayuda <span className="text-sena-blue">TIC</span>
+              </h2>
+              <p className="text-sm text-gray-100 mt-1 font-medium uppercase tracking-wide">
+                {userData.full_name}
+              </p>
+            </div>
           </div>
         )}
 
@@ -322,6 +407,7 @@ function HomeContent() {
                 }}
                 initialLocation={locationParam || undefined}
                 onViewChange={setRequestView}
+                currentView={requestView}
               />
             </div>
           )}

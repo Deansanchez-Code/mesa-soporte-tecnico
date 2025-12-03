@@ -28,11 +28,15 @@ import {
   MapPin,
   LayoutDashboard,
   FileText,
+  ArrowRight,
+  ShieldAlert,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import QRCode from "react-qr-code";
 import AssetHistoryModal from "@/components/AssetHistoryModal";
+import AssetHistoryTimeline from "@/components/AssetHistoryTimeline";
+import AssetActionModal from "@/components/AssetActionModal";
 import {
   PieChart,
   Pie,
@@ -55,6 +59,16 @@ interface Agent {
   role: string;
   area?: string;
   created_at: string;
+  is_active: boolean;
+  perm_create_assets: boolean;
+  perm_transfer_assets: boolean;
+  perm_decommission_assets: boolean;
+}
+
+interface ConfigItem {
+  id: number;
+  name: string;
+  created_at?: string;
 }
 
 interface Asset {
@@ -128,8 +142,8 @@ export default function AdminDashboard() {
 
   // Estado para Configuración
   const [configData, setConfigData] = useState<{
-    areas: any[];
-    categories: any[];
+    areas: ConfigItem[];
+    categories: ConfigItem[];
   }>({ areas: [], categories: [] });
   const [newConfigItem, setNewConfigItem] = useState("");
 
@@ -137,8 +151,22 @@ export default function AdminDashboard() {
   const [qrLocation, setQrLocation] = useState("");
 
   // Estados Modales
+
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showAssetModal, setShowAssetModal] = useState(false);
+
+  // Estados para Acciones de Activos
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [selectedAssetForAction, setSelectedAssetForAction] =
+    useState<Asset | null>(null);
+  const [actionType, setActionType] = useState<"TRANSFER" | "DECOMMISSION">(
+    "TRANSFER"
+  );
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    full_name: string;
+  } | null>(null);
 
   // Forms
   const [newAgent, setNewAgent] = useState({
@@ -148,6 +176,10 @@ export default function AdminDashboard() {
     password: "",
     role: "agent",
     area: "Mesa de Ayuda",
+    is_active: true,
+    perm_create_assets: false,
+    perm_transfer_assets: false,
+    perm_decommission_assets: false,
     isEditing: false,
   });
   const [newAsset, setNewAsset] = useState({
@@ -168,6 +200,7 @@ export default function AdminDashboard() {
     if (userStr) {
       const user = JSON.parse(userStr);
       setCurrentAdminName(user.full_name || "Super Admin");
+      setCurrentUser(user);
     }
 
     // A. Cargar Agentes
@@ -188,7 +221,8 @@ export default function AdminDashboard() {
     // C. Cargar Lista de Usuarios (Para asignar equipos)
     const { data: allUsers } = await supabase
       .from("users")
-      .select("id, full_name");
+      .select("id, full_name")
+      .eq("is_active", true);
     if (allUsers) setUsersList(allUsers);
 
     // D. Cargar Configuración (Áreas y Categorías)
@@ -354,6 +388,10 @@ export default function AdminDashboard() {
             role: newAgent.role,
             area: newAgent.area,
             password: newAgent.password,
+            is_active: newAgent.is_active,
+            perm_create_assets: newAgent.perm_create_assets,
+            perm_transfer_assets: newAgent.perm_transfer_assets,
+            perm_decommission_assets: newAgent.perm_decommission_assets,
           })
           .eq("id", newAgent.id);
         if (error) throw error;
@@ -366,6 +404,10 @@ export default function AdminDashboard() {
           role: newAgent.role,
           area: newAgent.area,
           password: newAgent.password,
+          is_active: newAgent.is_active,
+          perm_create_assets: newAgent.perm_create_assets,
+          perm_transfer_assets: newAgent.perm_transfer_assets,
+          perm_decommission_assets: newAgent.perm_decommission_assets,
         });
         if (error) throw error;
         alert("✅ Usuario creado");
@@ -388,6 +430,10 @@ export default function AdminDashboard() {
       password: (user as any).password || "",
       role: user.role,
       area: user.area || "",
+      is_active: user.is_active,
+      perm_create_assets: user.perm_create_assets,
+      perm_transfer_assets: user.perm_transfer_assets,
+      perm_decommission_assets: user.perm_decommission_assets,
       isEditing: true,
     });
     setShowAgentModal(true);
@@ -401,6 +447,10 @@ export default function AdminDashboard() {
       password: "",
       role: "agent",
       area: "Mesa de Ayuda",
+      is_active: true,
+      perm_create_assets: false,
+      perm_transfer_assets: false,
+      perm_decommission_assets: false,
       isEditing: false,
     });
   };
@@ -646,10 +696,46 @@ export default function AdminDashboard() {
     <AuthGuard allowedRoles={["admin"]}>
       <div className="min-h-screen bg-gray-100 font-sans">
         {/* MODAL HISTORIAL DE ACTIVO */}
+        {/* MODAL HISTORIAL DE ACTIVO (TICKETS) */}
         {selectedAssetSerial && (
           <AssetHistoryModal
             serialNumber={selectedAssetSerial}
             onClose={() => setSelectedAssetSerial(null)}
+          />
+        )}
+
+        {/* MODAL TRAZABILIDAD (LOGS) */}
+        {showTimelineModal && selectedAssetForAction && (
+          <AssetHistoryTimeline
+            assetId={selectedAssetForAction.id.toString()}
+            serialNumber={selectedAssetForAction.serial_number}
+            onClose={() => {
+              setShowTimelineModal(false);
+              setSelectedAssetForAction(null);
+            }}
+          />
+        )}
+
+        {/* MODAL ACCIONES (TRASLADO/BAJA) */}
+        {showActionModal && selectedAssetForAction && currentUser && (
+          <AssetActionModal
+            asset={{
+              id: selectedAssetForAction.id,
+              serial_number: selectedAssetForAction.serial_number,
+              model: selectedAssetForAction.model,
+              assigned_to_user_id: selectedAssetForAction.assigned_to_user_id,
+            }}
+            action={actionType}
+            currentUserId={currentUser.id}
+            onClose={() => {
+              setShowActionModal(false);
+              setSelectedAssetForAction(null);
+            }}
+            onSuccess={() => {
+              setShowActionModal(false);
+              setSelectedAssetForAction(null);
+              fetchData();
+            }}
           />
         )}
 
@@ -1346,10 +1432,49 @@ export default function AdminDashboard() {
                           <td className="p-4 text-sm text-gray-600">
                             {asset.location || "Sin ubicación"}
                           </td>
-                          <td className="p-4 text-right">
-                            <button className="text-gray-400 hover:text-red-500 transition">
-                              <Trash2 className="w-4 h-4" />
+                          <td className="p-4 text-right flex justify-end gap-2">
+                            {/* HISTORIAL */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedAssetForAction(asset);
+                                setShowTimelineModal(true);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-sena-blue hover:bg-blue-50 rounded transition"
+                              title="Ver Trazabilidad"
+                            >
+                              <Activity className="w-4 h-4" />
                             </button>
+
+                            {/* TRASLADO */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedAssetForAction(asset);
+                                setActionType("TRANSFER");
+                                setShowActionModal(true);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
+                              title="Trasladar Activo"
+                            >
+                              <ArrowRight className="w-4 h-4" />
+                            </button>
+
+                            {/* DAR DE BAJA (Solo si no está ya dado de baja) */}
+                            {asset.users?.full_name !== "Equipos de Baja" && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedAssetForAction(asset);
+                                  setActionType("DECOMMISSION");
+                                  setShowActionModal(true);
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition"
+                                title="Dar de Baja"
+                              >
+                                <ShieldAlert className="w-4 h-4" />
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1393,7 +1518,7 @@ export default function AdminDashboard() {
                   </button>
                 </div>
                 <ul className="space-y-2">
-                  {configData.areas.map((area: any) => (
+                  {configData.areas.map((area) => (
                     <li
                       key={area.id}
                       className="flex justify-between items-center bg-gray-50 p-2 rounded"
@@ -1432,7 +1557,7 @@ export default function AdminDashboard() {
                   </button>
                 </div>
                 <ul className="space-y-2">
-                  {configData.categories.map((cat: any) => (
+                  {configData.categories.map((cat) => (
                     <li
                       key={cat.id}
                       className="flex justify-between items-center bg-gray-50 p-2 rounded"
@@ -1522,13 +1647,97 @@ export default function AdminDashboard() {
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                     Área
                   </label>
-                  <input
-                    className="w-full border border-gray-300 rounded-lg p-2"
+                  <select
                     value={newAgent.area}
                     onChange={(e) =>
                       setNewAgent({ ...newAgent, area: e.target.value })
                     }
-                  />
+                    className="w-full border border-gray-300 rounded-lg p-2"
+                  >
+                    {configData.areas.map((area) => (
+                      <option key={area.id} value={area.name}>
+                        {area.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* PERMISOS Y ESTADO */}
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-2">
+                  <p className="text-xs font-bold text-gray-500 uppercase mb-2">
+                    Permisos y Estado
+                  </p>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newAgent.is_active}
+                      onChange={(e) =>
+                        setNewAgent({
+                          ...newAgent,
+                          is_active: e.target.checked,
+                        })
+                      }
+                      className="w-4 h-4 text-sena-green rounded focus:ring-sena-green"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Usuario Activo (Puede iniciar sesión)
+                    </span>
+                  </label>
+
+                  {newAgent.role === "agent" && (
+                    <>
+                      <div className="h-px bg-gray-200 my-2"></div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newAgent.perm_create_assets}
+                          onChange={(e) =>
+                            setNewAgent({
+                              ...newAgent,
+                              perm_create_assets: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-600">
+                          Permitir <strong>Crear Activos</strong>
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newAgent.perm_transfer_assets}
+                          onChange={(e) =>
+                            setNewAgent({
+                              ...newAgent,
+                              perm_transfer_assets: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-600">
+                          Permitir <strong>Trasladar Activos</strong>
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newAgent.perm_decommission_assets}
+                          onChange={(e) =>
+                            setNewAgent({
+                              ...newAgent,
+                              perm_decommission_assets: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                        />
+                        <span className="text-sm text-gray-600">
+                          Permitir <strong>Dar de Baja</strong> (Requiere
+                          soporte)
+                        </span>
+                      </label>
+                    </>
+                  )}
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button
