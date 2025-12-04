@@ -101,11 +101,6 @@ interface Stats {
   totalAssets: number;
 }
 
-interface UserSimple {
-  id: string;
-  full_name: string;
-}
-
 interface StaffUploadRow {
   "Nombre Completo": string;
   Usuario: string;
@@ -138,7 +133,7 @@ export default function AdminDashboard() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]); // Lista completa de tickets
-  const [usersList, setUsersList] = useState<UserSimple[]>([]); // Para el select de asignar
+  const [usersList, setUsersList] = useState<Agent[]>([]); // Para el select de asignar
 
   // Estado para métricas
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -384,7 +379,14 @@ export default function AdminDashboard() {
 
   // --- 2. LOGICA AGENTES / USUARIOS ---
   const handleCreateOrUpdateUser = async () => {
-    if (!newAgent.fullName || !newAgent.username || !newAgent.password)
+    let passwordToSave = newAgent.password;
+
+    // Si es usuario de planta y no puso clave, asignar por defecto
+    if (newAgent.role === "user" && !passwordToSave) {
+      passwordToSave = "Sena2024*";
+    }
+
+    if (!newAgent.fullName || !newAgent.username || !passwordToSave)
       return alert("Faltan datos obligatorios (Nombre, Usuario, Contraseña)");
 
     try {
@@ -397,7 +399,7 @@ export default function AdminDashboard() {
             username: newAgent.username.toLowerCase(),
             role: newAgent.role,
             area: newAgent.area,
-            password: newAgent.password,
+            password: passwordToSave,
             is_active: newAgent.is_active,
             perm_create_assets: newAgent.perm_create_assets,
             perm_transfer_assets: newAgent.perm_transfer_assets,
@@ -414,7 +416,7 @@ export default function AdminDashboard() {
           username: newAgent.username.toLowerCase(),
           role: newAgent.role,
           area: newAgent.area,
-          password: newAgent.password,
+          password: passwordToSave,
           is_active: newAgent.is_active,
           perm_create_assets: newAgent.perm_create_assets,
           perm_transfer_assets: newAgent.perm_transfer_assets,
@@ -1498,7 +1500,7 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {agents
+                      {usersList
                         .filter((u) => {
                           return (
                             u.role === "user" &&
@@ -1867,18 +1869,24 @@ export default function AdminDashboard() {
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                     Contraseña
                   </label>
-                  <div className="relative">
-                    <input
-                      type="text" // Visible para facilitar gestión
-                      className="w-full border border-gray-300 rounded-lg p-2 pl-8 font-mono text-sm"
-                      value={newAgent.password}
-                      onChange={(e) =>
-                        setNewAgent({ ...newAgent, password: e.target.value })
-                      }
-                      placeholder="Asignar clave..."
-                    />
-                    <Key className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" />
-                  </div>
+                  {newAgent.role === "user" ? (
+                    <div className="p-2 bg-gray-100 text-gray-500 rounded-lg text-sm italic border border-gray-200">
+                      No requiere contraseña (se asignará una por defecto)
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <input
+                        type="text" // Visible para facilitar gestión
+                        className="w-full border border-gray-300 rounded-lg p-2 pl-8 font-mono text-sm"
+                        value={newAgent.password}
+                        onChange={(e) =>
+                          setNewAgent({ ...newAgent, password: e.target.value })
+                        }
+                        placeholder="Asignar clave..."
+                      />
+                      <Key className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" />
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
