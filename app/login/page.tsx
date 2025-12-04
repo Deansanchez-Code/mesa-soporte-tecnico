@@ -25,37 +25,50 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // 1. Buscar usuario
-      const { data: user, error: dbError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("username", formData.username.toLowerCase().trim())
-        .single();
+      // ESTRATEGIA EMAIL INVISIBLE:
+      // El usuario ingresa "jperez", nosotros enviamos "jperez@sistema.local"
+      const syntheticEmail = `${formData.username
+        .trim()
+        .toLowerCase()}@sistema.local`;
 
-      if (dbError || !user) {
+      const { data, error: authError } = await supabase.auth.signInWithPassword(
+        {
+          email: syntheticEmail,
+          password: formData.password,
+        }
+      );
+
+      if (authError) {
+        console.error("Login error:", authError);
         throw new Error("Credenciales inválidas");
       }
 
-      // 2. Validar contraseña (Comparación simple para MVP)
-      // En producción esto debería usar bcrypt o Supabase Auth
-      if (user.password !== formData.password) {
-        throw new Error("Contraseña incorrecta");
-      }
+      const user = data.user;
+      if (!user) throw new Error("Error de sesión");
 
-      // 3. Validar Rol
-      if (user.role !== "agent" && user.role !== "admin") {
-        throw new Error("No tienes permisos de acceso administrativo.");
-      }
+      // 4. Guardar sesión (localStorage simple para compatibilidad con código legacy)
+      // Aunque Supabase ya maneja la sesión, mantenemos esto por ahora para no romper AuthGuard viejo
+      // Idealmente, AuthGuard debería migrarse a usar supabase.auth.getSession()
 
-      // 4. Guardar sesión (localStorage simple para MVP)
-      // Esto servirá para nuestro Middleware básico después
-      safeSetItem("tic_user", JSON.stringify(user));
+      // Buscamos el rol en la tabla pública (ya que auth.users no tiene rol por defecto a menos que usemos custom claims)
+      const { data: publicUser } = await supabase
+        .from("users")
+        .select("*")
+        .eq("auth_id", user.id)
+        .single();
 
-      // 5. Redirigir según rol
-      if (user.role === "admin") {
-        router.push("/admin");
+      if (publicUser) {
+        safeSetItem("tic_user", JSON.stringify(publicUser));
+
+        // 5. Redirigir según rol
+        if (publicUser.role === "admin") {
+          router.push("/admin");
+        } else {
+          router.push("/dashboard");
+        }
       } else {
-        router.push("/dashboard");
+        // Fallback si no se ha migrado la tabla pública aún
+        throw new Error("Usuario no sincronizado. Contacte soporte.");
       }
     } catch (err: unknown) {
       const errorMessage =

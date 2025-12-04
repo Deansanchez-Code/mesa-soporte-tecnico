@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { safeGetItem } from "@/lib/storage";
+import { safeGetItem, safeRemoveItem } from "@/lib/storage";
+import { supabase } from "@/lib/supabase";
 import { Loader2, ShieldAlert } from "lucide-react";
 
 interface AuthGuardProps {
@@ -19,10 +20,28 @@ export default function AuthGuard({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = () => {
+    const checkAuth = async () => {
+      // 1. Verificar sesión real de Supabase
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        // Si no hay sesión, borrar rastro local y redirigir
+        safeRemoveItem("tic_user");
+        router.push("/login");
+        return;
+      }
+
+      // 2. Verificar datos locales (Rol)
+      // Idealmente, deberíamos traer el rol desde la DB usando session.user.id
+      // Pero por ahora confiamos en localStorage para evitar latencia,
+      // asumiendo que RLS bloqueará peticiones si el rol es falso.
       const userStr = safeGetItem("tic_user");
 
       if (!userStr) {
+        // Sesión válida pero sin datos locales -> Forzar relogin para sincronizar
+        await supabase.auth.signOut();
         router.push("/login");
         return;
       }
@@ -30,7 +49,7 @@ export default function AuthGuard({
       try {
         const user = JSON.parse(userStr);
 
-        // 1. Verificar si el usuario tiene un rol permitido
+        // 3. Verificar si el usuario tiene un rol permitido
         if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
           // Si es admin intentando entrar a dashboard de agente, o viceversa
           if (user.role === "admin") router.push("/admin");
@@ -43,6 +62,8 @@ export default function AuthGuard({
         setAuthorized(true);
       } catch (e) {
         console.error("Error parseando usuario:", e);
+        safeRemoveItem("tic_user");
+        await supabase.auth.signOut();
         router.push("/login");
       } finally {
         setLoading(false);

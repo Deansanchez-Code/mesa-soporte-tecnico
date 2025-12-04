@@ -18,7 +18,7 @@ interface Ticket {
   description?: string;
   created_at: string;
   updated_at?: string;
-  solution?: string;
+  solution?: string | null;
   users: {
     full_name: string;
     area: string;

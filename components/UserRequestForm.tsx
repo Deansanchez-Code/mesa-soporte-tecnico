@@ -71,10 +71,10 @@ export default function UserRequestForm({
 
   // Notificar al padre cuando cambia la vista (navegación interna)
   useEffect(() => {
-    if (onViewChange) {
+    if (onViewChange && view !== currentView) {
       onViewChange(view);
     }
-  }, [view, onViewChange]);
+  }, [view, onViewChange, currentView]);
 
   // Estados del Formulario Ticket
   const [category, setCategory] = useState<"HARDWARE" | "SOFTWARE" | null>(

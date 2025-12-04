@@ -8,7 +8,6 @@ import {
   Shield,
   Users,
   Activity,
-  UserPlus,
   BarChart3,
   Trash2,
   Monitor,
@@ -17,10 +16,7 @@ import {
   Download,
   PieChart as PieChartIcon,
   QrCode,
-  Printer,
   LogOut,
-  Edit,
-  Key,
   Settings,
   FileSpreadsheet,
   Search,
@@ -33,8 +29,17 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import QRCode from "react-qr-code";
-import * as XLSX from "xlsx";
+import QRGenerator from "@/components/admin/QRGenerator";
+import AgentsTab from "@/components/admin/AgentsTab";
+import StaffTab from "@/components/admin/StaffTab";
+import {
+  Agent,
+  User,
+  ConfigItem,
+  Asset,
+  Ticket,
+  Stats,
+} from "@/app/admin/types";
 import AssetHistoryModal from "@/components/AssetHistoryModal";
 import AssetHistoryTimeline from "@/components/AssetHistoryTimeline";
 import AssetActionModal from "@/components/AssetActionModal";
@@ -53,60 +58,6 @@ import {
 } from "recharts";
 
 // --- TIPOS DE DATOS ---
-interface Agent {
-  id: string;
-  full_name: string;
-  username: string;
-  role: string;
-  area?: string;
-  created_at: string;
-  is_active: boolean;
-  perm_create_assets: boolean;
-  perm_transfer_assets: boolean;
-  perm_decommission_assets: boolean;
-  is_vip: boolean;
-}
-
-interface ConfigItem {
-  id: number;
-  name: string;
-  created_at?: string;
-}
-
-interface Asset {
-  id: number;
-  serial_number: string;
-  type: string;
-  brand: string;
-  model: string;
-  assigned_to_user_id: string;
-  location?: string; // Nueva columna
-  users?: { full_name: string }; // Join para saber de quién es
-}
-
-interface Ticket {
-  id: number;
-  created_at: string;
-  status: string;
-  category: string;
-  location: string;
-  description: string;
-  users: { full_name: string } | null;
-  assigned_agent?: { full_name: string } | null;
-}
-
-interface Stats {
-  totalTickets: number;
-  pendingTickets: number;
-  totalAssets: number;
-}
-
-interface StaffUploadRow {
-  "Nombre Completo": string;
-  Usuario: string;
-  Ubicación: string;
-  VIP?: string;
-}
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -116,6 +67,7 @@ export default function AdminDashboard() {
   >("agents");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [mounted, setMounted] = useState(false); // Fix Recharts hydration error
   const [searchTerm, setSearchTerm] = useState(""); // Buscador general
   const [selectedAssetSerial, setSelectedAssetSerial] = useState<string | null>(
     null
@@ -133,7 +85,7 @@ export default function AdminDashboard() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]); // Lista completa de tickets
-  const [usersList, setUsersList] = useState<Agent[]>([]); // Para el select de asignar
+  const [usersList, setUsersList] = useState<User[]>([]); // Para el select de asignar
 
   // Estado para métricas
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -151,12 +103,7 @@ export default function AdminDashboard() {
   }>({ areas: [], categories: [] });
   const [newConfigItem, setNewConfigItem] = useState("");
 
-  // Estado para QR
-  const [qrLocation, setQrLocation] = useState("");
-
   // Estados Modales
-
-  const [showAgentModal, setShowAgentModal] = useState(false);
   const [showAssetModal, setShowAssetModal] = useState(false);
 
   // Estados para Acciones de Activos
@@ -172,21 +119,6 @@ export default function AdminDashboard() {
     full_name: string;
   } | null>(null);
 
-  // Forms
-  const [newAgent, setNewAgent] = useState({
-    id: "", // Para edición
-    fullName: "",
-    username: "",
-    password: "",
-    role: "agent",
-    area: "Mesa de Ayuda",
-    is_active: true,
-    perm_create_assets: false,
-    perm_transfer_assets: false,
-    perm_decommission_assets: false,
-    is_vip: false,
-    isEditing: false,
-  });
   const [newAsset, setNewAsset] = useState({
     serial: "",
     type: "Portátil",
@@ -208,57 +140,64 @@ export default function AdminDashboard() {
       setCurrentUser(user);
     }
 
-    // A. Cargar Agentes
-    const { data: agentsData } = await supabase
-      .from("users")
-      .select("*")
-      .in("role", ["agent", "admin"])
-      .order("created_at", { ascending: false });
+    // A. Cargar Todo en Paralelo
+    const [
+      { data: agentsData },
+      { data: assetsData },
+      { data: allUsers },
+      { data: areasData },
+      { data: catsData },
+      { data: allTickets, count: ticketCount },
+      { count: pendingCount },
+    ] = await Promise.all([
+      // 1. Agentes
+      supabase
+        .from("users")
+        .select(
+          "id, full_name, username, role, area, created_at, is_active, perm_create_assets, perm_transfer_assets, perm_decommission_assets, is_vip"
+        )
+        .in("role", ["agent", "admin"])
+        .order("created_at", { ascending: false }),
+      // 2. Activos
+      supabase
+        .from("assets")
+        .select(
+          "id, serial_number, type, brand, model, assigned_to_user_id, location, created_at, users(full_name)"
+        )
+        .order("created_at", { ascending: false }),
+      // 3. Usuarios
+      supabase
+        .from("users")
+        .select("id, full_name, username, role, area, is_vip, is_active")
+        .order("full_name"),
+      // 4. Areas
+      supabase.from("areas").select("id, name").order("name"),
+      // 5. Categorias
+      supabase.from("categories").select("id, name").order("name"),
+      // 6. Tickets
+      supabase
+        .from("tickets")
+        .select(
+          "*, users:users!tickets_user_id_fkey(full_name), assigned_agent:users!tickets_assigned_agent_id_fkey(full_name)",
+          { count: "exact" }
+        )
+        .order("created_at", { ascending: false }),
+      // 7. Conteo Pendientes
+      supabase
+        .from("tickets")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "PENDIENTE"),
+    ]);
+
+    // B. Setear Estados
     if (agentsData) setAgents(agentsData as Agent[]);
-
-    // B. Cargar Activos (con dueño)
-    const { data: assetsData } = await supabase
-      .from("assets")
-      .select("*, users(full_name)")
-      .order("created_at", { ascending: false });
     if (assetsData) setAssets(assetsData as unknown as Asset[]);
-
-    // C. Cargar Lista de Usuarios (Para asignar equipos y gestión de funcionarios)
-    const { data: allUsers } = await supabase
-      .from("users")
-      .select("*")
-      .order("full_name");
     if (allUsers) setUsersList(allUsers);
-
-    // D. Cargar Configuración (Áreas y Categorías)
-    const { data: areasData } = await supabase
-      .from("areas")
-      .select("*")
-      .order("name");
-    const { data: catsData } = await supabase
-      .from("categories")
-      .select("*")
-      .order("name");
     setConfigData({
       areas: areasData || [],
       categories: catsData || [],
     });
-
-    // E. Estadísticas Rápidas y Datos para Gráficos
-    const { data: allTickets, count: ticketCount } = await supabase
-      .from("tickets")
-      .select(
-        "*, users:users!tickets_user_id_fkey(full_name), assigned_agent:users!tickets_assigned_agent_id_fkey(full_name)",
-        { count: "exact" }
-      )
-      .order("created_at", { ascending: false });
-
     if (allTickets) setTickets(allTickets as unknown as Ticket[]);
-
-    const { count: pendingCount } = await supabase
-      .from("tickets")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "PENDIENTE");
 
     setStats({
       totalTickets: ticketCount || 0,
@@ -374,206 +313,13 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
+    setMounted(true);
     fetchData();
   }, []);
 
   // --- 2. LOGICA AGENTES / USUARIOS ---
-  const handleCreateOrUpdateUser = async () => {
-    let passwordToSave = newAgent.password;
-
-    // Si es usuario de planta y no puso clave, asignar por defecto
-    if (newAgent.role === "user" && !passwordToSave) {
-      passwordToSave = "Sena2024*";
-    }
-
-    if (!newAgent.fullName || !newAgent.username || !passwordToSave)
-      return alert("Faltan datos obligatorios (Nombre, Usuario, Contraseña)");
-
-    try {
-      if (newAgent.isEditing) {
-        // ACTUALIZAR
-        const { error } = await supabase
-          .from("users")
-          .update({
-            full_name: newAgent.fullName,
-            username: newAgent.username.toLowerCase(),
-            role: newAgent.role,
-            area: newAgent.area,
-            password: passwordToSave,
-            is_active: newAgent.is_active,
-            perm_create_assets: newAgent.perm_create_assets,
-            perm_transfer_assets: newAgent.perm_transfer_assets,
-            perm_decommission_assets: newAgent.perm_decommission_assets,
-            is_vip: newAgent.is_vip,
-          })
-          .eq("id", newAgent.id);
-        if (error) throw error;
-        alert("✅ Usuario actualizado");
-      } else {
-        // CREAR
-        const { error } = await supabase.from("users").insert({
-          full_name: newAgent.fullName,
-          username: newAgent.username.toLowerCase(),
-          role: newAgent.role,
-          area: newAgent.area,
-          password: passwordToSave,
-          is_active: newAgent.is_active,
-          perm_create_assets: newAgent.perm_create_assets,
-          perm_transfer_assets: newAgent.perm_transfer_assets,
-          perm_decommission_assets: newAgent.perm_decommission_assets,
-          is_vip: newAgent.is_vip,
-        });
-        if (error) throw error;
-        alert("✅ Usuario creado");
-      }
-
-      setShowAgentModal(false);
-      resetUserForm();
-      fetchData();
-    } catch {
-      alert("Error al guardar. Verifica si el usuario ya existe.");
-    }
-  };
 
   // --- CARGUE MASIVO DE FUNCIONARIOS ---
-  const handleBulkStaffUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: "binary" });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws);
-
-        let successCount = 0;
-        let errorCount = 0;
-
-        for (const row of data as StaffUploadRow[]) {
-          // Mapeo de columnas
-          const fullName = row["Nombre Completo"];
-          const username = row["Usuario"];
-          const location = row["Ubicación"];
-          const isVip = row["VIP"]?.toString().toUpperCase() === "SI";
-
-          if (!fullName || !username || !location) {
-            errorCount++;
-            continue;
-          }
-
-          const { error } = await supabase.from("users").insert({
-            full_name: fullName,
-            username: username.toLowerCase(),
-            role: "user",
-            area: location,
-            password: "Sena2024*",
-            is_vip: isVip,
-            is_active: true,
-            perm_create_assets: false,
-            perm_transfer_assets: false,
-            perm_decommission_assets: false,
-          });
-
-          if (error) {
-            console.error("Error importando usuario:", username, error);
-            errorCount++;
-          } else {
-            successCount++;
-          }
-        }
-
-        alert(
-          `Carga finalizada.\n✅ Exitosos: ${successCount}\n❌ Fallidos: ${errorCount}`
-        );
-        fetchData();
-      } catch (error) {
-        console.error("Error procesando archivo:", error);
-        alert("Error al procesar el archivo Excel.");
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
-
-  const handleDownloadStaffTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
-      {
-        "Nombre Completo": "Juan Perez",
-        Usuario: "jperez",
-        Ubicación: "Coordinación Académica",
-        VIP: "NO",
-      },
-    ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
-    XLSX.writeFile(wb, "plantilla_funcionarios.xlsx");
-  };
-
-  const handleEditUser = (user: Agent) => {
-    setNewAgent({
-      id: user.id,
-      fullName: user.full_name,
-      username: user.username,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      password: (user as any).password || "",
-      role: user.role,
-      area: user.area || "",
-      is_active: user.is_active,
-      perm_create_assets: user.perm_create_assets,
-      perm_transfer_assets: user.perm_transfer_assets,
-      perm_decommission_assets: user.perm_decommission_assets,
-      is_vip: user.is_vip,
-      isEditing: true,
-    });
-    setShowAgentModal(true);
-  };
-
-  const resetUserForm = () => {
-    setNewAgent({
-      id: "",
-      fullName: "",
-      username: "",
-      password: "",
-      role: "agent",
-      area: "Mesa de Ayuda",
-      is_active: true,
-      perm_create_assets: false,
-      perm_transfer_assets: false,
-      perm_decommission_assets: false,
-      is_vip: false,
-      isEditing: false,
-    });
-  };
-
-  const handleDeleteUser = async (id: string) => {
-    if (!confirm("¿Seguro que deseas eliminar este usuario?")) return;
-
-    try {
-      const { error } = await supabase.from("users").delete().eq("id", id);
-
-      if (error) {
-        if (error.code === "23503") {
-          alert(
-            "❌ No se puede eliminar este usuario porque tiene tickets o activos asignados.\n\nPor favor, reasigna sus responsabilidades antes de eliminarlo."
-          );
-        } else {
-          throw error;
-        }
-      } else {
-        alert("✅ Usuario eliminado correctamente");
-        fetchData();
-      }
-    } catch (error) {
-      console.error("Error deleting user:", error);
-      alert(
-        "Error al eliminar el usuario. Consulta la consola para más detalles."
-      );
-    }
-  };
 
   const handleLogout = () => {
     safeRemoveItem("tic_user");
@@ -950,6 +696,7 @@ export default function AdminDashboard() {
           {/* --- PESTAÑAS DE NAVEGACIÓN --- */}
           <div className="flex gap-4 border-b border-gray-300">
             <button
+              onClick={() => setActiveTab("agents")}
               className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
                 activeTab === "agents"
                   ? "border-b-4 border-sena-blue text-sena-blue"
@@ -1031,34 +778,45 @@ export default function AdminDashboard() {
                     Distribución de Casos
                   </h3>
                   <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={metricsData.statusData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={80}
-                          paddingAngle={5}
-                          dataKey="value"
-                        >
-                          {metricsData.statusData.map(
-                            (
-                              entry: {
-                                name: string;
-                                value: number;
-                                color: string;
-                              },
-                              index: number
-                            ) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            )
-                          )}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {mounted &&
+                    metricsData.statusData &&
+                    metricsData.statusData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={metricsData.statusData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {metricsData.statusData.map(
+                              (
+                                entry: {
+                                  name: string;
+                                  value: number;
+                                  color: string;
+                                },
+                                index: number
+                              ) => (
+                                <Cell
+                                  key={`cell-${index}`}
+                                  fill={entry.color}
+                                />
+                              )
+                            )}
+                          </Pie>
+                          <Tooltip />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+                        No hay datos disponibles
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1068,23 +826,34 @@ export default function AdminDashboard() {
                     <Activity className="w-5 h-5 text-sena-green" /> Top Agentes
                     (Tickets)
                   </h3>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={metricsData.agentData} layout="vertical">
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          horizontal={false}
-                        />
-                        <XAxis type="number" />
-                        <YAxis dataKey="name" type="category" width={80} />
-                        <Tooltip />
-                        <Bar
-                          dataKey="tickets"
-                          fill="#39A900"
-                          radius={[0, 4, 4, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
+                  <div className="h-64 w-full">
+                    {mounted &&
+                    metricsData.agentData &&
+                    metricsData.agentData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={metricsData.agentData}
+                          layout="vertical"
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            horizontal={false}
+                          />
+                          <XAxis type="number" />
+                          <YAxis dataKey="name" type="category" width={80} />
+                          <Tooltip />
+                          <Bar
+                            dataKey="tickets"
+                            fill="#39A900"
+                            radius={[0, 4, 4, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+                        No hay datos disponibles
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1094,20 +863,31 @@ export default function AdminDashboard() {
                     <BarChart3 className="w-5 h-5 text-purple-500" />{" "}
                     Solicitudes por Mes
                   </h3>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={metricsData.monthlyData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar
-                          dataKey="tickets"
-                          fill="#00324D"
-                          radius={[4, 4, 0, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
+                  <div className="h-64 w-full">
+                    {mounted &&
+                    metricsData.monthlyData &&
+                    metricsData.monthlyData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={metricsData.monthlyData}>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            vertical={false}
+                          />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip />
+                          <Bar
+                            dataKey="tickets"
+                            fill="#00324D"
+                            radius={[4, 4, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+                        No hay datos disponibles
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1117,209 +897,33 @@ export default function AdminDashboard() {
                     <Clock className="w-5 h-5 text-orange-500" /> Tiempo
                     Promedio de Resolución (Horas)
                   </h3>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={metricsData.slaData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip formatter={(value) => `${value} horas`} />
-                        <Bar
-                          dataKey="hours"
-                          fill="#F97316"
-                          radius={[4, 4, 0, 0]}
-                          name="Horas Promedio"
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* --- CONTENIDO PESTAÑA: CÓDIGOS QR --- */}
-          {activeTab === "qr" && (
-            <section className="animate-in fade-in slide-in-from-right-4 duration-300">
-              <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 max-w-2xl mx-auto">
-                <div className="text-center mb-8">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                    Generador de Etiquetas QR
-                  </h2>
-                  <p className="text-gray-500">
-                    Crea códigos QR para pegar en las salas. Al escanearlos, los
-                    usuarios reportarán fallas con la ubicación ya configurada.
-                  </p>
-                </div>
-
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Nombre de la Ubicación / Sala
-                    </label>
-                    <select
-                      value={qrLocation}
-                      onChange={(e) => setQrLocation(e.target.value)}
-                      className="w-full border-2 border-gray-200 p-4 rounded-xl text-lg focus:border-sena-blue focus:ring-4 focus:ring-blue-50 transition-all outline-none"
-                    >
-                      <option value="" disabled>
-                        Seleccionar Ubicación...
-                      </option>
-                      {configData.areas.map((area) => (
-                        <option key={area.id} value={area.name}>
-                          {area.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {qrLocation && (
-                    <div
-                      id="printable-qr-label"
-                      className="bg-gray-50 p-8 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center animate-in zoom-in duration-300"
-                    >
-                      <style jsx global>{`
-                        @media print {
-                          @page {
-                            margin: 0;
-                            size: auto;
-                          }
-                          body * {
-                            visibility: hidden;
-                          }
-                          #printable-qr-label,
-                          #printable-qr-label * {
-                            visibility: visible;
-                          }
-                          #printable-qr-label {
-                            position: fixed;
-                            left: 0;
-                            top: 0;
-                            width: 100vw;
-                            height: 100vh;
-                            display: flex;
-                            flex-direction: column;
-                            align-items: center;
-                            justify-content: center;
-                            background: white;
-                            z-index: 9999;
-                          }
-                          .qr-content-wrapper {
-                            border: 4px solid #000;
-                            border-radius: 30px;
-                            padding: 20px;
-                            display: flex;
-                            flex-direction: column;
-                            align-items: center;
-                            justify-content: center;
-                            transform: scale(1.1);
-                            width: 600px;
-                            height: 600px;
-                            box-sizing: border-box;
-                          }
-                          .print-header {
-                            display: block !important;
-                            font-size: 28px;
-                            font-weight: 900;
-                            color: #39a900 !important;
-                            text-transform: uppercase;
-                            margin-bottom: 10px;
-                            text-align: center;
-                            line-height: 1;
-                          }
-                          .print-title-main {
-                            display: block !important;
-                            font-size: 24px;
-                            font-weight: 800;
-                            color: #000;
-                            text-transform: uppercase;
-                            text-align: center;
-                            line-height: 1.2;
-                          }
-                          .print-title-sub {
-                            font-size: 20px;
-                            font-weight: 800;
-                            color: #00324d !important;
-                            text-transform: uppercase;
-                            display: block;
-                          }
-                          .print-warning {
-                            display: block !important;
-                            font-size: 14px;
-                            color: #dc2626;
-                            font-weight: bold;
-                            text-align: center;
-                            margin-top: 15px;
-                            border: 2px dashed #dc2626;
-                            padding: 12px 20px;
-                            border-radius: 12px;
-                            width: 90%;
-                          }
-                          /* Ocultar el botón de imprimir en la vista de impresión */
-                          #printable-qr-label button {
-                            display: none;
-                          }
-                        }
-                      `}</style>
-
-                      <div className="qr-content-wrapper flex flex-col items-center">
-                        <h2 className="print-header hidden">
-                          Mesa de Ayuda TIC
-                        </h2>
-                        <h1 className="hidden print-title-main mb-4 text-center">
-                          REPORTE DE FALLA MASIVA
-                          <span className="print-title-sub">
-                            CONECTIVIDAD / INTERNET
-                          </span>
-                        </h1>
-
-                        <div className="bg-white p-2 rounded-lg shadow-sm mb-2 border border-gray-100 print:border-none print:shadow-none">
-                          <QRCode
-                            value={`${
-                              typeof window !== "undefined"
-                                ? window.location.origin
-                                : ""
-                            }/?location=${encodeURIComponent(qrLocation)}`}
-                            size={220}
+                  <div className="h-64 w-full">
+                    {mounted &&
+                    metricsData.slaData &&
+                    metricsData.slaData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={metricsData.slaData}>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            vertical={false}
                           />
-                        </div>
-                        <p className="font-bold text-gray-800 text-lg mb-1 text-center print:text-xl print:mb-2 uppercase">
-                          {qrLocation}
-                        </p>
-
-                        <div className="hidden print-warning">
-                          <p className="mb-1 text-red-600 uppercase font-black">
-                            ⚠️ Uso exclusivo para fallas de internet
-                          </p>
-                          <p className="text-black font-medium text-sm leading-tight">
-                            Para su correcto funcionamiento, reporte desde
-                            <br />
-                            su celular con <strong>DATOS MÓVILES</strong>{" "}
-                            activos.
-                          </p>
-                        </div>
-
-                        <p className="text-xs text-gray-400 mb-6 text-center print:hidden">
-                          Escanea este código para reportar una falla en esta
-                          ubicación
-                        </p>
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip formatter={(value) => `${value} horas`} />
+                          <Bar
+                            dataKey="hours"
+                            fill="#F97316"
+                            radius={[4, 4, 0, 0]}
+                            name="Horas Promedio"
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+                        No hay datos disponibles
                       </div>
-
-                      <button
-                        onClick={() => window.print()}
-                        className="bg-sena-blue hover:bg-blue-800 text-white px-6 py-3 rounded-full font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
-                      >
-                        <Printer className="w-5 h-5" /> Imprimir Etiqueta
-                      </button>
-                    </div>
-                  )}
-
-                  {!qrLocation && (
-                    <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                      <QrCode className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                      <p>Escribe una ubicación para generar el código</p>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             </section>
@@ -1327,118 +931,11 @@ export default function AdminDashboard() {
 
           {/* --- CONTENIDO PESTAÑA: AGENTES / USUARIOS --- */}
           {activeTab === "agents" && (
-            <section className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800">
-                  Gestión de Usuarios (Técnicos y Admins)
-                </h2>
-                <button
-                  onClick={() => {
-                    resetUserForm();
-                    setShowAgentModal(true);
-                  }}
-                  className="bg-sena-blue hover:bg-blue-900 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition"
-                >
-                  <UserPlus className="w-4 h-4" /> Nuevo Usuario
-                </button>
-              </div>
-
-              {/* BUSCADOR AGENTES */}
-              <div className="mb-4 relative">
-                <Search className="absolute left-3 top-3 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre, usuario o área..."
-                  className="w-full pl-10 p-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-sena-blue outline-none"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="p-4 text-xs font-bold text-gray-500 uppercase">
-                        Nombre
-                      </th>
-                      <th className="p-4 text-xs font-bold text-gray-500 uppercase">
-                        Usuario
-                      </th>
-                      <th className="p-4 text-xs font-bold text-gray-500 uppercase">
-                        Rol
-                      </th>
-                      <th className="p-4 text-xs font-bold text-gray-500 uppercase">
-                        Área
-                      </th>
-                      <th className="p-4 text-xs font-bold text-gray-500 uppercase text-right">
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {agents
-                      .filter(
-                        (a) =>
-                          a.full_name
-                            .toLowerCase()
-                            .includes(searchTerm.toLowerCase()) ||
-                          a.username
-                            .toLowerCase()
-                            .includes(searchTerm.toLowerCase()) ||
-                          (a.area || "")
-                            .toLowerCase()
-                            .includes(searchTerm.toLowerCase())
-                      )
-                      .map((agent) => (
-                        <tr
-                          key={agent.id}
-                          className="hover:bg-gray-50 transition"
-                        >
-                          <td className="p-4 font-medium text-gray-800">
-                            {agent.full_name}
-                          </td>
-                          <td className="p-4 text-gray-600">
-                            {agent.username}
-                          </td>
-                          <td className="p-4">
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-bold uppercase ${
-                                agent.role === "admin"
-                                  ? "bg-purple-100 text-purple-700"
-                                  : "bg-blue-100 text-blue-700"
-                              }`}
-                            >
-                              {agent.role === "admin"
-                                ? "Super Admin"
-                                : "Técnico"}
-                            </span>
-                          </td>
-                          <td className="p-4 text-gray-500">
-                            {agent.area || "-"}
-                          </td>
-                          <td className="p-4 text-right flex justify-end gap-2">
-                            <button
-                              onClick={() => handleEditUser(agent)}
-                              className="text-gray-400 hover:text-sena-blue p-1"
-                              title="Editar Usuario"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteUser(agent.id)}
-                              className="text-gray-400 hover:text-red-500 p-1"
-                              title="Eliminar Usuario"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            <AgentsTab
+              agents={agents}
+              onRefresh={fetchData}
+              configData={configData}
+            />
           )}
 
           {/* --- CONTENIDO PESTAÑA: TICKETS --- */}
@@ -1546,130 +1043,11 @@ export default function AdminDashboard() {
 
           {/* --- CONTENIDO PESTAÑA: FUNCIONARIOS --- */}
           {activeTab === "staff" && (
-            <div className="space-y-6">
-              <div className="flex flex-col md:flex-row justify-between gap-4">
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      resetUserForm();
-                      setNewAgent({ ...newAgent, role: "user" });
-                      setShowAgentModal(true);
-                    }}
-                    className="flex items-center gap-2 bg-sena-green text-white px-4 py-2 rounded-lg hover:bg-green-700 transition shadow-sm font-bold"
-                  >
-                    <UserPlus className="w-4 h-4" /> Nuevo Funcionario
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition cursor-pointer font-medium">
-                      <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                      Carga Masiva
-                      <input
-                        type="file"
-                        accept=".xlsx, .xls"
-                        className="hidden"
-                        onChange={handleBulkStaffUpload}
-                      />
-                    </label>
-                    <button
-                      onClick={handleDownloadStaffTemplate}
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      Descargar Plantilla
-                    </button>
-                  </div>
-                </div>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar funcionario..."
-                    className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-green focus:border-transparent w-full md:w-64"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-6 py-3 font-semibold text-gray-600">
-                          Nombre
-                        </th>
-                        <th className="px-6 py-3 font-semibold text-gray-600">
-                          Usuario
-                        </th>
-                        <th className="px-6 py-3 font-semibold text-gray-600">
-                          Ubicación
-                        </th>
-                        <th className="px-6 py-3 font-semibold text-gray-600">
-                          VIP
-                        </th>
-                        <th className="px-6 py-3 font-semibold text-gray-600 text-right">
-                          Acciones
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {usersList
-                        .filter((u) => {
-                          return (
-                            u.role === "user" &&
-                            (u.full_name
-                              .toLowerCase()
-                              .includes(searchTerm.toLowerCase()) ||
-                              u.username
-                                .toLowerCase()
-                                .includes(searchTerm.toLowerCase()))
-                          );
-                        })
-                        .map((user) => (
-                          <tr key={user.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-3 font-medium text-gray-900">
-                              {user.full_name}
-                            </td>
-                            <td className="px-6 py-3 text-gray-600">
-                              {user.username}
-                            </td>
-                            <td className="px-6 py-3 text-gray-600">
-                              {user.area || "N/A"}
-                            </td>
-                            <td className="px-6 py-3">
-                              {user.is_vip ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                                  VIP
-                                </span>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-3 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <button
-                                  onClick={() => handleEditUser(user)}
-                                  className="p-1 hover:bg-gray-100 rounded text-blue-600 transition"
-                                  title="Editar"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteUser(user.id)}
-                                  className="p-1 hover:bg-gray-100 rounded text-red-600 transition"
-                                  title="Eliminar"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+            <StaffTab
+              usersList={usersList}
+              onRefresh={fetchData}
+              configData={configData}
+            />
           )}
 
           {/* --- CONTENIDO PESTAÑA: ACTIVOS --- */}
@@ -1845,6 +1223,9 @@ export default function AdminDashboard() {
             </section>
           )}
 
+          {/* --- CONTENIDO PESTAÑA: CÓDIGOS QR --- */}
+          {activeTab === "qr" && <QRGenerator areas={configData.areas} />}
+
           {/* --- CONTENIDO PESTAÑA: CONFIGURACIÓN --- */}
           {activeTab === "settings" && (
             <section className="animate-in fade-in slide-in-from-right-4 duration-300 grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -1929,212 +1310,6 @@ export default function AdminDashboard() {
         </main>
 
         {/* --- MODAL 1: CREAR/EDITAR USUARIO --- */}
-        {showAgentModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-in fade-in">
-            <div className="bg-white w-full max-w-md rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
-              <h3 className="font-bold text-xl mb-4 text-gray-800">
-                {newAgent.isEditing ? "Editar Usuario" : "Nuevo Usuario"}
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                    Nombre Completo
-                  </label>
-                  <input
-                    className="w-full border border-gray-300 rounded-lg p-2"
-                    value={newAgent.fullName}
-                    onChange={(e) =>
-                      setNewAgent({ ...newAgent, fullName: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                      Usuario
-                    </label>
-                    <input
-                      className="w-full border border-gray-300 rounded-lg p-2"
-                      value={newAgent.username}
-                      onChange={(e) =>
-                        setNewAgent({ ...newAgent, username: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                      Rol
-                    </label>
-                    <select
-                      className="w-full border border-gray-300 rounded-lg p-2"
-                      value={newAgent.role}
-                      onChange={(e) =>
-                        setNewAgent({ ...newAgent, role: e.target.value })
-                      }
-                    >
-                      <option value="user">Usuario (Planta)</option>
-                      <option value="agent">Técnico de Mesa</option>
-                      <option value="admin">Super Admin</option>
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                    Contraseña
-                  </label>
-                  {newAgent.role === "user" ? (
-                    <div className="p-2 bg-gray-100 text-gray-500 rounded-lg text-sm italic border border-gray-200">
-                      No requiere contraseña (se asignará una por defecto)
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <input
-                        type="text" // Visible para facilitar gestión
-                        className="w-full border border-gray-300 rounded-lg p-2 pl-8 font-mono text-sm"
-                        value={newAgent.password}
-                        onChange={(e) =>
-                          setNewAgent({ ...newAgent, password: e.target.value })
-                        }
-                        placeholder="Asignar clave..."
-                      />
-                      <Key className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" />
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                    Área
-                  </label>
-                  <select
-                    value={newAgent.area}
-                    onChange={(e) =>
-                      setNewAgent({ ...newAgent, area: e.target.value })
-                    }
-                    className="w-full border border-gray-300 rounded-lg p-2"
-                  >
-                    <option value="" disabled>
-                      Seleccionar Área...
-                    </option>
-                    {configData.areas.map((area) => (
-                      <option key={area.id} value={area.name}>
-                        {area.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* PERMISOS Y ESTADO */}
-                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-2">
-                  <p className="text-xs font-bold text-gray-500 uppercase mb-2">
-                    Permisos y Estado
-                  </p>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={newAgent.is_active}
-                      onChange={(e) =>
-                        setNewAgent({
-                          ...newAgent,
-                          is_active: e.target.checked,
-                        })
-                      }
-                      className="w-4 h-4 text-sena-green rounded focus:ring-sena-green"
-                    />
-                    <span className="text-sm font-medium text-gray-700">
-                      Usuario Activo (Puede iniciar sesión)
-                    </span>
-                  </label>
-
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={newAgent.is_vip}
-                      onChange={(e) =>
-                        setNewAgent({
-                          ...newAgent,
-                          is_vip: e.target.checked,
-                        })
-                      }
-                      className="w-4 h-4 text-sena-orange rounded focus:ring-sena-orange"
-                    />
-                    <span className="text-sm font-medium text-gray-700">
-                      Usuario VIP (Prioridad en Reservas)
-                    </span>
-                  </label>
-
-                  {newAgent.role === "agent" && (
-                    <>
-                      <div className="h-px bg-gray-200 my-2"></div>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={newAgent.perm_create_assets}
-                          onChange={(e) =>
-                            setNewAgent({
-                              ...newAgent,
-                              perm_create_assets: e.target.checked,
-                            })
-                          }
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-600">
-                          Permitir <strong>Crear Activos</strong>
-                        </span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={newAgent.perm_transfer_assets}
-                          onChange={(e) =>
-                            setNewAgent({
-                              ...newAgent,
-                              perm_transfer_assets: e.target.checked,
-                            })
-                          }
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-600">
-                          Permitir <strong>Trasladar Activos</strong>
-                        </span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={newAgent.perm_decommission_assets}
-                          onChange={(e) =>
-                            setNewAgent({
-                              ...newAgent,
-                              perm_decommission_assets: e.target.checked,
-                            })
-                          }
-                          className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
-                        />
-                        <span className="text-sm text-gray-600">
-                          Permitir <strong>Dar de Baja</strong> (Requiere
-                          soporte)
-                        </span>
-                      </label>
-                    </>
-                  )}
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={() => setShowAgentModal(false)}
-                    className="flex-1 text-gray-500 hover:bg-gray-100 py-2 rounded-lg font-bold"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleCreateOrUpdateUser}
-                    className="flex-1 bg-sena-blue hover:bg-blue-900 text-white py-2 rounded-lg font-bold"
-                  >
-                    Guardar
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* --- MODAL 2: CREAR ACTIVO (INVENTARIO) --- */}
         {showAssetModal && (

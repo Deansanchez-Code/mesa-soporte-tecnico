@@ -34,10 +34,11 @@ interface Ticket {
   created_at: string;
   updated_at?: string;
   user_id: string;
-  assigned_agent_id?: string; // ID del técnico asignado
+  assigned_agent_id?: string | null; // ID del técnico asignado
   // Campos específicos para el SLA
-  hold_reason?: string; // Razón de la pausa (Ej: Repuesto)
-  sla_clock_stopped_at?: string; // Hora exacta en que se detuvo el reloj
+  hold_reason?: string | null; // Razón de la pausa (Ej: Repuesto)
+  sla_clock_stopped_at?: string | null; // Hora exacta en que se detuvo el reloj
+  solution?: string | null;
   // Relaciones con otras tablas
   users: {
     full_name: string;
@@ -90,7 +91,6 @@ export default function AgentDashboard() {
 
   // --- 1. CARGA DE DATOS ---
   const fetchTickets = async () => {
-    console.log("🔄 Recargando tickets...");
     try {
       // Consultamos tickets con sus relaciones (Usuario y Activo)
       const { data, error } = await supabase
@@ -110,7 +110,6 @@ export default function AgentDashboard() {
         throw error;
       }
 
-      console.log("✅ Tickets cargados:", data?.length || 0);
       setTickets(data as Ticket[]);
 
       // Cargar Agentes para reasignación
@@ -120,7 +119,6 @@ export default function AgentDashboard() {
         .in("role", ["agent", "admin"]);
 
       if (agentsData) {
-        console.log("✅ Agentes cargados:", agentsData.length);
         setAgents(agentsData);
       }
 
@@ -166,8 +164,7 @@ export default function AgentDashboard() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tickets" },
-        (payload) => {
-          console.log("Cambio detectado:", payload);
+        (_payload) => {
           void fetchTickets(); // Recargar si algo cambia
         }
       )
@@ -213,8 +210,7 @@ export default function AgentDashboard() {
     // Determinamos el nuevo estado
     const newStatus = isHolding ? "EN_PROGRESO" : "EN_ESPERA";
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const updates: any = { status: newStatus };
+    const updates: Partial<Ticket> = { status: newStatus };
 
     if (!isHolding) {
       // >>> CONGELAR <<<
@@ -289,8 +285,7 @@ export default function AgentDashboard() {
 
   // --- 4. ACTUALIZAR ESTADO SIMPLE Y ATRIBUCIÓN ---
   const updateStatus = async (ticketId: number, newStatus: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const updates: any = { status: newStatus };
+    const updates: Partial<Ticket> = { status: newStatus };
 
     try {
       const userStr = safeGetItem("tic_user");
@@ -319,8 +314,6 @@ export default function AgentDashboard() {
     } catch (e) {
       console.warn("Error gestionando asignación de usuario:", e);
     }
-
-    console.log("Enviando actualización:", updates);
 
     // Usamos .select() para verificar si realmente se actualizó (RLS)
     const { data, error } = await supabase
