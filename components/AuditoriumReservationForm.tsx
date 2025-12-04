@@ -177,6 +177,26 @@ export default function AuditoriumReservationForm({
         ]);
 
         if (error) throw error;
+
+        // CREAR TICKET AUTOMÁTICO
+        const description = `Reserva de Auditorio: ${title}\nFecha: ${date}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
+          ", "
+        )}`;
+
+        const { error: ticketError } = await supabase.from("tickets").insert([
+          {
+            category: "Reserva Auditorio",
+            status: "PENDING",
+            location: "Auditorio",
+            description: description,
+            user_id: user.id,
+          },
+        ]);
+
+        if (ticketError) {
+          console.error("Error creando ticket de reserva:", ticketError);
+          // No lanzamos error para no bloquear la reserva, pero logueamos
+        }
       }
 
       onSuccess();
