@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { Agent, User } from "@/app/admin/types";
 
 export function useUserManagement(onRefresh: () => void) {
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [newAgent, setNewAgent] = useState({
-    id: "", // Para edición
+    id: "", // Para edición (auth_id)
     fullName: "",
     username: "",
     password: "",
@@ -46,68 +45,68 @@ export function useUserManagement(onRefresh: () => void) {
       passwordToSave = "Sena2024*";
     }
 
-    if (!newAgent.fullName || !newAgent.username || !passwordToSave)
+    if (
+      !newAgent.fullName ||
+      !newAgent.username ||
+      (!newAgent.isEditing && !passwordToSave)
+    )
       return alert("Faltan datos obligatorios (Nombre, Usuario, Contraseña)");
 
     try {
-      if (newAgent.isEditing) {
-        // ACTUALIZAR
-        const { error } = await supabase
-          .from("users")
-          .update({
-            full_name: newAgent.fullName,
-            username: newAgent.username.toLowerCase(),
-            role: newAgent.role,
-            area: newAgent.area,
-            password: passwordToSave,
-            is_active: newAgent.is_active,
-            perm_create_assets: newAgent.perm_create_assets,
-            perm_transfer_assets: newAgent.perm_transfer_assets,
-            perm_decommission_assets: newAgent.perm_decommission_assets,
-            is_vip: newAgent.is_vip,
-          })
-          .eq("id", newAgent.id);
-        if (error) throw error;
-        alert("✅ Usuario actualizado");
-      } else {
-        // CREAR
-        const { error } = await supabase.from("users").insert({
-          full_name: newAgent.fullName,
-          username: newAgent.username.toLowerCase(),
-          role: newAgent.role,
-          area: newAgent.area,
-          password: passwordToSave,
-          is_active: newAgent.is_active,
-          perm_create_assets: newAgent.perm_create_assets,
-          perm_transfer_assets: newAgent.perm_transfer_assets,
-          perm_decommission_assets: newAgent.perm_decommission_assets,
-          is_vip: newAgent.is_vip,
-        });
-        if (error) throw error;
-        alert("✅ Usuario creado");
+      const payload = {
+        id: newAgent.id, // Needed for update
+        email: `${newAgent.username}@sistema.local`, // Construct email from username
+        password: passwordToSave,
+        fullName: newAgent.fullName,
+        username: newAgent.username.toLowerCase(),
+        role: newAgent.role,
+        area: newAgent.area,
+        is_active: newAgent.is_active,
+        perm_create_assets: newAgent.perm_create_assets,
+        perm_transfer_assets: newAgent.perm_transfer_assets,
+        perm_decommission_assets: newAgent.perm_decommission_assets,
+        is_vip: newAgent.is_vip,
+      };
+
+      const method = newAgent.isEditing ? "PUT" : "POST";
+      const response = await fetch("/api/admin/users", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Error en la operación");
       }
 
+      alert(
+        newAgent.isEditing ? "✅ Usuario actualizado" : "✅ Usuario creado"
+      );
       setShowAgentModal(false);
       resetUserForm();
       onRefresh();
-    } catch {
-      alert("Error al guardar. Verifica si el usuario ya existe.");
+    } catch (error: unknown) {
+      const errMsg =
+        error instanceof Error ? error.message : "Error desconocido";
+      alert(`Error: ${errMsg}`);
     }
   };
 
   const handleEditUser = (user: Agent | User) => {
     setNewAgent({
-      id: user.id,
+      id: user.auth_id || user.id, // Prefer auth_id if available
       fullName: user.full_name,
       username: user.username,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      password: (user as any).password || "",
+
+      password: "", // Don't show existing password
       role: user.role,
       area: user.area || "",
       is_active: user.is_active,
-      perm_create_assets: (user as any).perm_create_assets || false,
-      perm_transfer_assets: (user as any).perm_transfer_assets || false,
-      perm_decommission_assets: (user as any).perm_decommission_assets || false,
+      perm_create_assets: user.perm_create_assets || false,
+      perm_transfer_assets: user.perm_transfer_assets || false,
+      perm_decommission_assets: user.perm_decommission_assets || false,
       is_vip: user.is_vip,
       isEditing: true,
     });
@@ -115,28 +114,36 @@ export function useUserManagement(onRefresh: () => void) {
   };
 
   const handleDeleteUser = async (id: string) => {
-    if (!confirm("¿Seguro que deseas eliminar este usuario?")) return;
+    // SOFT DELETE WARNING
+    if (
+      !confirm(
+        "⚠️ ¿Seguro que deseas DESACTIVAR este usuario?\n\nEl usuario no podrá ingresar más, pero sus datos históricos se conservarán por 6 años."
+      )
+    )
+      return;
 
     try {
-      const { error } = await supabase.from("users").delete().eq("id", id);
+      const response = await fetch(`/api/admin/users?id=${id}`, {
+        method: "DELETE",
+      });
 
-      if (error) {
-        if (error.code === "23503") {
-          alert(
-            "❌ No se puede eliminar este usuario porque tiene tickets o activos asignados.\n\nPor favor, reasigna sus responsabilidades antes de eliminarlo."
-          );
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.error && data.error.includes("foreign key")) {
+          alert("❌ Error: Dependencias encontradas. Contacte a soporte DB.");
         } else {
-          throw error;
+          throw new Error(data.error || "Error al eliminar");
         }
       } else {
-        alert("✅ Usuario eliminado correctamente");
+        alert("✅ Usuario desactivado correctamente (Baja Lógica)");
         onRefresh();
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error deleting user:", error);
-      alert(
-        "Error al eliminar el usuario. Consulta la consola para más detalles."
-      );
+      const errMsg =
+        error instanceof Error ? error.message : "Error desconoodo";
+      alert(`Error al desactivar: ${errMsg}`);
     }
   };
 

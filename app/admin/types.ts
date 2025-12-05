@@ -1,5 +1,6 @@
 export interface Agent {
   id: string;
+  auth_id?: string;
   full_name: string;
   username: string;
   role: string;
@@ -14,12 +15,17 @@ export interface Agent {
 
 export interface User {
   id: string;
+  auth_id?: string;
   full_name: string;
   username: string;
   role: string;
   area?: string;
   is_vip: boolean;
   is_active: boolean;
+  // Optional permissions for when treating a generic User as one with potential agent capabilities
+  perm_create_assets?: boolean;
+  perm_transfer_assets?: boolean;
+  perm_decommission_assets?: boolean;
 }
 
 export interface ConfigItem {
