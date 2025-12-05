@@ -3,10 +3,13 @@ export interface Agent {
   auth_id?: string;
   full_name: string;
   username: string;
+  email?: string;
   role: string;
   area?: string;
   created_at: string;
   is_active: boolean;
+  employment_type?: "planta" | "contratista";
+  job_category?: "instructor" | "funcionario";
   perm_create_assets: boolean;
   perm_transfer_assets: boolean;
   perm_decommission_assets: boolean;
@@ -18,10 +21,13 @@ export interface User {
   auth_id?: string;
   full_name: string;
   username: string;
+  email?: string;
   role: string;
   area?: string;
   is_vip: boolean;
   is_active: boolean;
+  employment_type?: "planta" | "contratista";
+  job_category?: "instructor" | "funcionario";
   // Optional permissions for when treating a generic User as one with potential agent capabilities
   perm_create_assets?: boolean;
   perm_transfer_assets?: boolean;

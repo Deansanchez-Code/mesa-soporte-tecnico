@@ -63,18 +63,30 @@ export default function UserRequestForm({
   );
 
   // Sincronizar con la prop currentView (para navegación del navegador)
+  // ESTO SOLO ESCUCHA CAMBIOS DESDE ARRIBA (Padre/URL)
   useEffect(() => {
     if (currentView && currentView !== view) {
       setView(currentView);
     }
   }, [currentView, view]);
 
-  // Notificar al padre cuando cambia la vista (navegación interna)
-  useEffect(() => {
-    if (onViewChange && view !== currentView) {
-      onViewChange(view);
+  // MANEJADOR UNIFICADO DE CAMBIO DE VISTA
+  // Rompe el bucle infinito al no usar un useEffect para notificar al padre
+  const handleViewChange = (
+    newView: "SELECTION" | "TICKET" | "RESERVATION"
+  ) => {
+    // 1. Notificar al padre si es controlado
+    if (onViewChange) {
+      onViewChange(newView);
     }
-  }, [view, onViewChange, currentView]);
+
+    // 2. Actualizar localmente si NO es controlado (o para feedback inmediato optimista)
+    // Nota: Si es controlado, el padre devolverá la prop y el useEffect de arriba actualizará 'view'.
+    // Pero si no hay onViewChange, debemos hacerlo nosotros.
+    if (!onViewChange) {
+      setView(newView);
+    }
+  };
 
   // Estados del Formulario Ticket
   const [category, setCategory] = useState<"HARDWARE" | "SOFTWARE" | null>(
@@ -89,6 +101,7 @@ export default function UserRequestForm({
 
   const [location, setLocation] = useState(initialLocation || user.area || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [areas, setAreas] = useState<string[]>([]);
 
   // Búsqueda inteligente de seriales
   useEffect(() => {
@@ -136,17 +149,26 @@ export default function UserRequestForm({
   const [showPanicModal, setShowPanicModal] = useState(false);
   const [activeOutage, setActiveOutage] = useState<Outage | null>(null);
 
-  // 1. Cargar activos
+  // 1. Cargar activos y areas
   useEffect(() => {
-    async function fetchAssets() {
-      const { data } = await supabase
+    async function fetchData() {
+      // Cargar Activos
+      const { data: assetsData } = await supabase
         .from("assets")
         .select("*")
         .eq("assigned_to_user_id", user.id);
 
-      if (data) setAssets(data);
+      if (assetsData) setAssets(assetsData);
+
+      // Cargar Areas
+      const { data: areasData } = await supabase
+        .from("areas")
+        .select("name")
+        .order("name");
+
+      if (areasData) setAreas(areasData.map((a) => a.name));
     }
-    fetchAssets();
+    fetchData();
   }, [user.id]);
 
   // 2. DETECTOR DE FALLAS MASIVAS ("Efecto Waze")
@@ -213,7 +235,7 @@ export default function UserRequestForm({
         <div className="flex flex-col gap-3 max-w-2xl mx-auto">
           {/* CARD 1: SERVICIO TÉCNICO */}
           <button
-            onClick={() => setView("TICKET")}
+            onClick={() => handleViewChange("TICKET")}
             className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-sena-green transition-all duration-300 flex flex-col items-center text-center gap-2"
           >
             <div className="bg-green-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
@@ -231,7 +253,7 @@ export default function UserRequestForm({
 
           {/* CARD 2: RESERVA AUDITORIO */}
           <button
-            onClick={() => setView("RESERVATION")}
+            onClick={() => handleViewChange("RESERVATION")}
             className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-sena-blue transition-all duration-300 flex flex-col items-center text-center gap-2"
           >
             <div className="bg-blue-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
@@ -299,7 +321,7 @@ export default function UserRequestForm({
       }`}
     >
       <button
-        onClick={() => setView("SELECTION")}
+        onClick={() => handleViewChange("SELECTION")}
         className="mb-6 flex items-center gap-2 text-gray-500 hover:text-sena-blue transition-colors font-bold"
       >
         <ArrowLeft className="w-4 h-4" /> Volver al menú
@@ -337,7 +359,7 @@ export default function UserRequestForm({
           {view === "RESERVATION" ? (
             <AuditoriumReservationForm
               user={user}
-              onCancel={() => setView("SELECTION")}
+              onCancel={() => handleViewChange("SELECTION")}
               onSuccess={onCancel}
             />
           ) : (
@@ -591,80 +613,24 @@ export default function UserRequestForm({
                 </label>
                 <div className="relative">
                   <MapPin className="absolute left-4 top-3.5 text-gray-400 w-5 h-5" />
-                  <select
+                  <input
+                    id="location-input"
+                    list="areas-list"
+                    type="text"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-4 focus:ring-green-50 outline-none transition-all font-medium text-gray-700 appearance-none bg-white ${
+                    placeholder="Selecciona o escribe una ubicación..."
+                    className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-4 focus:ring-green-50 outline-none transition-all font-medium text-gray-700 bg-white ${
                       !location && isSubmitting
                         ? "border-red-300"
                         : "border-gray-200 focus:border-sena-green"
                     }`}
-                  >
-                    <option value="">
-                      Selecciona una ubicación (Obligatorio)...
-                    </option>
-                    <optgroup label="Áreas Administrativas">
-                      <option value="Coordinación Académica">
-                        Coordinación Académica
-                      </option>
-                      <option value="Administración Educativa">
-                        Administración Educativa
-                      </option>
-                      <option value="Bienestar al Aprendiz">
-                        Bienestar al Aprendiz
-                      </option>
-                      <option value="Biblioteca">Biblioteca</option>
-                      <option value="Enfermería">Enfermería</option>
-                    </optgroup>
-                    <optgroup label="Ambientes de Formación">
-                      <option value="Ambiente 101">Ambiente 101</option>
-                      <option value="Ambiente 102">Ambiente 102</option>
-                      <option value="Ambiente 201">Ambiente 201</option>
-                      <option value="Ambiente 202">Ambiente 202</option>
-                      <option value="Sala de Instructores">
-                        Sala de Instructores
-                      </option>
-                    </optgroup>
-                    <optgroup label="Laboratorios y Talleres">
-                      <option value="Laboratorio de Software">
-                        Laboratorio de Software
-                      </option>
-                      <option value="Laboratorio de Redes">
-                        Laboratorio de Redes
-                      </option>
-                      <option value="Taller de Hardware">
-                        Taller de Hardware
-                      </option>
-                    </optgroup>
-                    <optgroup label="Auditorios">
-                      <option value="Auditorio Principal">
-                        Auditorio Principal
-                      </option>
-                      <option value="Sala de Conferencias">
-                        Sala de Conferencias
-                      </option>
-                    </optgroup>
-                    <optgroup label="Otras Áreas">
-                      <option value="Cafetería">Cafetería</option>
-                      <option value="Portería">Portería</option>
-                      <option value="Zonas Comunes">Zonas Comunes</option>
-                    </optgroup>
-                  </select>
-                  <div className="absolute right-4 top-4 pointer-events-none">
-                    <svg
-                      className="w-4 h-4 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
+                  />
+                  <datalist id="areas-list">
+                    {areas.map((area, index) => (
+                      <option key={index} value={area} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
 

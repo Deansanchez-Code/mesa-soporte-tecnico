@@ -186,7 +186,7 @@ export default function AuditoriumReservationForm({
         const { error: ticketError } = await supabase.from("tickets").insert([
           {
             category: "Reserva Auditorio",
-            status: "PENDING",
+            status: "PENDIENTE",
             location: "Auditorio",
             description: description,
             user_id: user.id,
@@ -195,14 +195,22 @@ export default function AuditoriumReservationForm({
 
         if (ticketError) {
           console.error("Error creando ticket de reserva:", ticketError);
-          // No lanzamos error para no bloquear la reserva, pero logueamos
+          alert(
+            `⚠️ Reserva creada, pero falló la creación del ticket: ${
+              ticketError.message || ticketError.details
+            }`
+          );
+        } else {
+          alert("✅ Reserva y Ticket creados con éxito.");
         }
       }
 
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Error al crear la reserva.");
+      alert(
+        `❌ Error crítico al guardar: ${error.message || "Error desconocido"}`
+      );
     } finally {
       setLoading(false);
     }
@@ -395,14 +403,26 @@ export default function AuditoriumReservationForm({
 
         <div className="grid grid-cols-5 gap-1">
           {timeSlots.map((hour) => {
-            const slotStart = new Date(`${startDate}T${hour}:00:00`);
-            const slotEnd = new Date(`${startDate}T${hour + 1}:00:00`);
+            // Crear fechas locales robustas
+            const formatHour = (h: number) => h.toString().padStart(2, "0");
+            const slotStart = new Date(
+              `${startDate}T${formatHour(hour)}:00:00`
+            );
+            const slotEnd = new Date(
+              `${startDate}T${formatHour(hour + 1)}:00:00`
+            );
 
             // Verificar si está ocupado
             const isOccupied = reservations.some((r) => {
+              // Convertir fechas de DB (UTC/ISO) a objetos Date
               const rStart = new Date(r.start_time);
               const rEnd = new Date(r.end_time);
-              return slotStart < rEnd && slotEnd > rStart;
+
+              // Comparar timestamps para exactitud
+              return (
+                slotStart.getTime() < rEnd.getTime() &&
+                slotEnd.getTime() > rStart.getTime()
+              );
             });
 
             // Verificar si es la selección actual

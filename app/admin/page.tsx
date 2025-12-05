@@ -32,6 +32,7 @@ import Link from "next/link";
 import QRGenerator from "@/components/admin/QRGenerator";
 import AgentsTab from "@/components/admin/AgentsTab";
 import StaffTab from "@/components/admin/StaffTab";
+import ContractorsTab from "@/components/admin/ContractorsTab";
 import {
   Agent,
   User,
@@ -43,6 +44,8 @@ import {
 import AssetHistoryModal from "@/components/AssetHistoryModal";
 import AssetHistoryTimeline from "@/components/AssetHistoryTimeline";
 import AssetActionModal from "@/components/AssetActionModal";
+import TicketDetailsModal from "@/components/TicketDetailsModal"; // IMPORTAT: TicketDetailsModal
+import React from "react"; // Ensure React is imported for useState usage in Modal if needed, but page.tsx has it.
 import {
   PieChart,
   Pie,
@@ -63,7 +66,14 @@ export default function AdminDashboard() {
   const router = useRouter();
   // Estados Generales
   const [activeTab, setActiveTab] = useState<
-    "agents" | "assets" | "metrics" | "qr" | "settings" | "tickets" | "staff"
+    | "agents"
+    | "assets"
+    | "metrics"
+    | "qr"
+    | "settings"
+    | "tickets"
+    | "staff"
+    | "contractors"
   >("agents");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -128,6 +138,89 @@ export default function AdminDashboard() {
     location: "",
   });
 
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+
+  // Función para asignar ticket
+  const handleAssignTicket = async (ticketId: number, agentId: string) => {
+    const { error } = await supabase
+      .from("tickets")
+      .update({ assigned_agent_id: agentId, status: "EN_PROGRESO" }) // Automatically set to In Progress if assigned? Or Keep Pending? User didn't specify. Assuming assignment starts progress or just assigns. Let's keep status update optional or safe.
+      .eq("id", ticketId);
+
+    if (error) {
+      console.error(error);
+      alert("Error al asignar el ticket");
+      throw error;
+    }
+
+    alert("Agente asignado correctamente.");
+    fetchData(); // Refresh list
+  };
+
+  // Función para agregar comentario/trazabilidad
+  const handleAddComment = async (ticketId: number, comment: string) => {
+    if (!selectedTicket || !currentUser) return;
+
+    const timestamp = new Date().toLocaleString();
+    const actor = currentUser.full_name || "Usuario";
+    const auditLog = `\n\n[${timestamp}] SEGUIMIENTO: ${comment} (Por: ${actor})`;
+
+    const newDescription = (selectedTicket.description || "") + auditLog;
+
+    const { error } = await supabase
+      .from("tickets")
+      .update({
+        description: newDescription,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", ticketId);
+
+    if (error) {
+      console.error(error);
+      alert("Error guardando comentario.");
+      throw error;
+    }
+
+    // Actualizar estado local para ver cambios inmediatamente
+    setSelectedTicket({ ...selectedTicket, description: newDescription });
+    fetchData(); // Refresh list (background)
+  };
+
+  // Función para actualizar estado con trazabilidad
+  const handleUpdateStatus = async (ticketId: number, newStatus: string) => {
+    if (!selectedTicket || !currentUser) return;
+
+    const timestamp = new Date().toLocaleString();
+    const actor = currentUser.full_name || "Usuario";
+    const auditLog = `\n\n[${timestamp}] SEGUIMIENTO: Cambio de estado a ${newStatus} (Por: ${actor})`;
+
+    const newDescription = (selectedTicket.description || "") + auditLog;
+
+    const { error } = await supabase
+      .from("tickets")
+      .update({
+        status: newStatus,
+        description: newDescription,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", ticketId);
+
+    if (error) {
+      console.error(error);
+      alert("Error actualizando estado.");
+      throw error;
+    }
+
+    // Actualizar estado local
+    setSelectedTicket({
+      ...selectedTicket,
+      status: newStatus,
+      description: newDescription,
+    });
+    fetchData();
+  };
+
   // --- 1. CARGA INICIAL DE DATOS ---
   const fetchData = async () => {
     setLoading(true);
@@ -154,7 +247,7 @@ export default function AdminDashboard() {
       supabase
         .from("users")
         .select(
-          "id, full_name, username, role, area, created_at, is_active, perm_create_assets, perm_transfer_assets, perm_decommission_assets, is_vip"
+          "id, full_name, username, email, role, area, created_at, is_active, perm_create_assets, perm_transfer_assets, perm_decommission_assets, is_vip"
         )
         .in("role", ["agent", "admin"])
         .order("created_at", { ascending: false }),
@@ -168,7 +261,9 @@ export default function AdminDashboard() {
       // 3. Usuarios
       supabase
         .from("users")
-        .select("id, full_name, username, role, area, is_vip, is_active")
+        .select(
+          "id, full_name, username, email, role, area, is_vip, is_active, employment_type, job_category, auth_id"
+        )
         .order("full_name"),
       // 4. Areas
       supabase.from("areas").select("id, name").order("name"),
@@ -351,9 +446,17 @@ export default function AdminDashboard() {
         location: "",
       });
       fetchData();
-    } catch (error) {
-      console.error(error);
-      alert("Error creando activo. El serial podría estar duplicado.");
+    } catch (error: any) {
+      console.error("Error creating asset:", error);
+      if (error.code === "42501" || error.status === 403) {
+        alert(
+          "⛔ Error de permisos: No tienes autorización para crear equipos."
+        );
+      } else if (error.code === "23505") {
+        alert("⚠️ Error: El serial ya existe en la base de datos.");
+      } else {
+        alert(`❌ Error desconocido: ${error.message || "Intenta de nuevo"}`);
+      }
     }
   };
 
@@ -716,6 +819,16 @@ export default function AdminDashboard() {
               <Users className="w-4 h-4" /> Funcionarios
             </button>
             <button
+              onClick={() => setActiveTab("contractors")}
+              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
+                activeTab === "contractors"
+                  ? "border-b-4 border-sena-blue text-sena-blue"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Users className="w-4 h-4" /> Contratistas
+            </button>
+            <button
               onClick={() => setActiveTab("metrics")}
               className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
                 activeTab === "metrics"
@@ -1001,7 +1114,14 @@ export default function AdminDashboard() {
                           ticketFilter === "ALL" || t.status === "PENDIENTE"
                       )
                       .map((ticket) => (
-                        <tr key={ticket.id} className="hover:bg-gray-50">
+                        <tr
+                          key={ticket.id}
+                          className="hover:bg-gray-50 cursor-pointer transition"
+                          onClick={() => {
+                            setSelectedTicket(ticket);
+                            setShowTicketModal(true);
+                          }}
+                        >
                           <td className="p-4 font-bold text-gray-800">
                             #{ticket.id}
                           </td>
@@ -1380,7 +1500,22 @@ export default function AdminDashboard() {
                     onChange={(e) =>
                       setNewAsset({ ...newAsset, location: e.target.value })
                     }
+                    list="locations-list"
                   />
+                  <datalist id="locations-list">
+                    {Array.from(
+                      new Set([
+                        ...assets
+                          .map((a) => a.location)
+                          .filter((l) => l && l !== "Sin ubicación"),
+                        ...configData.areas.map((area) => area.name),
+                      ])
+                    )
+                      .sort()
+                      .map((loc, index) => (
+                        <option key={index} value={loc} />
+                      ))}
+                  </datalist>
                 </div>
 
                 <div>
@@ -1420,6 +1555,22 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === "contractors" && (
+          <ContractorsTab users={usersList} onRefresh={fetchData} />
+        )}
+
+        {showTicketModal && selectedTicket && (
+          <TicketDetailsModal
+            ticket={selectedTicket}
+            onClose={() => setShowTicketModal(false)}
+            agents={agents}
+            onAssign={handleAssignTicket}
+            onAddComment={handleAddComment}
+            onUpdateStatus={handleUpdateStatus}
+            currentUser={currentUser}
+          />
         )}
       </div>
     </AuthGuard>

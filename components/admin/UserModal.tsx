@@ -98,6 +98,42 @@ export default function UserModal({
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+              Tipo de Vinculación
+            </label>
+            <select
+              className="w-full border border-gray-300 rounded-lg p-2"
+              value={newAgent.employment_type || "planta"}
+              onChange={(e) =>
+                setNewAgent({ ...newAgent, employment_type: e.target.value })
+              }
+            >
+              <option value="planta">Planta / Directo</option>
+              <option value="contratista">Contratista</option>
+            </select>
+          </div>
+
+          {newAgent.employment_type === "contratista" && (
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                Categoría (Contratistas)
+              </label>
+              <select
+                className="w-full border border-gray-300 rounded-lg p-2"
+                value={newAgent.job_category || "funcionario"}
+                onChange={(e) =>
+                  setNewAgent({ ...newAgent, job_category: e.target.value })
+                }
+              >
+                <option value="funcionario">
+                  Funcionario (Apoyo Administrativo/Otros)
+                </option>
+                <option value="instructor">Instructor</option>
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
               Área
             </label>
             <select

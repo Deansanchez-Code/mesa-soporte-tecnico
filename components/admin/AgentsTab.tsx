@@ -72,6 +72,9 @@ export default function AgentsTab({
                 Usuario
               </th>
               <th className="p-4 text-xs font-bold text-gray-500 uppercase">
+                Email
+              </th>
+              <th className="p-4 text-xs font-bold text-gray-500 uppercase">
                 Rol
               </th>
               <th className="p-4 text-xs font-bold text-gray-500 uppercase">
@@ -107,6 +110,9 @@ export default function AgentsTab({
                   </td>
                   <td className="p-4 text-sm text-gray-600">
                     {agent.username}
+                  </td>
+                  <td className="p-4 text-sm text-gray-600">
+                    {agent.email || "N/A"}
                   </td>
                   <td className="p-4 text-sm">
                     <span

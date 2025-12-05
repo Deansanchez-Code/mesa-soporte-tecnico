@@ -17,6 +17,8 @@ export function useUserManagement(onRefresh: () => void) {
     perm_transfer_assets: false,
     perm_decommission_assets: false,
     is_vip: false,
+    employment_type: "planta",
+    job_category: "funcionario",
     isEditing: false,
   });
 
@@ -33,6 +35,8 @@ export function useUserManagement(onRefresh: () => void) {
       perm_transfer_assets: false,
       perm_decommission_assets: false,
       is_vip: false,
+      employment_type: "planta",
+      job_category: "funcionario",
       isEditing: false,
     });
   };
@@ -66,6 +70,8 @@ export function useUserManagement(onRefresh: () => void) {
         perm_transfer_assets: newAgent.perm_transfer_assets,
         perm_decommission_assets: newAgent.perm_decommission_assets,
         is_vip: newAgent.is_vip,
+        employment_type: newAgent.employment_type,
+        job_category: newAgent.job_category,
       };
 
       const method = newAgent.isEditing ? "PUT" : "POST";
@@ -108,6 +114,8 @@ export function useUserManagement(onRefresh: () => void) {
       perm_transfer_assets: user.perm_transfer_assets || false,
       perm_decommission_assets: user.perm_decommission_assets || false,
       is_vip: user.is_vip,
+      employment_type: user.employment_type || "planta",
+      job_category: user.job_category || "funcionario",
       isEditing: true,
     });
     setShowAgentModal(true);

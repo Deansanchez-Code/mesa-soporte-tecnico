@@ -10,7 +10,14 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   turbopack: {}, // Configuración vacía de Turbopack para Next.js 16
-  /* Aquí puedes poner otras configuraciones si las necesitas en el futuro */
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**.supabase.co", // Permite cualquier proyecto de Supabase
+      },
+    ],
+  },
 };
 
 export default withPWA(nextConfig);

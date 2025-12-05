@@ -25,11 +25,13 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // ESTRATEGIA EMAIL INVISIBLE:
-      // El usuario ingresa "jperez", nosotros enviamos "jperez@sistema.local"
-      const syntheticEmail = `${formData.username
-        .trim()
-        .toLowerCase()}@sistema.local`;
+      // ESTRATEGIA EMAIL INVISIBLE MEJORADA:
+      // Si el usuario ingresa un email completo (con @), lo usamos.
+      // Si ingresa solo usuario (ej: "jperez"), agregamos "@sistema.local".
+      const inputUsername = formData.username.trim().toLowerCase();
+      const syntheticEmail = inputUsername.includes("@")
+        ? inputUsername
+        : `${inputUsername}@sistema.local`;
 
       const { data, error: authError } = await supabase.auth.signInWithPassword(
         {
@@ -40,7 +42,14 @@ export default function LoginPage() {
 
       if (authError) {
         console.error("Login error:", authError);
-        throw new Error("Credenciales inválidas");
+        if (authError.message.includes("Invalid login credentials")) {
+          throw new Error("Credenciales inválidas");
+        } else {
+          // Assume blocked/banned if not credentials (or specific banned error)
+          throw new Error(
+            "Acceso denegado por temas contractuales o no te has registrado en la plataforma."
+          );
+        }
       }
 
       const user = data.user;

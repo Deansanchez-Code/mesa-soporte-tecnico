@@ -1,5 +1,7 @@
 "use client";
 
+import React from "react";
+
 import {
   X,
   User,
@@ -19,6 +21,7 @@ interface Ticket {
   created_at: string;
   updated_at?: string;
   solution?: string | null;
+  assigned_agent_id?: string | null; // Added field
   users: {
     full_name: string;
     area: string;
@@ -35,20 +38,29 @@ interface Ticket {
 
 interface TicketDetailsModalProps {
   ticket: Ticket;
+  agents?: { id: string; full_name: string; role: string }[];
+  onAssign?: (ticketId: number, agentId: string) => Promise<void>;
   onClose: () => void;
 }
 
 export default function TicketDetailsModal({
   ticket,
   onClose,
+  agents = [],
+  onAssign,
 }: TicketDetailsModalProps) {
+  // Estado local para la selección de agente
+  const [selectedAgentId, setSelectedAgentId] = React.useState(
+    ticket.assigned_agent_id || ""
+  );
+
+  const [assigning, setAssigning] = React.useState(false);
+
   // Función para parsear la descripción y separar los comentarios agregados
   const parseDescription = (
     desc?: string
   ): { initial: string; updates: { date: string; text: string }[] } => {
     if (!desc) return { initial: "", updates: [] };
-    // Buscamos patrones como "[Fecha] SEGUIMIENTO: Comentario"
-    // Asumimos que la descripción original es todo lo que está antes del primer seguimiento
     const parts = desc.split(/\n\n\[/);
     const initial = parts[0];
     const updates = parts.slice(1).map((part) => {
@@ -67,6 +79,24 @@ export default function TicketDetailsModal({
   };
 
   const { initial, updates } = parseDescription(ticket.description);
+
+  // Filter agents: Exclude admins from being assigned
+  const assignableAgents = agents.filter((a) => a.role === "agent");
+
+  const handleAssign = async () => {
+    if (!onAssign || !selectedAgentId) return;
+    setAssigning(true);
+    try {
+      await onAssign(ticket.id, selectedAgentId);
+      // Close modal or show success? Parent handles refresh.
+      onClose();
+    } catch (e) {
+      console.error(e);
+      alert("Error asignando agente.");
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -105,6 +135,36 @@ export default function TicketDetailsModal({
 
         {/* BODY */}
         <div className="flex-1 overflow-y-auto p-6 bg-gray-50 space-y-6">
+          {/* GESTIÓN DE AGENTE (Solo si se pasan agentes y función) */}
+          {onAssign && (
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4 flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                  Asignar Agente
+                </label>
+                <select
+                  className="w-full border p-2 rounded text-sm"
+                  value={selectedAgentId}
+                  onChange={(e) => setSelectedAgentId(e.target.value)}
+                >
+                  <option value="">-- Sin Asignar --</option>
+                  {assignableAgents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.full_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={handleAssign}
+                disabled={assigning || !selectedAgentId}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-50 mt-4"
+              >
+                {assigning ? "..." : "Asignar"}
+              </button>
+            </div>
+          )}
+
           {/* INFO GRID */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* SOLICITANTE */}
