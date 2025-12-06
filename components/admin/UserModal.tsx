@@ -69,7 +69,8 @@ export default function UserModal({
               >
                 <option value="user">Usuario (Planta)</option>
                 <option value="agent">Técnico de Mesa</option>
-                <option value="admin">Super Admin</option>
+                <option value="admin">Administrador</option>
+                <option value="superadmin">Super Admin (Root)</option>
               </select>
             </div>
           </div>
@@ -154,8 +155,10 @@ export default function UserModal({
             </select>
           </div>
 
-          {/* PERMISOS ADICIONALES (Solo si es Agente/Admin) */}
-          {(newAgent.role === "agent" || newAgent.role === "admin") && (
+          {/* PERMISOS ADICIONALES (Solo si es Agente/Admin/Superadmin) */}
+          {(newAgent.role === "agent" ||
+            newAgent.role === "admin" ||
+            newAgent.role === "superadmin") && (
             <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-2">
               <p className="text-xs font-bold text-gray-500 uppercase mb-2">
                 Permisos Especiales

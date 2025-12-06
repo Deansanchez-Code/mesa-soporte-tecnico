@@ -54,8 +54,12 @@ interface Ticket {
   } | null;
 }
 
+import { useUserProfile } from "@/hooks/useUserProfile";
+
 export default function AgentDashboard() {
   const router = useRouter();
+  const { user: currentUser, loading: userLoading } = useUserProfile();
+
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [agents, setAgents] = useState<{ id: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,11 +73,7 @@ export default function AgentDashboard() {
   );
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showMetricsModal, setShowMetricsModal] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{
-    id: string;
-    full_name: string;
-    role?: string;
-  } | null>(null);
+
   const [isResolvedCollapsed, setIsResolvedCollapsed] = useState(false);
   const [solutionTexts, setSolutionTexts] = useState<Record<number, string>>(
     {}
@@ -152,11 +152,9 @@ export default function AgentDashboard() {
   // --- 2. TIEMPO REAL (Supabase Realtime) ---
   useEffect(() => {
     const loadData = async () => {
-      const userStr = safeGetItem("tic_user");
-      if (userStr) setCurrentUser(JSON.parse(userStr));
       await fetchTickets(); // Carga inicial
     };
-    void loadData();
+    if (currentUser) void loadData();
 
     // Suscripción a cambios en la base de datos
     const channel = supabase
@@ -173,10 +171,11 @@ export default function AgentDashboard() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [currentUser]);
 
   // --- 2.1 GESTIÓN DE SESIÓN Y ESTADO ---
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     safeRemoveItem("tic_user");
     router.push("/login");
   };
@@ -470,7 +469,7 @@ export default function AgentDashboard() {
   };
 
   return (
-    <AuthGuard allowedRoles={["agent", "admin"]}>
+    <AuthGuard allowedRoles={["agent", "admin", "superadmin"]}>
       <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
         {/* MODAL DE HISTORIAL DE ACTIVO */}
         {selectedAssetSerial && (
@@ -633,7 +632,8 @@ export default function AgentDashboard() {
           </div>
 
           <div className="flex items-center gap-4">
-            {currentUser?.role === "admin" && (
+            {(currentUser?.role === "admin" ||
+              currentUser?.role === "superadmin") && (
               <Link
                 href="/admin"
                 className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all border cursor-pointer bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200 shadow-sm"

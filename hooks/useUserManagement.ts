@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Agent, User } from "@/app/admin/types";
+import { supabase } from "@/lib/supabase";
 
 export function useUserManagement(onRefresh: () => void) {
   const [showAgentModal, setShowAgentModal] = useState(false);
@@ -57,6 +58,12 @@ export function useUserManagement(onRefresh: () => void) {
       return alert("Faltan datos obligatorios (Nombre, Usuario, Contraseña)");
 
     try {
+      // Get Session Token
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("No hay sesión activa");
+
       const payload = {
         id: newAgent.id, // Needed for update
         email: `${newAgent.username}@sistema.local`, // Construct email from username
@@ -77,7 +84,10 @@ export function useUserManagement(onRefresh: () => void) {
       const method = newAgent.isEditing ? "PUT" : "POST";
       const response = await fetch("/api/admin/users", {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify(payload),
       });
 
@@ -131,8 +141,17 @@ export function useUserManagement(onRefresh: () => void) {
       return;
 
     try {
+      // Get Session Token
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("No hay sesión activa");
+
       const response = await fetch(`/api/admin/users?id=${id}`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       const data = await response.json();

@@ -13,7 +13,40 @@ const supabaseAdmin = createClient(
   }
 );
 
+// HELPER: Verify requester is Admin
+async function verifyAdmin(request: Request) {
+  // Use a standard client to check the auth token passed in headers
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader) return false;
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const token = authHeader.replace("Bearer ", "");
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser(token);
+
+  if (error || !user) return false;
+
+  // Check role in public.users
+  const { data: profile } = await supabaseAdmin
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  return profile?.role === "admin" || profile?.role === "superadmin";
+}
+
 export async function POST(request: Request) {
+  if (!(await verifyAdmin(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
     const { email, password, fullName, role, area, ...otherData } = body;
@@ -52,38 +85,33 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Insert/Update User Profile in Public Table (Sync)
-    const { error: profileError } = await supabaseAdmin.from("users").insert({
-      id: authUser.user.id, // Explicitly link ID
-      auth_id: authUser.user.id,
-      email: email,
-      full_name: fullName,
-      username: otherData.username,
-      role: role,
-      area: area,
-      is_active: true,
-      employment_type: otherData.employment_type || "planta",
-      job_category: otherData.job_category || "funcionario",
-      perm_create_assets: otherData.perm_create_assets,
-      perm_transfer_assets: otherData.perm_transfer_assets,
-      perm_decommission_assets: otherData.perm_decommission_assets,
-      is_vip: otherData.is_vip,
-    });
+    // 2. Wait for Trigger and Update Profile (Sync)
+    // The DB trigger 'on_auth_user_created' creates the public.users row immediately.
+    // We just need to update the extra fields that might not be in the basic metadata sync.
+
+    // Tiny delay to ensure trigger has fired (usually instant, but safety first in async serverless)
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const { error: profileError } = await supabaseAdmin
+      .from("users")
+      .update({
+        full_name: fullName,
+        username: otherData.username || email.split("@")[0],
+        role: role,
+        area: area,
+        is_active: true,
+        employment_type: otherData.employment_type || "planta",
+        job_category: otherData.job_category || "funcionario",
+        perm_create_assets: otherData.perm_create_assets,
+        perm_transfer_assets: otherData.perm_transfer_assets,
+        perm_decommission_assets: otherData.perm_decommission_assets,
+        is_vip: otherData.is_vip,
+      })
+      .eq("id", authUser.user.id);
 
     if (profileError) {
-      console.error("Error creating profile:", profileError);
-      // Try update if it already exists (from trigger)
-      await supabaseAdmin
-        .from("users")
-        .update({
-          auth_id: authUser.user.id,
-          full_name: fullName,
-          role: role,
-          area: area,
-          is_active: true,
-          ...otherData,
-        })
-        .eq("email", email);
+      console.error("Error updating profile extras:", profileError);
+      // Not critical to fail the whole request if user exists, but good to know.
     }
 
     return NextResponse.json({ success: true, user: authUser.user });
@@ -96,6 +124,10 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  if (!(await verifyAdmin(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
     const { id, password, email, ...updates } = body;

@@ -117,12 +117,18 @@ export default function AgentsTab({
                   <td className="p-4 text-sm">
                     <span
                       className={`px-2 py-1 rounded text-xs font-bold uppercase ${
-                        agent.role === "admin"
+                        agent.role === "superadmin"
                           ? "bg-purple-100 text-purple-700"
+                          : agent.role === "admin"
+                          ? "bg-orange-100 text-orange-700"
                           : "bg-blue-100 text-blue-700"
                       }`}
                     >
-                      {agent.role === "admin" ? "Super Admin" : "Técnico"}
+                      {agent.role === "superadmin"
+                        ? "Super Admin"
+                        : agent.role === "admin"
+                        ? "Admin"
+                        : "Técnico"}
                     </span>
                   </td>
                   <td className="p-4 text-sm text-gray-600">
@@ -130,7 +136,7 @@ export default function AgentsTab({
                   </td>
                   <td className="p-4 text-xs text-gray-500">
                     <div className="flex gap-1 flex-wrap">
-                      {agent.role === "admin" ? (
+                      {agent.role === "superadmin" || agent.role === "admin" ? (
                         <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 font-bold">
                           Control Total
                         </span>

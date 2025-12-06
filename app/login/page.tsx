@@ -70,7 +70,7 @@ export default function LoginPage() {
         safeSetItem("tic_user", JSON.stringify(publicUser));
 
         // 5. Redirigir según rol
-        if (publicUser.role === "admin") {
+        if (publicUser.role === "admin" || publicUser.role === "superadmin") {
           router.push("/admin");
         } else {
           router.push("/dashboard");

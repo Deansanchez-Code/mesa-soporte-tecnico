@@ -33,6 +33,7 @@ import QRGenerator from "@/components/admin/QRGenerator";
 import AgentsTab from "@/components/admin/AgentsTab";
 import StaffTab from "@/components/admin/StaffTab";
 import ContractorsTab from "@/components/admin/ContractorsTab";
+import MetricsTab from "@/components/admin/MetricsTab";
 import {
   Agent,
   User,
@@ -62,8 +63,12 @@ import {
 
 // --- TIPOS DE DATOS ---
 
+import { useUserProfile } from "@/hooks/useUserProfile";
+
 export default function AdminDashboard() {
   const router = useRouter();
+  const { user: currentUser, loading: userLoading } = useUserProfile();
+
   // Estados Generales
   const [activeTab, setActiveTab] = useState<
     | "agents"
@@ -124,10 +129,6 @@ export default function AdminDashboard() {
   const [actionType, setActionType] = useState<"TRANSFER" | "DECOMMISSION">(
     "TRANSFER"
   );
-  const [currentUser, setCurrentUser] = useState<{
-    id: string;
-    full_name: string;
-  } | null>(null);
 
   const [newAsset, setNewAsset] = useState({
     serial: "",
@@ -225,12 +226,8 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     setLoading(true);
 
-    // 0. Obtener usuario actual
-    const userStr = localStorage.getItem("tic_user");
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      setCurrentAdminName(user.full_name || "Super Admin");
-      setCurrentUser(user);
+    if (currentUser) {
+      setCurrentAdminName(currentUser.full_name || "Super Admin");
     }
 
     // A. Cargar Todo en Paralelo
@@ -249,7 +246,7 @@ export default function AdminDashboard() {
         .select(
           "id, full_name, username, email, role, area, created_at, is_active, perm_create_assets, perm_transfer_assets, perm_decommission_assets, is_vip"
         )
-        .in("role", ["agent", "admin"])
+        .in("role", ["agent", "admin", "superadmin"])
         .order("created_at", { ascending: false }),
       // 2. Activos
       supabase
@@ -409,14 +406,15 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     setMounted(true);
-    fetchData();
-  }, []);
+    if (currentUser) fetchData();
+  }, [currentUser]);
 
   // --- 2. LOGICA AGENTES / USUARIOS ---
 
   // --- CARGUE MASIVO DE FUNCIONARIOS ---
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     safeRemoveItem("tic_user");
     router.push("/login");
   };
@@ -636,8 +634,8 @@ export default function AdminDashboard() {
   };
 
   return (
-    <AuthGuard allowedRoles={["admin"]}>
-      <div className="min-h-screen bg-gray-100 font-sans">
+    <AuthGuard allowedRoles={["admin", "superadmin"]}>
+      <div className="min-h-screen bg-gray-100 font-sans w-full relative overflow-x-hidden">
         {/* MODAL HISTORIAL DE ACTIVO */}
         {/* MODAL HISTORIAL DE ACTIVO (TICKETS) */}
         {selectedAssetSerial && (
@@ -734,7 +732,7 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        <main className="p-6 max-w-7xl mx-auto space-y-8">
+        <main className="p-6 max-w-7xl mx-auto space-y-8 w-full overflow-x-hidden">
           {/* --- KPIs --- */}
           <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div
@@ -797,7 +795,8 @@ export default function AdminDashboard() {
           </section>
 
           {/* --- PESTAÑAS DE NAVEGACIÓN --- */}
-          <div className="flex gap-4 border-b border-gray-300">
+          {/* --- PESTAÑAS DE NAVEGACIÓN (RESPONSIVE) --- */}
+          <div className="flex gap-4 border-b border-gray-300 overflow-x-auto pb-1 no-scrollbar flex-nowrap md:flex-wrap">
             <button
               onClick={() => setActiveTab("agents")}
               className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
@@ -1168,6 +1167,11 @@ export default function AdminDashboard() {
               onRefresh={fetchData}
               configData={configData}
             />
+          )}
+
+          {/* --- CONTENIDO PESTAÑA: CONTRATISTAS --- */}
+          {activeTab === "contractors" && (
+            <ContractorsTab users={usersList} onRefresh={fetchData} />
           )}
 
           {/* --- CONTENIDO PESTAÑA: ACTIVOS --- */}
@@ -1555,10 +1559,6 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
-        )}
-
-        {activeTab === "contractors" && (
-          <ContractorsTab users={usersList} onRefresh={fetchData} />
         )}
 
         {showTicketModal && selectedTicket && (
