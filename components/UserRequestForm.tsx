@@ -42,6 +42,46 @@ interface Outage {
   description: string;
 }
 
+interface AssetCardProps {
+  asset: Asset;
+  selected: boolean;
+  onSelect: () => void;
+}
+
+function AssetCard({ asset, selected, onSelect }: AssetCardProps) {
+  return (
+    <div
+      onClick={onSelect}
+      className={`flex items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
+        selected
+          ? "border-sena-orange bg-orange-50 ring-1 ring-sena-orange"
+          : "border-gray-200 hover:border-gray-300"
+      }`}
+    >
+      <div
+        className={`w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center ${
+          selected ? "border-sena-orange bg-sena-orange" : "border-gray-300"
+        }`}
+      >
+        {selected && <div className="w-2 h-2 bg-white rounded-full" />}
+      </div>
+      <div>
+        <p className="text-sm font-bold text-gray-800">
+          {asset.type} {asset.brand}
+        </p>
+        <p className="text-xs text-gray-500 font-mono">
+          SN: {asset.serial_number}
+        </p>
+        {asset.location && (
+          <p className="text-[10px] text-sena-blue mt-1 flex items-center gap-1">
+            <MapPin className="w-3 h-3" /> {asset.location}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function UserRequestForm({
   user,
   onCancel,
@@ -56,6 +96,7 @@ export default function UserRequestForm({
   currentView?: "SELECTION" | "TICKET" | "RESERVATION";
 }) {
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [locationAssets, setLocationAssets] = useState<Asset[]>([]);
 
   // VISTA ACTUAL: 'SELECTION' | 'TICKET' | 'RESERVATION'
   const [view, setView] = useState<"SELECTION" | "TICKET" | "RESERVATION">(
@@ -89,9 +130,7 @@ export default function UserRequestForm({
   };
 
   // Estados del Formulario Ticket
-  const [category, setCategory] = useState<"HARDWARE" | "SOFTWARE" | null>(
-    null
-  );
+  const [category, setCategory] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<string>("");
   const [manualSerial, setManualSerial] = useState("");
   const [suggestions, setSuggestions] = useState<Asset[]>([]);
@@ -102,6 +141,10 @@ export default function UserRequestForm({
   const [location, setLocation] = useState(initialLocation || user.area || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [areas, setAreas] = useState<string[]>([]);
+
+  const [categoryGroups, setCategoryGroups] = useState<
+    Record<string, string[]>
+  >({});
 
   // Búsqueda inteligente de seriales
   useEffect(() => {
@@ -167,9 +210,59 @@ export default function UserRequestForm({
         .order("name");
 
       if (areasData) setAreas(areasData.map((a) => a.name));
+
+      // Cargar Categorias Dinamicas
+      const { data: catData } = await supabase
+        .from("ticket_categories_config")
+        .select("id, user_selection_text")
+        .eq("is_active", true)
+        .order("user_selection_text"); // or id
+
+      if (catData && catData.length > 0) {
+        // Group by Prefix
+        const groups: Record<string, string[]> = {};
+        catData.forEach((item) => {
+          const parts = item.user_selection_text.split(": ");
+          const group = parts.length > 1 ? parts[0] : "General";
+
+          if (!groups[group]) groups[group] = [];
+          groups[group].push(item.user_selection_text);
+        });
+        setCategoryGroups(groups);
+      } else {
+        // Fallback if no seed data
+        setCategoryGroups({
+          General: ["HARDWARE", "SOFTWARE"],
+        });
+      }
     }
     fetchData();
   }, [user.id]);
+
+  // 1b. Cargar activos de la ubicación (Dinámico)
+  useEffect(() => {
+    const fetchLocationAssets = async () => {
+      if (!location || location.length < 3) {
+        setLocationAssets([]);
+        return;
+      }
+
+      const { data } = await supabase
+        .from("assets")
+        .select("*")
+        .ilike("location", location);
+
+      if (data) {
+        // Filtrar los que ya están en 'assets' (mis asignados) para no duplicar visualmente
+        const myAssetIds = new Set(assets.map((a) => a.id));
+        const newAssets = data.filter((a) => !myAssetIds.has(a.id));
+        setLocationAssets(newAssets);
+      }
+    };
+
+    const timeout = setTimeout(fetchLocationAssets, 600); // Debounce
+    return () => clearTimeout(timeout);
+  }, [location, assets]);
 
   // 2. DETECTOR DE FALLAS MASIVAS ("Efecto Waze")
   useEffect(() => {
@@ -181,7 +274,7 @@ export default function UserRequestForm({
         .select("*")
         .eq("is_active", true)
         .eq("location_scope", location)
-        .single();
+        .maybeSingle();
 
       if (data) {
         setActiveOutage(data);
@@ -384,79 +477,52 @@ export default function UserRequestForm({
                 </div>
               )}
 
-              {/* SELECCIÓN DE CATEGORÍA */}
+              {/* SELECCIÓN DE CATEGORÍA DINÁMICA */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-3">
                   1. ¿Qué tipo de problema tienes?
                 </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setCategory("HARDWARE")}
-                    className={`p-6 rounded-xl border-2 flex flex-col items-center text-center gap-4 transition-all ${
-                      category === "HARDWARE"
-                        ? "border-sena-green bg-green-50 ring-1 ring-sena-green"
-                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    <div
-                      className={`p-4 rounded-full ${
-                        category === "HARDWARE"
-                          ? "bg-white text-sena-green shadow-sm"
-                          : "bg-gray-100 text-gray-500"
-                      }`}
-                    >
-                      <Cpu className="w-8 h-8" />
-                    </div>
-                    <div>
-                      <span
-                        className={`block font-bold text-lg ${
-                          category === "HARDWARE"
-                            ? "text-sena-green"
-                            : "text-gray-700"
-                        }`}
-                      >
-                        Equipo / Hardware
-                      </span>
-                      <span className="text-sm text-gray-500 mt-1 block">
-                        No enciende, pantalla, teclado, mouse...
-                      </span>
-                    </div>
-                  </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setCategory("SOFTWARE")}
-                    className={`p-6 rounded-xl border-2 flex flex-col items-center text-center gap-4 transition-all ${
-                      category === "SOFTWARE"
-                        ? "border-sena-blue bg-blue-50 ring-1 ring-sena-blue"
-                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
+                <div className="space-y-4">
+                  {Object.entries(categoryGroups).map(([groupName, items]) => (
                     <div
-                      className={`p-4 rounded-full ${
-                        category === "SOFTWARE"
-                          ? "bg-white text-sena-blue shadow-sm"
-                          : "bg-gray-100 text-gray-500"
-                      }`}
+                      key={groupName}
+                      className="bg-gray-50 p-4 rounded-xl border border-gray-100"
                     >
-                      <Activity className="w-8 h-8" />
+                      <h3 className="font-bold text-gray-600 mb-3 uppercase text-xs flex items-center gap-2">
+                        {groupName === "Hardware" ? (
+                          <Cpu className="w-4 h-4" />
+                        ) : groupName === "Software" ? (
+                          <Activity className="w-4 h-4" />
+                        ) : (
+                          <Monitor className="w-4 h-4" />
+                        )}
+                        {groupName}
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {items.map((itemStr) => {
+                          // Extract pure label for display if formatted like "Group: Label"
+                          const displayLabel = itemStr.includes(": ")
+                            ? itemStr.split(": ")[1]
+                            : itemStr;
+                          return (
+                            <button
+                              key={itemStr}
+                              type="button"
+                              onClick={() => setCategory(itemStr)}
+                              className={`p-3 rounded-lg border text-left text-sm font-medium transition-all ${
+                                category === itemStr
+                                  ? "border-sena-green bg-green-100 text-sena-green ring-1 ring-sena-green"
+                                  : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-100"
+                              }`}
+                            >
+                              {displayLabel}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div>
-                      <span
-                        className={`block font-bold text-lg ${
-                          category === "SOFTWARE"
-                            ? "text-sena-blue"
-                            : "text-gray-700"
-                        }`}
-                      >
-                        Software / Internet
-                      </span>
-                      <span className="text-sm text-gray-500 mt-1 block">
-                        Office, Windows, Correo, Red...
-                      </span>
-                    </div>
-                  </button>
+                  ))}
                 </div>
               </div>
 
@@ -466,47 +532,50 @@ export default function UserRequestForm({
                   2. ¿Cuál equipo presenta la falla?
                 </label>
 
-                {assets.length > 0 && (
-                  <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in duration-300">
-                    {assets.map((asset) => (
-                      <div
-                        key={asset.id}
-                        onClick={() => {
-                          setSelectedAsset(asset.serial_number);
-                          setManualSerial(""); // Limpiar manual si selecciona uno
-                        }}
-                        className={`flex items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                          selectedAsset === asset.serial_number
-                            ? "border-sena-orange bg-orange-50 ring-1 ring-sena-orange"
-                            : "border-gray-200 hover:border-gray-300"
-                        }`}
-                      >
-                        <div
-                          className={`w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center ${
-                            selectedAsset === asset.serial_number
-                              ? "border-sena-orange bg-sena-orange"
-                              : "border-gray-300"
-                          }`}
-                        >
-                          {selectedAsset === asset.serial_number && (
-                            <div className="w-2 h-2 bg-white rounded-full" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-800">
-                            {asset.type} {asset.brand}
-                          </p>
-                          <p className="text-xs text-gray-500 font-mono">
-                            SN: {asset.serial_number}
-                          </p>
-                          {asset.location && (
-                            <p className="text-[10px] text-sena-blue mt-1 flex items-center gap-1">
-                              <MapPin className="w-3 h-3" /> {asset.location}
-                            </p>
-                          )}
+                {/* MIS ACTIVOS Y ACTIVOS DE UBICACIÓN */}
+                {(assets.length > 0 || locationAssets.length > 0) && (
+                  <div className="mb-4 space-y-4 animate-in fade-in duration-300">
+                    {assets.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">
+                          Mis Equipos Asignados
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {assets.map((asset) => (
+                            <AssetCard
+                              key={asset.id}
+                              asset={asset}
+                              selected={selectedAsset === asset.serial_number}
+                              onSelect={() => {
+                                setSelectedAsset(asset.serial_number);
+                                setManualSerial("");
+                              }}
+                            />
+                          ))}
                         </div>
                       </div>
-                    ))}
+                    )}
+
+                    {locationAssets.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">
+                          Equipos en {location}
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {locationAssets.map((asset) => (
+                            <AssetCard
+                              key={asset.id}
+                              asset={asset}
+                              selected={selectedAsset === asset.serial_number}
+                              onSelect={() => {
+                                setSelectedAsset(asset.serial_number);
+                                setManualSerial("");
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -650,7 +719,7 @@ export default function UserRequestForm({
                     !location ||
                     (!selectedAsset && !isValidSerial)
                   }
-                  className={`px-8 py-3 rounded-xl font-bold text-white shadow-lg shadow-green-900/20 transition-all flex items-center gap-2 ${
+                  className={`w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-white shadow-lg shadow-green-900/20 transition-all flex items-center justify-center gap-2 ${
                     isSubmitting ||
                     !location ||
                     (!selectedAsset && !isValidSerial)

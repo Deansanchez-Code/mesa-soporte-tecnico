@@ -177,4 +177,6 @@ CREATE POLICY "Gestionar reserva (Dueño o Admin)" ON public.reservations FOR AL
   EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
 );
 
-RAISE NOTICE '✅ Master Reset Completed Successfully.';
+DO $$ BEGIN
+    RAISE NOTICE '✅ Master Reset Completed Successfully.';
+END $$;

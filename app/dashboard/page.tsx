@@ -19,49 +19,81 @@ import {
   LogOut,
   BarChart2,
   Shield,
+  Zap, // For INC
+  FileText, // For REQ
+  Crown, // For VIP
+  History, // Added for History Tab
 } from "lucide-react";
+import TicketHistory from "@/components/TicketHistory";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import TicketDetailsModal from "@/components/TicketDetailsModal";
+import NotificationManager from "@/components/NotificationManager";
 
 // --- DEFINICIÓN DE TIPOS (Incluyendo campos SLA) ---
-interface Ticket {
-  id: number;
-  category: string;
-  status: string;
-  location: string;
-  description?: string;
-  created_at: string;
-  updated_at?: string;
-  user_id: string;
-  assigned_agent_id?: string | null; // ID del técnico asignado
-  // Campos específicos para el SLA
-  hold_reason?: string | null; // Razón de la pausa (Ej: Repuesto)
-  sla_clock_stopped_at?: string | null; // Hora exacta en que se detuvo el reloj
-  solution?: string | null;
-  // Relaciones con otras tablas
-  users: {
-    full_name: string;
-    area: string;
-  } | null;
-  assigned_agent?: {
-    full_name: string;
-  } | null;
-  assets: {
-    model: string;
-    type: string;
-    serial_number: string;
-  } | null;
-}
+import { Ticket } from "@/app/admin/types";
 
 import { useUserProfile } from "@/hooks/useUserProfile";
 
+// --- HELPERS VISUALES ---
+const getPriorityColor = (ticket: Ticket) => {
+  if (ticket.ticket_type === "INC") return "border-l-4 border-l-red-500";
+  if (ticket.ticket_type === "REQ") return "border-l-4 border-l-blue-500";
+  return "border-l-4 border-l-gray-300";
+};
+
+const CountdownTimer = ({ targetDate }: { targetDate?: string }) => {
+  const [timeLeft, setTimeLeft] = useState("");
+  const [isBreached, setIsBreached] = useState(false);
+
+  useEffect(() => {
+    if (!targetDate) return;
+
+    const calculate = () => {
+      const now = new Date().getTime();
+      const end = new Date(targetDate).getTime();
+      const diff = end - now;
+
+      if (diff <= 0) {
+        setIsBreached(true);
+        setTimeLeft("00h 00m");
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      setTimeLeft(`${hours}h ${minutes}m`);
+    };
+
+    calculate();
+    const interval = setInterval(calculate, 60000); // Actualizar cada minuto
+    return () => clearInterval(interval);
+  }, [targetDate]);
+
+  if (!targetDate) return null;
+
+  return (
+    <span
+      className={`text-xs font-bold font-mono px-2 py-0.5 rounded flex items-center gap-1 ${
+        isBreached
+          ? "bg-red-600 text-white animate-pulse"
+          : "bg-gray-100 text-gray-700"
+      }`}
+    >
+      <Clock className="w-3 h-3" />
+      {isBreached ? "VENCIDO" : timeLeft}
+    </span>
+  );
+};
+
 export default function AgentDashboard() {
   const router = useRouter();
-  const { user: currentUser, loading: userLoading } = useUserProfile();
+  const { user: currentUser } = useUserProfile();
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [agents, setAgents] = useState<{ id: string; full_name: string }[]>([]);
+  const [agents, setAgents] = useState<
+    { id: string; full_name: string; role: string }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [isAvailable, setIsAvailable] = useState(true);
 
@@ -89,6 +121,9 @@ export default function AgentDashboard() {
     new Date().toISOString().split("T")[0]
   );
 
+  // VISTA DEL DASHBOARD
+  const [viewMode, setViewMode] = useState<"KANBAN" | "HISTORY">("KANBAN");
+
   // --- 1. CARGA DE DATOS ---
   const fetchTickets = async () => {
     try {
@@ -115,7 +150,7 @@ export default function AgentDashboard() {
       // Cargar Agentes para reasignación
       const { data: agentsData } = await supabase
         .from("users")
-        .select("id, full_name")
+        .select("id, full_name, role")
         .in("role", ["agent", "admin"]);
 
       if (agentsData) {
@@ -162,7 +197,7 @@ export default function AgentDashboard() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tickets" },
-        (_payload) => {
+        () => {
           void fetchTickets(); // Recargar si algo cambia
         }
       )
@@ -383,20 +418,46 @@ export default function AgentDashboard() {
     updateStatus(ticketId, newStatus);
   };
 
-  // --- 5. FILTROS DE VISTAS ---
-  const pendingTickets = tickets.filter((t) => t.status === "PENDIENTE");
-  const inProgressTickets = tickets.filter((t) => t.status === "EN_PROGRESO");
-  const waitingTickets = tickets.filter((t) => t.status === "EN_ESPERA"); // Tickets Congelados
+  // --- 5. FILTROS Y ORDENAMIENTO VISUAL ---
+  // Helper para ordenar: INC primero, luego por SLA (time left)
+  const sortTickets = (ticketList: Ticket[]) => {
+    return [...ticketList].sort((a, b) => {
+      // 1. Prioridad Tipo: INC > REQ
+      if (a.ticket_type === "INC" && b.ticket_type !== "INC") return -1;
+      if (a.ticket_type !== "INC" && b.ticket_type === "INC") return 1;
+
+      // 2. Prioridad Urgencia: Menor fecha fin = Más urgente
+      const dateA = a.sla_expected_end_at || a.created_at;
+      const dateB = b.sla_expected_end_at || b.created_at;
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
+    });
+  };
+
+  // Aplicamos el sort a las listas filtradas
+  const pendingTickets = sortTickets(
+    tickets.filter((t) => t.status === "PENDIENTE")
+  );
+  const inProgressTickets = sortTickets(
+    tickets.filter((t) => t.status === "EN_PROGRESO")
+  );
+  const waitingTickets = tickets.filter(
+    (t) => t.status === "EN_ESPERA" || t.status === "WAITING_PARTS"
+  );
+  // Nota: waitingTickets usualmente no requiere sort estricto visual, pero si se quiere:
+  // const waitingTickets = sortTickets(tickets.filter((t) => t.status === "EN_ESPERA"));
+
   const resolvedTickets = tickets.filter((t) => {
     const isResolved = t.status === "RESUELTO" || t.status === "CERRADO";
     if (!isResolved) return false;
-
-    // Archivar casos resueltos hace más de 12 días
     const dateToCheck = new Date(t.updated_at || t.created_at);
     const diffTime = Math.abs(new Date().getTime() - dateToCheck.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays <= 12;
   });
+
+  // ... (rest of filtering logic for reports)
+
+  // ... (rest of filtering logic for reports)
 
   const downloadReport = () => {
     if (!currentUser) return;
@@ -471,6 +532,7 @@ export default function AgentDashboard() {
   return (
     <AuthGuard allowedRoles={["agent", "admin", "superadmin"]}>
       <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+        <NotificationManager tickets={tickets} />
         {/* MODAL DE HISTORIAL DE ACTIVO */}
         {selectedAssetSerial && (
           <AssetHistoryModal
@@ -685,435 +747,614 @@ export default function AgentDashboard() {
 
         {/* CONTENIDO */}
         <main className="flex-1 p-6 overflow-x-auto">
-          {/* BARRA DE CONTROL */}
-          <div className="flex flex-col sm:flex-row justify-between mb-6 gap-4">
-            {/* BOTÓN DEL CONGELADOR */}
-            <button
-              onClick={() => setShowFreezer(!showFreezer)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all border cursor-pointer ${
-                waitingTickets.length > 0
-                  ? "bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200 shadow-sm"
-                  : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-              }`}
-            >
-              <Snowflake
-                className={`w-4 h-4 ${
-                  waitingTickets.length > 0 ? "animate-pulse" : ""
+          {/* BARRA DE CONTROL Y PESTAÑAS */}
+          <div className="flex flex-col sm:flex-row justify-between mb-6 gap-4 items-center">
+            {/* TABS */}
+            <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm relative">
+              <button
+                onClick={() => setViewMode("KANBAN")}
+                className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${
+                  viewMode === "KANBAN"
+                    ? "bg-blue-50 text-sena-blue shadow-sm ring-1 ring-blue-100"
+                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
                 }`}
-              />
-              Rep. y Garantías ({waitingTickets.length})
-            </button>
+              >
+                <LayoutDashboard className="w-4 h-4" /> Tablero de Gestión
+              </button>
+              <button
+                onClick={() => setViewMode("HISTORY")}
+                className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${
+                  viewMode === "HISTORY"
+                    ? "bg-blue-50 text-sena-blue shadow-sm ring-1 ring-blue-100"
+                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                }`}
+              >
+                <History className="w-4 h-4" /> Historial Completo
+              </button>
+            </div>
 
-            <button
-              onClick={() => {
-                setLoading(true);
-                fetchTickets();
-              }}
-              className="flex items-center gap-2 text-gray-500 hover:text-sena-blue text-sm font-medium cursor-pointer transition-colors bg-white px-3 py-1 rounded-md border border-gray-200 hover:border-sena-blue"
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
-              />
-              {loading ? "Sincronizando..." : "Sincronizar Tablero"}
-            </button>
+            <div className="flex gap-3">
+              {viewMode === "KANBAN" && (
+                <button
+                  onClick={() => setShowFreezer(!showFreezer)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all border cursor-pointer ${
+                    waitingTickets.length > 0
+                      ? "bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200 shadow-sm"
+                      : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  <Snowflake
+                    className={`w-4 h-4 ${
+                      waitingTickets.length > 0 ? "animate-pulse" : ""
+                    }`}
+                  />
+                  Rep. y Garantías ({waitingTickets.length})
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  setLoading(true);
+                  fetchTickets();
+                }}
+                className="flex items-center gap-2 text-gray-500 hover:text-sena-blue text-sm font-medium cursor-pointer transition-colors bg-white px-3 py-2 rounded-lg border border-gray-200 hover:border-sena-blue shadow-sm"
+                title="Recargar datos"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                />
+              </button>
+            </div>
           </div>
 
-          {/* --- SECCIÓN DEL CONGELADOR (Expansible) --- */}
-          {showFreezer && (
-            <div className="mb-8 bg-purple-50 rounded-xl p-5 border-2 border-dashed border-purple-200 animate-in slide-in-from-top-4">
-              <h3 className="font-bold text-purple-800 flex items-center gap-2 mb-4 text-lg">
-                <Snowflake className="w-6 h-6" /> Repuestos y Garantías
-              </h3>
+          {/* --- VISTA: HISTORIAL --- */}
+          {viewMode === "HISTORY" ? (
+            <TicketHistory />
+          ) : (
+            // --- VISTA: KANBAN ---
+            <>
+              {/* --- SECCIÓN DEL CONGELADOR (Expansible) --- */}
+              {showFreezer && (
+                <div className="mb-8 bg-purple-50 rounded-xl p-5 border-2 border-dashed border-purple-200 animate-in slide-in-from-top-4">
+                  <h3 className="font-bold text-purple-800 flex items-center gap-2 mb-4 text-lg">
+                    <Snowflake className="w-6 h-6" /> Repuestos y Garantías
+                  </h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {waitingTickets.map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    className="bg-white p-4 rounded-lg border border-purple-100 shadow-sm opacity-90 hover:opacity-100 transition hover:shadow-md cursor-pointer"
-                    onClick={(e) => {
-                      // Evitar abrir modal si se hace clic en botones
-                      if ((e.target as HTMLElement).closest("button")) return;
-                      setSelectedTicket(ticket);
-                    }}
-                  >
-                    <div className="flex justify-between mb-3">
-                      <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-1 rounded uppercase tracking-wider">
-                        #{ticket.id} • PAUSADO
-                      </span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {waitingTickets.map((ticket) => (
                       <div
-                        className="flex items-center gap-1 text-[10px] text-gray-400"
-                        title={`Actualizado: ${new Date(
-                          ticket.updated_at || ticket.created_at
-                        ).toLocaleString()}`}
+                        key={ticket.id}
+                        className="bg-white p-4 rounded-lg border border-purple-100 shadow-sm opacity-90 hover:opacity-100 transition hover:shadow-md cursor-pointer"
+                        onClick={(e) => {
+                          // Evitar abrir modal si se hace clic en botones
+                          if ((e.target as HTMLElement).closest("button"))
+                            return;
+                          setSelectedTicket(ticket);
+                        }}
                       >
-                        <Clock className="w-3 h-3" />
-                        {getTimeAgo(ticket.updated_at || ticket.created_at)}
-                      </div>
-                    </div>
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex gap-1 items-center">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1 ${
+                                  ticket.ticket_type === "INC"
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-blue-100 text-blue-700"
+                                }`}
+                              >
+                                {ticket.ticket_type === "INC" ? (
+                                  <Zap className="w-3 h-3" />
+                                ) : (
+                                  <FileText className="w-3 h-3" />
+                                )}
+                                {ticket.ticket_code || `#${ticket.id}`}
+                              </span>
+                              <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1">
+                                <PauseCircle className="w-3 h-3" /> PAUSADO
+                              </span>
+                              {ticket.is_vip_ticket && (
+                                <span
+                                  className="bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-yellow-200"
+                                  title="Usuario VIP"
+                                >
+                                  <Crown className="w-3 h-3" /> VIP
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div
+                            className="flex items-center gap-1 text-[10px] text-gray-400"
+                            title={`Actualizado: ${new Date(
+                              ticket.updated_at || ticket.created_at
+                            ).toLocaleString()}`}
+                          >
+                            <Clock className="w-3 h-3" />
+                            {getTimeAgo(ticket.updated_at || ticket.created_at)}
+                          </div>
+                        </div>
 
-                    <p className="font-bold text-gray-800 text-sm mb-1">
-                      {ticket.users?.full_name}
-                    </p>
-                    <p className="text-xs text-gray-500 mb-4 flex items-center gap-1">
-                      <Monitor className="w-3 h-3" />{" "}
-                      {ticket.assets?.model || "Equipo General"}
-                    </p>
+                        <p className="font-bold text-gray-800 text-sm mb-1">
+                          {ticket.users?.full_name}
+                        </p>
+                        <p className="text-xs text-gray-500 mb-4 flex items-center gap-1">
+                          <Monitor className="w-3 h-3" />{" "}
+                          {ticket.assets?.model || "Equipo General"}
+                        </p>
 
-                    <button
-                      onClick={() =>
-                        addComment(ticket.id, ticket.description || "")
-                      }
-                      className="w-full mb-2 bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 text-xs py-1.5 rounded-lg font-bold flex items-center justify-center gap-2 transition cursor-pointer"
-                    >
-                      <span className="text-[10px]">💬</span> Agregar
-                      Seguimiento
-                    </button>
-
-                    {/* Botón para REANUDAR */}
-                    <button
-                      onClick={() => toggleHold(ticket)}
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white text-xs py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition cursor-pointer"
-                    >
-                      <PlayCircle className="w-3.5 h-3.5" /> Reanudar SLA
-                    </button>
-                  </div>
-                ))}
-
-                {waitingTickets.length === 0 && (
-                  <p className="text-sm text-purple-400 italic py-4 col-span-full text-center">
-                    No hay equipos para repuestos ni garantias... ¡Buen trabajo!
-                    👌👍
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* --- GRID KANBAN PRINCIPAL --- */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-auto min-w-[300px]">
-            {/* 1. POR ASIGNAR */}
-            <div
-              className="flex flex-col bg-gray-100/50 rounded-xl border border-gray-200 min-h-[500px]"
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, "PENDIENTE")}
-            >
-              <div className="p-4 border-b border-gray-200 bg-gray-50 rounded-t-xl flex justify-between items-center sticky top-0 backdrop-blur-sm z-10">
-                <h2 className="font-bold text-gray-700 flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
-                  Por Asignar
-                </h2>
-                <span className="bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full text-xs font-extrabold">
-                  {pendingTickets.length}
-                </span>
-              </div>
-
-              <div className="p-3 space-y-3 flex-1">
-                {pendingTickets.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-40 text-gray-400 text-sm opacity-60">
-                    <CheckCircle className="w-8 h-8 mb-2" />
-                    <p>Bandeja limpia</p>
-                  </div>
-                )}
-                {pendingTickets.map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, ticket.id)}
-                    className="bg-white p-4 rounded-xl shadow-md border border-gray-200 border-l-4 border-l-red-500 hover:shadow-lg transition-all duration-200 group animate-in fade-in slide-in-from-bottom-2 cursor-grab active:cursor-grabbing"
-                    onClick={(e) => {
-                      if ((e.target as HTMLElement).closest("button")) return;
-                      setSelectedTicket(ticket);
-                    }}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded border border-red-100">
-                        #{ticket.id} • {ticket.category}
-                      </span>
-                      <div
-                        className="flex items-center gap-1 text-[10px] text-gray-400"
-                        title={`Actualizado: ${new Date(
-                          ticket.updated_at || ticket.created_at
-                        ).toLocaleString()}`}
-                      >
-                        <Clock className="w-3 h-3" />
-                        {getTimeAgo(ticket.updated_at || ticket.created_at)}
-                      </div>
-                    </div>
-                    <h3 className="font-bold text-gray-800 text-base mb-1">
-                      {ticket.users?.full_name || "Usuario desconocido"}
-                    </h3>
-                    <div className="text-sm text-gray-500 mb-4 flex flex-col gap-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="font-medium text-gray-600">
-                          {ticket.location}
-                        </span>
-                      </div>
-                      {ticket.assets && (
                         <button
                           onClick={() =>
-                            setSelectedAssetSerial(ticket.assets!.serial_number)
+                            addComment(ticket.id, ticket.description || "")
                           }
-                          className="bg-gray-50 p-1.5 rounded text-xs text-gray-500 flex items-center gap-2 border border-gray-100 w-fit hover:bg-gray-100 hover:text-sena-blue transition-colors mt-1"
-                          title="Ver historial de este equipo"
+                          className="w-full mb-2 bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 text-xs py-1.5 rounded-lg font-bold flex items-center justify-center gap-2 transition cursor-pointer"
                         >
-                          <Monitor className="w-3 h-3" />
-                          {ticket.assets.type} {ticket.assets.model}
+                          <span className="text-[10px]">💬</span> Agregar
+                          Seguimiento
                         </button>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => updateStatus(ticket.id, "EN_PROGRESO")}
-                      className="w-full bg-sena-blue hover:bg-blue-800 text-white text-sm py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-sm"
-                    >
-                      Atender Caso
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
 
-            {/* 2. EN CURSO */}
-            <div
-              className="flex flex-col bg-blue-50/30 rounded-xl border border-blue-100 min-h-[500px]"
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, "EN_PROGRESO")}
-            >
-              <div className="p-4 border-b border-blue-100 bg-blue-50/50 rounded-t-xl flex justify-between items-center sticky top-0 backdrop-blur-sm z-10">
-                <h2 className="font-bold text-gray-700 flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
-                  En Curso
-                </h2>
-                <span className="bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-extrabold">
-                  {inProgressTickets.length}
-                </span>
-              </div>
-
-              <div className="p-3 space-y-3 flex-1">
-                {inProgressTickets.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-40 text-gray-400 text-sm opacity-60">
-                    <PlayCircle className="w-8 h-8 mb-2" />
-                    <p>Sin tickets activos</p>
-                  </div>
-                )}
-                {inProgressTickets.map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, ticket.id)}
-                    className="bg-white p-4 rounded-xl shadow-md border border-gray-200 border-l-4 border-l-blue-500 hover:shadow-lg transition-all duration-200 animate-in fade-in slide-in-from-left-2 cursor-grab active:cursor-grabbing"
-                    onClick={(e) => {
-                      if (
-                        (e.target as HTMLElement).closest("button") ||
-                        (e.target as HTMLElement).closest("select") ||
-                        (e.target as HTMLElement).closest("textarea")
-                      )
-                        return;
-                      setSelectedTicket(ticket);
-                    }}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 flex items-center gap-1 w-fit">
-                          #{ticket.id} • Activo
-                          {(() => {
-                            const userStr = safeGetItem("tic_user");
-                            if (userStr) {
-                              const user = JSON.parse(userStr);
-                              if (ticket.assigned_agent_id === user.id) {
-                                return (
-                                  <span className="ml-1 bg-blue-600 text-white px-1 rounded text-[9px]">
-                                    MÍO
-                                  </span>
-                                );
-                              }
-                            }
-                            return null;
-                          })()}
-                        </span>
-                        {/* SELECTOR DE CATEGORÍA */}
-                        <select
-                          className="text-[10px] border border-blue-200 rounded px-1 py-0.5 bg-white text-gray-600 outline-none cursor-pointer hover:border-blue-400"
-                          value={ticket.category}
-                          onChange={(e) =>
-                            handleCategoryChange(ticket.id, e.target.value)
-                          }
+                        {/* Botón para REANUDAR */}
+                        <button
+                          onClick={() => toggleHold(ticket)}
+                          className="w-full bg-purple-600 hover:bg-purple-700 text-white text-xs py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition cursor-pointer"
                         >
-                          <option value="HARDWARE">HARDWARE</option>
-                          <option value="SOFTWARE">SOFTWARE</option>
-                          <option value="REDES">REDES</option>
-                          <option value="OTROS">OTROS</option>
-                        </select>
+                          <PlayCircle className="w-3.5 h-3.5" /> Reanudar SLA
+                        </button>
                       </div>
-                      <div
-                        className="flex items-center gap-1 text-[10px] text-gray-400"
-                        title={`Actualizado: ${new Date(
-                          ticket.updated_at || ticket.created_at
-                        ).toLocaleString()}`}
-                      >
-                        <Clock className="w-3 h-3" />
-                        {getTimeAgo(ticket.updated_at || ticket.created_at)}
-                      </div>
-                    </div>
+                    ))}
 
-                    <h3 className="font-bold text-gray-800 mb-1">
-                      {ticket.users?.full_name}
-                    </h3>
-                    <p className="text-xs text-gray-500 mb-4 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" /> {ticket.location}
-                    </p>
-                    {ticket.assets && (
-                      <button
-                        onClick={() =>
-                          setSelectedAssetSerial(ticket.assets!.serial_number)
-                        }
-                        className="text-xs text-blue-600 hover:underline mb-3 flex items-center gap-1"
-                      >
-                        <Monitor className="w-3 h-3" /> Ver Historial Equipo
-                      </button>
-                    )}
-
-                    <div className="space-y-2">
-                      {/* REASIGNAR AGENTE */}
-                      <div className="mb-2">
-                        <select
-                          className="w-full text-xs border border-gray-200 rounded-lg p-1.5 bg-gray-50 text-gray-600 focus:ring-2 focus:ring-blue-100 outline-none"
-                          value={ticket.assigned_agent_id || ""}
-                          onChange={(e) =>
-                            handleReassign(ticket.id, e.target.value)
-                          }
-                        >
-                          <option value="" disabled>
-                            Reasignar a...
-                          </option>
-                          {agents.map((agent) => (
-                            <option key={agent.id} value={agent.id}>
-                              {agent.full_name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* CAMPO DE SOLUCIÓN */}
-                      <textarea
-                        className="w-full text-xs border border-gray-300 rounded-lg p-2 mb-2 h-20 focus:ring-2 focus:ring-green-100 outline-none resize-none"
-                        placeholder="Detalle la solución (mínimo 20 palabras)..."
-                        value={solutionTexts[ticket.id] || ""}
-                        onChange={(e) =>
-                          setSolutionTexts({
-                            ...solutionTexts,
-                            [ticket.id]: e.target.value,
-                          })
-                        }
-                      />
-
-                      <button
-                        onClick={() => updateStatus(ticket.id, "RESUELTO")}
-                        disabled={
-                          !solutionTexts[ticket.id] ||
-                          solutionTexts[ticket.id].trim().split(/\s+/).length <
-                            20
-                        }
-                        className={`w-full text-white text-xs py-2 rounded-lg font-bold transition-colors shadow-sm flex items-center justify-center gap-2 ${
-                          !solutionTexts[ticket.id] ||
-                          solutionTexts[ticket.id].trim().split(/\s+/).length <
-                            20
-                            ? "bg-gray-300 cursor-not-allowed"
-                            : "bg-green-600 hover:bg-green-700 cursor-pointer"
-                        }`}
-                        title={
-                          !solutionTexts[ticket.id] ||
-                          solutionTexts[ticket.id].trim().split(/\s+/).length <
-                            20
-                            ? "Escriba al menos 20 palabras para resolver"
-                            : "Resolver Ticket"
-                        }
-                      >
-                        Resolver{" "}
-                        {(!solutionTexts[ticket.id] ||
-                          solutionTexts[ticket.id].trim().split(/\s+/).length <
-                            20) &&
-                          `(${
-                            solutionTexts[ticket.id]
-                              ? solutionTexts[ticket.id].trim().split(/\s+/)
-                                  .length
-                              : 0
-                          }/20)`}
-                      </button>
-
-                      {/* BOTÓN PARA CONGELAR/PAUSAR */}
-                      <button
-                        onClick={() => toggleHold(ticket)}
-                        className="w-full border border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300 text-xs py-2 rounded-lg font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                      >
-                        <PauseCircle className="w-3.5 h-3.5" />
-                        Esperar Repuesto (Pausar)
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 3. RESUELTOS */}
-            <div
-              className="flex flex-col bg-green-50/30 rounded-xl border border-green-100 min-h-[500px]"
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, "RESUELTO")}
-            >
-              <div className="p-4 border-b border-green-100 bg-green-50/50 rounded-t-xl flex justify-between items-center sticky top-0 backdrop-blur-sm z-10">
-                <h2 className="font-bold text-gray-700 flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-                  Resueltos
-                  <button
-                    onClick={() => setIsResolvedCollapsed(!isResolvedCollapsed)}
-                    className="ml-2 text-xs text-green-600 hover:text-green-800 underline"
-                  >
-                    {isResolvedCollapsed ? "Mostrar" : "Ocultar"}
-                  </button>
-                </h2>
-                <span className="bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-extrabold">
-                  {resolvedTickets.length}
-                </span>
-              </div>
-
-              {!isResolvedCollapsed && (
-                <div className="p-3 space-y-3 flex-1">
-                  {resolvedTickets.map((ticket) => (
-                    <div
-                      key={ticket.id}
-                      className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-l-green-500 opacity-75 hover:opacity-100 transition-all duration-200 hover:shadow-sm cursor-pointer"
-                      onClick={(e) => {
-                        if ((e.target as HTMLElement).closest("button")) return;
-                        setSelectedTicket(ticket);
-                      }}
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-100">
-                          #{ticket.id} • Resuelto
-                        </span>
-                        <div
-                          className="flex items-center gap-1 text-[10px] text-gray-400"
-                          title={`Actualizado: ${new Date(
-                            ticket.updated_at || ticket.created_at
-                          ).toLocaleString()}`}
-                        >
-                          <Clock className="w-3 h-3" />
-                          {getTimeAgo(ticket.updated_at || ticket.created_at)}
-                        </div>
-                      </div>
-                      <h3 className="font-bold text-gray-800 text-sm decoration-2">
-                        {ticket.users?.full_name}
-                      </h3>
-                      <p className="text-xs text-gray-400 mt-1 italic">
-                        Ticket cerrado
+                    {waitingTickets.length === 0 && (
+                      <p className="text-sm text-purple-400 italic py-4 col-span-full text-center">
+                        No hay equipos para repuestos ni garantias... ¡Buen
+                        trabajo! 👌👍
                       </p>
-                    </div>
-                  ))}
+                    )}
+                  </div>
                 </div>
               )}
-            </div>
-          </div>
+
+              {/* --- GRID KANBAN PRINCIPAL --- */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-auto min-w-[300px]">
+                {/* 1. POR ASIGNAR */}
+                <div
+                  className="flex flex-col bg-gray-100/50 rounded-xl border border-gray-200 min-h-[500px]"
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, "PENDIENTE")}
+                >
+                  <div className="p-4 border-b border-gray-200 bg-gray-50 rounded-t-xl flex justify-between items-center sticky top-0 backdrop-blur-sm z-10">
+                    <h2 className="font-bold text-gray-700 flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
+                      Por Asignar
+                    </h2>
+                    <span className="bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full text-xs font-extrabold">
+                      {pendingTickets.length}
+                    </span>
+                  </div>
+
+                  <div className="p-3 space-y-3 flex-1">
+                    {pendingTickets.length === 0 && (
+                      <div className="flex flex-col items-center justify-center h-40 text-gray-400 text-sm opacity-60">
+                        <CheckCircle className="w-8 h-8 mb-2" />
+                        <p>Bandeja limpia</p>
+                      </div>
+                    )}
+                    {pendingTickets.map((ticket) => (
+                      <div
+                        key={ticket.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, ticket.id)}
+                        className={`bg-white p-4 rounded-xl shadow-md border border-gray-200 ${getPriorityColor(
+                          ticket
+                        )} hover:shadow-lg transition-all duration-200 group animate-in fade-in slide-in-from-bottom-2 cursor-grab active:cursor-grabbing`}
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).closest("button"))
+                            return;
+                          setSelectedTicket(ticket);
+                        }}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex gap-1 items-center">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1 ${
+                                  ticket.ticket_type === "INC"
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-blue-100 text-blue-700"
+                                }`}
+                              >
+                                {ticket.ticket_type === "INC" ? (
+                                  <Zap className="w-3 h-3" />
+                                ) : (
+                                  <FileText className="w-3 h-3" />
+                                )}
+                                {ticket.ticket_code || `#${ticket.id}`}
+                              </span>
+                              {ticket.is_vip_ticket && (
+                                <span
+                                  className="bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-yellow-200"
+                                  title="Usuario VIP"
+                                >
+                                  <Crown className="w-3 h-3" /> VIP
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-gray-400 font-medium">
+                              {ticket.category}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col items-end gap-1">
+                            {ticket.ticket_type === "INC" &&
+                              ticket.sla_status === "running" && (
+                                <CountdownTimer
+                                  targetDate={ticket.sla_expected_end_at}
+                                />
+                              )}
+                            <div
+                              className="flex items-center gap-1 text-[10px] text-gray-400"
+                              title={`Actualizado: ${new Date(
+                                ticket.updated_at || ticket.created_at
+                              ).toLocaleString()}`}
+                            >
+                              <Clock className="w-3 h-3" />
+                              {getTimeAgo(
+                                ticket.updated_at || ticket.created_at
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <h3 className="font-bold text-gray-800 text-base mb-1">
+                          {ticket.users?.full_name || "Usuario desconocido"}
+                        </h3>
+                        <div className="text-sm text-gray-500 mb-4 flex flex-col gap-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="font-medium text-gray-600">
+                              {ticket.location}
+                            </span>
+                          </div>
+                          {ticket.assets && (
+                            <button
+                              onClick={() =>
+                                setSelectedAssetSerial(
+                                  ticket.assets!.serial_number
+                                )
+                              }
+                              className="bg-gray-50 p-1.5 rounded text-xs text-gray-500 flex items-center gap-2 border border-gray-100 w-fit hover:bg-gray-100 hover:text-sena-blue transition-colors mt-1"
+                              title="Ver historial de este equipo"
+                            >
+                              <Monitor className="w-3 h-3" />
+                              {ticket.assets.type} {ticket.assets.model}
+                            </button>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => updateStatus(ticket.id, "EN_PROGRESO")}
+                          className="w-full bg-sena-blue hover:bg-blue-800 text-white text-sm py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-sm"
+                        >
+                          Atender Caso
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. EN CURSO */}
+                <div
+                  className="flex flex-col bg-blue-50/30 rounded-xl border border-blue-100 min-h-[500px]"
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, "EN_PROGRESO")}
+                >
+                  <div className="p-4 border-b border-blue-100 bg-blue-50/50 rounded-t-xl flex justify-between items-center sticky top-0 backdrop-blur-sm z-10">
+                    <h2 className="font-bold text-gray-700 flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+                      En Curso
+                    </h2>
+                    <span className="bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-extrabold">
+                      {inProgressTickets.length}
+                    </span>
+                  </div>
+
+                  <div className="p-3 space-y-3 flex-1">
+                    {inProgressTickets.length === 0 && (
+                      <div className="flex flex-col items-center justify-center h-40 text-gray-400 text-sm opacity-60">
+                        <PlayCircle className="w-8 h-8 mb-2" />
+                        <p>Sin tickets activos</p>
+                      </div>
+                    )}
+                    {inProgressTickets.map((ticket) => (
+                      <div
+                        key={ticket.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, ticket.id)}
+                        className={`bg-white p-4 rounded-xl shadow-md border border-gray-200 ${getPriorityColor(
+                          ticket
+                        )} hover:shadow-lg transition-all duration-200 animate-in fade-in slide-in-from-left-2 cursor-grab active:cursor-grabbing`}
+                        onClick={(e) => {
+                          if (
+                            (e.target as HTMLElement).closest("button") ||
+                            (e.target as HTMLElement).closest("select") ||
+                            (e.target as HTMLElement).closest("textarea")
+                          )
+                            return;
+                          setSelectedTicket(ticket);
+                        }}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex flex-col gap-1 max-w-[70%]">
+                            <div className="flex gap-1 items-center flex-wrap">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1 ${
+                                  ticket.ticket_type === "INC"
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-blue-100 text-blue-700"
+                                }`}
+                              >
+                                {ticket.ticket_type === "INC" ? (
+                                  <Zap className="w-3 h-3" />
+                                ) : (
+                                  <FileText className="w-3 h-3" />
+                                )}
+                                {ticket.ticket_code || `#${ticket.id}`}
+                              </span>
+                              {ticket.is_vip_ticket && (
+                                <span
+                                  className="bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-yellow-200"
+                                  title="Usuario VIP"
+                                >
+                                  <Crown className="w-3 h-3" /> VIP
+                                </span>
+                              )}
+                              {/* MÍO Badge Logic */}
+                              {(() => {
+                                const userStr = safeGetItem("tic_user");
+                                if (userStr) {
+                                  const user = JSON.parse(userStr);
+                                  if (ticket.assigned_agent_id === user.id) {
+                                    return (
+                                      <span className="bg-blue-600 text-white px-1.5 py-0.5 rounded text-[9px] font-bold shadow-sm">
+                                        MÍO
+                                      </span>
+                                    );
+                                  }
+                                }
+                                return null;
+                              })()}
+                            </div>
+
+                            {/* SELECTOR DE CATEGORÍA */}
+                            <select
+                              className="text-[10px] border border-blue-200 rounded px-1 py-0.5 bg-white text-gray-600 outline-none cursor-pointer hover:border-blue-400 w-fit mt-1 shadow-sm"
+                              value={ticket.category}
+                              onChange={(e) =>
+                                handleCategoryChange(ticket.id, e.target.value)
+                              }
+                            >
+                              <option value="HARDWARE">HARDWARE</option>
+                              <option value="SOFTWARE">SOFTWARE</option>
+                              <option value="REDES">REDES</option>
+                              <option value="OTROS">OTROS</option>
+                            </select>
+                          </div>
+
+                          <div className="flex flex-col items-end gap-1">
+                            {ticket.ticket_type === "INC" &&
+                              ticket.sla_status === "running" && (
+                                <CountdownTimer
+                                  targetDate={ticket.sla_expected_end_at}
+                                />
+                              )}
+                            <div
+                              className="flex items-center gap-1 text-[10px] text-gray-400"
+                              title={`Actualizado: ${new Date(
+                                ticket.updated_at || ticket.created_at
+                              ).toLocaleString()}`}
+                            >
+                              <Clock className="w-3 h-3" />
+                              {getTimeAgo(
+                                ticket.updated_at || ticket.created_at
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <h3 className="font-bold text-gray-800 mb-1">
+                          {ticket.users?.full_name}
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-4 flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> {ticket.location}
+                        </p>
+                        {ticket.assets && (
+                          <button
+                            onClick={() =>
+                              setSelectedAssetSerial(
+                                ticket.assets!.serial_number
+                              )
+                            }
+                            className="text-xs text-blue-600 hover:underline mb-3 flex items-center gap-1"
+                          >
+                            <Monitor className="w-3 h-3" /> Ver Historial Equipo
+                          </button>
+                        )}
+
+                        <div className="space-y-2">
+                          {/* REASIGNAR AGENTE */}
+                          <div className="mb-2">
+                            <select
+                              className="w-full text-xs border border-gray-200 rounded-lg p-1.5 bg-gray-50 text-gray-600 focus:ring-2 focus:ring-blue-100 outline-none"
+                              value={ticket.assigned_agent_id || ""}
+                              onChange={(e) =>
+                                handleReassign(ticket.id, e.target.value)
+                              }
+                            >
+                              <option value="" disabled>
+                                Reasignar a...
+                              </option>
+                              {agents.map((agent) => (
+                                <option key={agent.id} value={agent.id}>
+                                  {agent.full_name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* CAMPO DE SOLUCIÓN */}
+                          <textarea
+                            className="w-full text-xs border border-gray-300 rounded-lg p-2 mb-2 h-20 focus:ring-2 focus:ring-green-100 outline-none resize-none"
+                            placeholder="Detalle la solución (mínimo 20 palabras)..."
+                            value={solutionTexts[ticket.id] || ""}
+                            onChange={(e) =>
+                              setSolutionTexts({
+                                ...solutionTexts,
+                                [ticket.id]: e.target.value,
+                              })
+                            }
+                          />
+
+                          <button
+                            onClick={() => updateStatus(ticket.id, "RESUELTO")}
+                            disabled={
+                              !solutionTexts[ticket.id] ||
+                              solutionTexts[ticket.id].trim().split(/\s+/)
+                                .length < 20
+                            }
+                            className={`w-full text-white text-xs py-2 rounded-lg font-bold transition-colors shadow-sm flex items-center justify-center gap-2 ${
+                              !solutionTexts[ticket.id] ||
+                              solutionTexts[ticket.id].trim().split(/\s+/)
+                                .length < 20
+                                ? "bg-gray-300 cursor-not-allowed"
+                                : "bg-green-600 hover:bg-green-700 cursor-pointer"
+                            }`}
+                            title={
+                              !solutionTexts[ticket.id] ||
+                              solutionTexts[ticket.id].trim().split(/\s+/)
+                                .length < 20
+                                ? "Escriba al menos 20 palabras para resolver"
+                                : "Resolver Ticket"
+                            }
+                          >
+                            Resolver{" "}
+                            {(!solutionTexts[ticket.id] ||
+                              solutionTexts[ticket.id].trim().split(/\s+/)
+                                .length < 20) &&
+                              `(${
+                                solutionTexts[ticket.id]
+                                  ? solutionTexts[ticket.id].trim().split(/\s+/)
+                                      .length
+                                  : 0
+                              }/20)`}
+                          </button>
+
+                          {/* BOTÓN PARA CONGELAR/PAUSAR */}
+                          <button
+                            onClick={() => toggleHold(ticket)}
+                            className="w-full border border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300 text-xs py-2 rounded-lg font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <PauseCircle className="w-3.5 h-3.5" />
+                            Esperar Repuesto (Pausar)
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. RESUELTOS */}
+                <div
+                  className="flex flex-col bg-green-50/30 rounded-xl border border-green-100 min-h-[500px]"
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, "RESUELTO")}
+                >
+                  <div className="p-4 border-b border-green-100 bg-green-50/50 rounded-t-xl flex justify-between items-center sticky top-0 backdrop-blur-sm z-10">
+                    <h2 className="font-bold text-gray-700 flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                      Resueltos
+                      <button
+                        onClick={() =>
+                          setIsResolvedCollapsed(!isResolvedCollapsed)
+                        }
+                        className="ml-2 text-xs text-green-600 hover:text-green-800 underline"
+                      >
+                        {isResolvedCollapsed ? "Mostrar" : "Ocultar"}
+                      </button>
+                    </h2>
+                    <span className="bg-green-100 text-green-700 px-2.5 py-0.5 rounded-full text-xs font-extrabold">
+                      {resolvedTickets.length}
+                    </span>
+                  </div>
+
+                  {!isResolvedCollapsed && (
+                    <div className="p-3 space-y-3 flex-1">
+                      {resolvedTickets.map((ticket) => (
+                        <div
+                          key={ticket.id}
+                          className={`bg-white p-4 rounded-xl shadow-sm border ${getPriorityColor(
+                            ticket
+                          )} opacity-75 hover:opacity-100 transition-all duration-200 hover:shadow-sm cursor-pointer`}
+                          onClick={(e) => {
+                            if ((e.target as HTMLElement).closest("button"))
+                              return;
+                            setSelectedTicket(ticket);
+                          }}
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex gap-1 items-center">
+                                <span
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1 ${
+                                    ticket.ticket_type === "INC"
+                                      ? "bg-red-50 text-red-600"
+                                      : "bg-blue-50 text-blue-600"
+                                  }`}
+                                >
+                                  {ticket.ticket_type === "INC" ? (
+                                    <Zap className="w-3 h-3" />
+                                  ) : (
+                                    <FileText className="w-3 h-3" />
+                                  )}
+                                  {ticket.ticket_code || `#${ticket.id}`}
+                                </span>
+                                <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded border border-green-200">
+                                  RESUELTO
+                                </span>
+                                {ticket.is_vip_ticket && (
+                                  <span
+                                    className="bg-yellow-50 text-yellow-600 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-yellow-100"
+                                    title="Usuario VIP"
+                                  >
+                                    <Crown className="w-3 h-3" /> VIP
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-gray-400 font-medium">
+                                {ticket.category}
+                              </span>
+                            </div>
+
+                            <div
+                              className="flex items-center gap-1 text-[10px] text-gray-400"
+                              title={`Actualizado: ${new Date(
+                                ticket.updated_at || ticket.created_at
+                              ).toLocaleString()}`}
+                            >
+                              <Clock className="w-3 h-3" />
+                              {getTimeAgo(
+                                ticket.updated_at || ticket.created_at
+                              )}
+                            </div>
+                          </div>
+                          <h3 className="font-bold text-gray-800 text-sm decoration-2 line-through text-gray-400">
+                            {ticket.users?.full_name}
+                          </h3>
+                          <p className="text-xs text-gray-400 mt-1 italic">
+                            Ticket cerrado
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </main>
       </div>
     </AuthGuard>

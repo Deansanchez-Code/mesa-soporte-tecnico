@@ -9,9 +9,9 @@ import {
   Lock,
   Monitor,
   Calendar,
-} from "lucide-react"; // Agregamos Lock, Monitor, Calendar
+} from "lucide-react";
 import UserRequestForm from "@/components/UserRequestForm";
-import Link from "next/link"; // Importante para la navegación
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 interface UserData {
@@ -42,6 +42,23 @@ function HomeContent() {
 
   // Datos de Usuario (Compartido)
   const [userData, setUserData] = useState<UserData | null>(null);
+
+  const [availableAreas, setAvailableAreas] = useState<string[]>([]);
+  const [contractorLocation, setContractorLocation] = useState("");
+
+  // Cargar áreas disponibles al montar
+  useEffect(() => {
+    const fetchAreas = async () => {
+      const { data } = await supabase
+        .from("areas")
+        .select("name")
+        .order("name");
+      if (data) {
+        setAvailableAreas(data.map((a) => a.name));
+      }
+    };
+    fetchAreas();
+  }, []);
 
   const searchParams = useSearchParams();
   const locationParam = searchParams.get("location");
@@ -107,18 +124,26 @@ function HomeContent() {
     setLoading(true);
     setLoginError(false);
 
-    const { data } = await supabase
-      .from("users")
-      .select("*")
-      .eq("username", username.toLowerCase().trim())
-      .single();
+    try {
+      const cleanUsername = username.split("@")[0].toLowerCase().trim();
+      const res = await fetch("/api/auth/check-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: cleanUsername }),
+      });
+      const { user } = await res.json();
 
-    setLoading(false);
+      setLoading(false);
 
-    if (data) {
-      setUserData(data);
-      setViewState("request");
-    } else {
+      if (user) {
+        setUserData(user);
+        setViewState("request");
+      } else {
+        setLoginError(true);
+      }
+    } catch (e) {
+      console.error("Login check failed:", e);
+      setLoading(false);
       setLoginError(true);
     }
   };
@@ -126,55 +151,62 @@ function HomeContent() {
   // --- LOGIN CONTRATISTA / EXTERNO ---
   const handleContractorSubmit = async () => {
     if (!contractorName || !contractorEmail) return;
+
+    // Validación de ubicación para Funcionarios
+    if (contractorArea === "Contratista" && !contractorLocation) {
+      alert("Por favor selecciona dónde te encuentras ubicado.");
+      return;
+    }
+
     setLoading(true);
 
     const derivedUsername = contractorEmail.split("@")[0].toLowerCase().trim();
+    const finalArea =
+      contractorArea === "Contratista"
+        ? contractorLocation
+        : "PORTERIA PEATONAL";
 
     try {
       // 1. Buscar si ya existe
-      const { data: existingUser } = await supabase
-        .from("users")
-        .select("*")
-        .eq("username", derivedUsername)
-        .single();
+      const checkRes = await fetch("/api/auth/check-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: derivedUsername }),
+      });
+      const { user: existingUser } = await checkRes.json();
 
       if (existingUser) {
-        // Si existe, actualizamos sus datos para mantenerlos frescos
-        const { data: updatedUser, error: updateError } = await supabase
-          .from("users")
-          .update({
-            full_name: contractorName,
-            area: contractorArea,
-            // No tocamos el rol existente
-          })
-          .eq("id", existingUser.id)
-          .select()
-          .single();
-
-        if (updateError) throw updateError;
-        setUserData(updatedUser);
+        // Loguear
+        setUserData(existingUser);
+        setViewState("request");
       } else {
-        // Si no existe, creamos uno nuevo
-        const { data: newUser, error: createError } = await supabase
-          .from("users")
-          .insert({
+        // 2. Crear
+        const createRes = await fetch("/api/auth/register-contractor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             username: derivedUsername,
             full_name: contractorName,
-            area: contractorArea,
-            role: "external", // Rol específico para externos
-            password: "EXTERNAL_NO_PASS", // Placeholder
-          })
-          .select()
-          .single();
+            email: contractorEmail,
+            role: "user",
+            area: finalArea,
+            location: finalArea,
+          }),
+        });
 
-        if (createError) throw createError;
+        const { user: newUser, error: createError } = await createRes.json();
+
+        if (createError) throw new Error(createError);
         setUserData(newUser);
+        setViewState("request");
       }
 
       setViewState("request");
     } catch (error) {
       console.error("Error en registro de contratista:", error);
-      alert("Error al procesar el ingreso. Por favor intente nuevamente.");
+      alert(
+        "Error al procesar el ingreso. Verifica tus datos o intenta nuevamente."
+      );
     } finally {
       setLoading(false);
     }
@@ -363,6 +395,27 @@ function HomeContent() {
                   </button>
                 </div>
               </div>
+
+              {/* DROPDOWN DE UBICACIÓN (SOLO PARA FUNCIONARIOS) */}
+              {contractorArea === "Contratista" && (
+                <div className="space-y-1 animate-in slide-in-from-top-2 fade-in">
+                  <label className="text-xs font-bold text-gray-600 ml-1">
+                    Ubicación <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={contractorLocation}
+                    onChange={(e) => setContractorLocation(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-orange outline-none bg-white font-medium text-gray-700"
+                  >
+                    <option value="">-- Selecciona una ubicación --</option>
+                    {availableAreas.map((area) => (
+                      <option key={area} value={area}>
+                        {area}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <button
                 onClick={handleContractorSubmit}

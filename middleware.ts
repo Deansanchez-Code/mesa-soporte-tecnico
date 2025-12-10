@@ -3,7 +3,9 @@ import { updateSession } from "@/utils/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
   // Exclude public assets, api routes (handled internally), and static files
-  if (request.nextUrl.pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|ico)$/)) {
+  if (
+    request.nextUrl.pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|json)$/)
+  ) {
     return;
   }
 
@@ -20,6 +22,6 @@ export const config = {
      * - api (API routes are protected separately)
      * Feel free to modify this pattern to include more paths.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json)$).*)",
   ],
 };

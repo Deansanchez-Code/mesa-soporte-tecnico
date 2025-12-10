@@ -33,7 +33,8 @@ import QRGenerator from "@/components/admin/QRGenerator";
 import AgentsTab from "@/components/admin/AgentsTab";
 import StaffTab from "@/components/admin/StaffTab";
 import ContractorsTab from "@/components/admin/ContractorsTab";
-import MetricsTab from "@/components/admin/MetricsTab";
+// import MetricsTab from "@/components/admin/MetricsTab"; // Keeping commented or removing if completely unused. Linter says unused.
+// Fixing unused import by removing it:
 import {
   Agent,
   User,
@@ -67,7 +68,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const { user: currentUser, loading: userLoading } = useUserProfile();
+  const { user: currentUser } = useUserProfile();
 
   // Estados Generales
   const [activeTab, setActiveTab] = useState<
@@ -223,7 +224,7 @@ export default function AdminDashboard() {
   };
 
   // --- 1. CARGA INICIAL DE DATOS ---
-  const fetchData = async () => {
+  const fetchData = React.useCallback(async () => {
     setLoading(true);
 
     if (currentUser) {
@@ -402,12 +403,12 @@ export default function AdminDashboard() {
     }
 
     setLoading(false);
-  };
+  }, [currentUser]);
 
   useEffect(() => {
     setMounted(true);
     if (currentUser) fetchData();
-  }, [currentUser]);
+  }, [currentUser, fetchData]);
 
   // --- 2. LOGICA AGENTES / USUARIOS ---
 
@@ -444,16 +445,24 @@ export default function AdminDashboard() {
         location: "",
       });
       fetchData();
+      fetchData();
     } catch (error: any) {
       console.error("Error creating asset:", error);
-      if (error.code === "42501" || error.status === 403) {
+      // Validar si es error de Supabase/postgres
+      const sbError = error as {
+        code?: string;
+        status?: number;
+        message?: string;
+      }; // simple casting
+
+      if (sbError.code === "42501" || sbError.status === 403) {
         alert(
           "⛔ Error de permisos: No tienes autorización para crear equipos."
         );
-      } else if (error.code === "23505") {
+      } else if (sbError.code === "23505") {
         alert("⚠️ Error: El serial ya existe en la base de datos.");
       } else {
-        alert(`❌ Error desconocido: ${error.message || "Intenta de nuevo"}`);
+        alert(`❌ Error desconocido: ${sbError.message || "Intenta de nuevo"}`);
       }
     }
   };
@@ -1569,7 +1578,7 @@ export default function AdminDashboard() {
             onAssign={handleAssignTicket}
             onAddComment={handleAddComment}
             onUpdateStatus={handleUpdateStatus}
-            currentUser={currentUser}
+            currentUser={currentUser || undefined}
           />
         )}
       </div>
