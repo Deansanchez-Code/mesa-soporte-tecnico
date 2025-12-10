@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import TicketDetailsModal from "@/components/TicketDetailsModal";
 import NotificationManager from "@/components/NotificationManager";
+import UserProfileModal from "@/components/UserProfileModal";
 
 // --- DEFINICIÓN DE TIPOS (Incluyendo campos SLA) ---
 import { Ticket } from "@/app/admin/types";
@@ -105,6 +106,7 @@ export default function AgentDashboard() {
   );
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showMetricsModal, setShowMetricsModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const [isResolvedCollapsed, setIsResolvedCollapsed] = useState(false);
   const [solutionTexts, setSolutionTexts] = useState<Record<number, string>>(
@@ -248,14 +250,30 @@ export default function AgentDashboard() {
 
     if (!isHolding) {
       // >>> CONGELAR <<<
+      const reason = prompt(
+        "Ingrese el motivo de pausa (Ej: Espera Repuesto, Espera Usuario, etc):"
+      );
+      if (!reason) return; // Cancelar si no escribe motivo
+
       // Guardamos la fecha actual para detener el reloj de métricas
       updates.sla_clock_stopped_at = new Date().toISOString();
-      updates.hold_reason = "ESPERA_REPUESTO";
+      updates.hold_reason = reason;
+      updates.sla_pause_reason = reason; // Asegurar compatibilidad
+      updates.sla_status = "paused";
+
+      // Lógica de movimiento a Freezer
+      if (/repuesto|garant|proveedor|compra/i.test(reason)) {
+        updates.status = "EN_ESPERA";
+      } else {
+        updates.status = "EN_PROGRESO";
+      }
     } else {
       // >>> REANUDAR <<<
       // Limpiamos la fecha de parada para que el reloj "siga corriendo"
       updates.sla_clock_stopped_at = null;
       updates.hold_reason = null;
+      updates.sla_pause_reason = null;
+      updates.sla_status = "running";
     }
 
     // Actualizamos en Base de Datos
@@ -294,15 +312,38 @@ export default function AgentDashboard() {
   };
 
   // --- 3.2 AGREGAR COMENTARIO (SEGUIMIENTO) ---
-  const addComment = async (ticketId: number, currentDescription: string) => {
-    const comment = prompt(
-      "Ingrese su comentario de seguimiento (Min. 1 vez/semana):"
-    );
+  // --- 3.2 AGREGAR COMENTARIO (SEGUIMIENTO) ---
+  // Versión INTERACTIVA (para el Dashboard/Cards) - Pide prompt
+  const promptAddComment = async (
+    ticketId: number,
+    currentDescription: string
+  ) => {
+    const comment = prompt("Ingrese su comentario de seguimiento:");
     if (!comment) return;
+
+    await saveTicketComment(ticketId, comment, currentDescription);
+  };
+
+  // Versión DIRECTA (para el Modal) - Recibe el texto ya escrito
+  const saveTicketComment = async (
+    ticketId: number,
+    newComment: string,
+    currentDescription?: string // Opcional, si no se pasa se busca (o se concatena en DB si fuera posible, aqui concatenamos en JS)
+  ) => {
+    if (!newComment) return;
+
+    let finalDesc = currentDescription || "";
+
+    // Si no tenemos la description actual, tendríamos que buscarla
+    // Pero en el dashboard 'tickets' tiene la data.
+    if (!finalDesc) {
+      const t = tickets.find((ticket) => ticket.id === ticketId);
+      if (t) finalDesc = t.description || "";
+    }
 
     const dateStr = new Date().toLocaleString();
     const newDescription =
-      (currentDescription || "") + `\n\n[${dateStr}] SEGUIMIENTO: ${comment}`;
+      (finalDesc || "") + `\n\n[${dateStr}] SEGUIMIENTO: ${newComment}`;
 
     const { error } = await supabase
       .from("tickets")
@@ -340,9 +381,16 @@ export default function AgentDashboard() {
         }
         // Guardar la solución si existe
         if (solutionTexts[ticketId]) {
-          updates.solution = solutionTexts[ticketId]; // Asumimos que existe la columna 'solution'
-          // Si no existe columna solution, podríamos concatenar en description:
-          // updates.description = ticket.description + "\n\nSOLUCIÓN:\n" + solutionTexts[ticketId];
+          updates.solution = solutionTexts[ticketId];
+
+          // Buscar el ticket actual para obtener descripción previa
+          const currentTicket = tickets.find((t) => t.id === ticketId);
+          if (currentTicket) {
+            const dateStr = new Date().toLocaleString();
+            updates.description =
+              (currentTicket.description || "") +
+              `\n\n[${dateStr}] SOLUCIÓN: ${solutionTexts[ticketId]}`;
+          }
         }
       }
     } catch (e) {
@@ -541,11 +589,24 @@ export default function AgentDashboard() {
           />
         )}
 
+        {/* MODAL DE PERFIL DE USUARIO */}
+        {showProfileModal && currentUser && (
+          <UserProfileModal
+            user={currentUser}
+            onClose={() => setShowProfileModal(false)}
+          />
+        )}
+
         {/* MODAL DE DETALLES DEL TICKET (TRAZABILIDAD) */}
         {selectedTicket && (
           <TicketDetailsModal
             ticket={selectedTicket}
             onClose={() => setSelectedTicket(null)}
+            currentUser={currentUser || undefined}
+            onUpdateStatus={updateStatus}
+            onAssign={(tId) => updateStatus(tId, "EN_PROGRESO")}
+            onAddComment={saveTicketComment}
+            agents={agents}
           />
         )}
 
@@ -720,12 +781,20 @@ export default function AgentDashboard() {
               </span>
             </button>
 
-            <div
-              className="h-9 w-9 rounded-full bg-sena-blue flex items-center justify-center text-white font-bold text-sm shadow-md border-2 border-white ring-2 ring-gray-100 cursor-default"
+            <button
+              onClick={() => setShowProfileModal(true)}
+              className="h-9 w-9 rounded-full bg-sena-blue flex items-center justify-center text-white font-bold text-sm shadow-md border-2 border-white ring-2 ring-gray-100 hover:ring-sena-green transition-all cursor-pointer"
               title="Tu Perfil"
             >
-              AG
-            </div>
+              {currentUser?.full_name
+                ? currentUser.full_name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .slice(0, 2)
+                    .join("")
+                    .toUpperCase()
+                : "AG"}
+            </button>
 
             <button
               onClick={() => setShowMetricsModal(true)}
@@ -883,7 +952,10 @@ export default function AgentDashboard() {
 
                         <button
                           onClick={() =>
-                            addComment(ticket.id, ticket.description || "")
+                            promptAddComment(
+                              ticket.id,
+                              ticket.description || ""
+                            )
                           }
                           className="w-full mb-2 bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 text-xs py-1.5 rounded-lg font-bold flex items-center justify-center gap-2 transition cursor-pointer"
                         >
@@ -943,7 +1015,11 @@ export default function AgentDashboard() {
                         onDragStart={(e) => handleDragStart(e, ticket.id)}
                         className={`bg-white p-4 rounded-xl shadow-md border border-gray-200 ${getPriorityColor(
                           ticket
-                        )} hover:shadow-lg transition-all duration-200 group animate-in fade-in slide-in-from-bottom-2 cursor-grab active:cursor-grabbing`}
+                        )} ${
+                          ticket.is_vip_ticket
+                            ? "ring-2 ring-yellow-400 bg-yellow-50/20 shadow-yellow-100"
+                            : ""
+                        } hover:shadow-lg transition-all duration-200 group animate-in fade-in slide-in-from-bottom-2 cursor-grab active:cursor-grabbing`}
                         onClick={(e) => {
                           if ((e.target as HTMLElement).closest("button"))
                             return;
@@ -1067,7 +1143,11 @@ export default function AgentDashboard() {
                         onDragStart={(e) => handleDragStart(e, ticket.id)}
                         className={`bg-white p-4 rounded-xl shadow-md border border-gray-200 ${getPriorityColor(
                           ticket
-                        )} hover:shadow-lg transition-all duration-200 animate-in fade-in slide-in-from-left-2 cursor-grab active:cursor-grabbing`}
+                        )} ${
+                          ticket.is_vip_ticket
+                            ? "ring-2 ring-yellow-400 bg-yellow-50/20 shadow-yellow-100"
+                            : ""
+                        } hover:shadow-lg transition-all duration-200 animate-in fade-in slide-in-from-left-2 cursor-grab active:cursor-grabbing`}
                         onClick={(e) => {
                           if (
                             (e.target as HTMLElement).closest("button") ||
@@ -1341,7 +1421,7 @@ export default function AgentDashboard() {
                               )}
                             </div>
                           </div>
-                          <h3 className="font-bold text-gray-800 text-sm decoration-2 line-through text-gray-400">
+                          <h3 className="font-bold text-gray-800 text-sm text-gray-500">
                             {ticket.users?.full_name}
                           </h3>
                           <p className="text-xs text-gray-400 mt-1 italic">

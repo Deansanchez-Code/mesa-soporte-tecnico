@@ -140,6 +140,7 @@ export default function UserRequestForm({
 
   const [location, setLocation] = useState(initialLocation || user.area || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLocationLocked, setIsLocationLocked] = useState(false);
   const [areas, setAreas] = useState<string[]>([]);
 
   const [categoryGroups, setCategoryGroups] = useState<
@@ -160,12 +161,12 @@ export default function UserRequestForm({
       if (isValidSerial) return;
 
       setIsSearching(true);
+      setIsSearching(true);
       try {
-        const { data } = await supabase
-          .from("assets")
-          .select("*")
-          .ilike("serial_number", `%${manualSerial}%`)
-          .limit(5);
+        const response = await fetch(
+          `/api/assets/search?q=${encodeURIComponent(manualSerial)}`
+        );
+        const { data } = await response.json();
 
         if (data) {
           setSuggestions(data);
@@ -173,7 +174,8 @@ export default function UserRequestForm({
 
           // Validar si lo que escribió ya es un match exacto
           const exactMatch = data.find(
-            (a) => a.serial_number.toLowerCase() === manualSerial.toLowerCase()
+            (a: Asset) =>
+              a.serial_number.toLowerCase() === manualSerial.toLowerCase()
           );
           if (exactMatch) setIsValidSerial(true);
         }
@@ -263,6 +265,59 @@ export default function UserRequestForm({
     const timeout = setTimeout(fetchLocationAssets, 600); // Debounce
     return () => clearTimeout(timeout);
   }, [location, assets]);
+
+  // EFECTO: Detectar tipo de activo para bloquear/desbloquear ubicación
+  useEffect(() => {
+    let currentAsset: Asset | undefined;
+
+    // Buscar el activo seleccionado en las listas disponibles
+    if (selectedAsset) {
+      currentAsset =
+        assets.find((a) => a.serial_number === selectedAsset) ||
+        locationAssets.find((a) => a.serial_number === selectedAsset) ||
+        suggestions.find((a) => a.serial_number === selectedAsset);
+    } else if (isValidSerial && manualSerial) {
+      currentAsset = suggestions.find((a) => a.serial_number === manualSerial);
+    }
+
+    if (currentAsset) {
+      const type = currentAsset.type || "";
+      // Normalizamos para quitar tildes (Portátil -> PORTATIL)
+      const normalizedType = type
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase();
+
+      // Si es portátil -> Desbloquear y permitir cambios
+      if (
+        normalizedType.includes("PORTATIL") ||
+        normalizedType.includes("LAPTOP") ||
+        normalizedType.includes("TABLET") ||
+        normalizedType.includes("MOVIL")
+      ) {
+        setIsLocationLocked(false);
+      } else {
+        // Si es fijo (Torre, Impresora, etc.) -> Bloquear en su ubicación registrada (si tiene)
+        if (currentAsset.location) {
+          setLocation(currentAsset.location);
+          setIsLocationLocked(true);
+        } else {
+          // Si no tiene ubicación registrada, dejamos libre
+          setIsLocationLocked(false);
+        }
+      }
+    } else {
+      // Si no hay activo seleccionado, desbloquear para que usuario elija
+      setIsLocationLocked(false);
+    }
+  }, [
+    selectedAsset,
+    isValidSerial,
+    manualSerial,
+    assets,
+    locationAssets,
+    suggestions,
+  ]);
 
   // 2. DETECTOR DE FALLAS MASIVAS ("Efecto Waze")
   useEffect(() => {
@@ -362,26 +417,15 @@ export default function UserRequestForm({
             </div>
           </button>
 
-          {/* CARD 3: EMERGENCIA CRÍTICA */}
+          {/* CARD 3: EMERGENCIA CRÍTICA (ELIMINADO POR SOLICITUD) */}
+          {/* 
           <button
             onClick={() => setShowPanicModal(true)}
             className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-red-500 transition-all duration-300 flex flex-col items-center text-center gap-2 relative overflow-hidden"
           >
-            <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg">
-              SOS
-            </div>
-            <div className="bg-red-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300 animate-pulse group-hover:animate-none">
-              <AlertTriangle className="w-8 h-8 text-red-500" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-gray-800 group-hover:text-red-600 transition-colors">
-                Emergencia Crítica
-              </h3>
-              <p className="text-sm text-gray-500 leading-relaxed mt-1">
-                Reporte inmediato de fallas masivas de internet o urgencias.
-              </p>
-            </div>
-          </button>
+           ...
+          </button> 
+          */}
         </div>
 
         <div className="mt-12 text-center">
@@ -682,24 +726,56 @@ export default function UserRequestForm({
                 </label>
                 <div className="relative">
                   <MapPin className="absolute left-4 top-3.5 text-gray-400 w-5 h-5" />
-                  <input
+                  <select
                     id="location-input"
-                    list="areas-list"
-                    type="text"
                     value={location}
+                    disabled={isLocationLocked}
                     onChange={(e) => setLocation(e.target.value)}
-                    placeholder="Selecciona o escribe una ubicación..."
-                    className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-4 focus:ring-green-50 outline-none transition-all font-medium text-gray-700 bg-white ${
+                    className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-4 focus:ring-green-50 outline-none transition-all font-medium text-gray-700 bg-white appearance-none cursor-pointer ${
                       !location && isSubmitting
                         ? "border-red-300"
-                        : "border-gray-200 focus:border-sena-green"
+                        : isLocationLocked
+                        ? "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed"
+                        : "border-gray-200 focus:border-sena-green hover:border-sena-green"
                     }`}
-                  />
-                  <datalist id="areas-list">
+                  >
+                    <option value="">Seleccione una ubicación...</option>
                     {areas.map((area, index) => (
-                      <option key={index} value={area} />
+                      <option key={index} value={area}>
+                        {area}
+                      </option>
                     ))}
-                  </datalist>
+                  </select>
+
+                  {/* Icono de flecha (chevron) para indicar dropdown (opcional, pero ayuda UX) */}
+                  {!isLocationLocked && (
+                    <div className="absolute right-4 top-3.5 text-gray-400 pointer-events-none">
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </div>
+                  )}
+
+                  {isLocationLocked && (
+                    <div
+                      className="absolute right-4 top-3.5 text-gray-400"
+                      title="Ubicación fija del equipo"
+                    >
+                      <Loader2 className="w-5 h-5 animate-spin hidden" />{" "}
+                      {/* Dummy fallback */}
+                      🔒
+                    </div>
+                  )}
                 </div>
               </div>
 

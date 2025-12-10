@@ -38,7 +38,7 @@ interface TicketDetailsModalProps {
   onAssign?: (ticketId: number, agentId: string) => Promise<void>;
   onAddComment?: (ticketId: number, comment: string) => Promise<void>;
   onUpdateStatus?: (ticketId: number, status: string) => Promise<void>;
-  currentUser?: { full_name: string };
+  currentUser?: { id: string; full_name: string };
   onClose: () => void;
 }
 
@@ -49,6 +49,7 @@ export default function TicketDetailsModal({
   onAssign,
   onAddComment,
   onUpdateStatus,
+  currentUser,
 }: TicketDetailsModalProps) {
   // State
   const [selectedAgentId, setSelectedAgentId] = React.useState(
@@ -128,14 +129,30 @@ export default function TicketDetailsModal({
         .update({
           sla_status: "paused",
           sla_pause_reason: finalReason,
-          // We also update main status to 'EN_ESPERA' or similar logic if needed,
-          // but let's assume specific status mapping isn't strict,
-          // or we set status = 'EN_ESPERA' which your dashboard uses for 'Freezer'.
-          status: "EN_ESPERA",
+          // Lógica inteligente: Si el motivo menciona repuestos/garantía -> Freezer
+          // Si es otra cosa (ej: 'esperando usuario') -> Se mantiene en EN_PROGRESO pero pausado
+          status: /repuesto|garant|proveedor|compra/i.test(finalReason)
+            ? "EN_ESPERA"
+            : "EN_PROGRESO",
         })
         .eq("id", ticket.id);
 
       if (error) throw error;
+
+      // TRAZABILIDAD: Registrar evento
+      if (currentUser?.id) {
+        await supabase.from("ticket_events").insert({
+          ticket_id: ticket.id,
+          actor_id: currentUser.id,
+          action_type: "PAUSED",
+          comment: `Pausado por: ${finalReason}. (Estado: ${
+            /repuesto|garant|proveedor|compra/i.test(finalReason)
+              ? "En Espera"
+              : "Operativo"
+          })`,
+        });
+      }
+
       onClose(); // Triggers refresh in parent
     } catch (e) {
       console.error("Error pausing ticket:", e);
@@ -156,6 +173,17 @@ export default function TicketDetailsModal({
         .eq("id", ticket.id);
 
       if (error) throw error;
+
+      // TRAZABILIDAD: Registrar evento
+      if (currentUser?.id) {
+        await supabase.from("ticket_events").insert({
+          ticket_id: ticket.id,
+          actor_id: currentUser.id,
+          action_type: "RESUMED",
+          comment: "SLA Reanudado manualmente.",
+        });
+      }
+
       onClose();
     } catch (e) {
       console.error("Error resuming ticket:", e);
@@ -198,7 +226,7 @@ export default function TicketDetailsModal({
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200 backdrop-blur-sm">
       <div className="bg-white w-full max-w-3xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-4 border border-gray-200">
         {/* HEADER */}
-        <div className="bg-gray-900 text-white p-5 flex justify-between items-start shrink-0 relative overflow-hidden">
+        <div className="bg-gray-900 text-white p-5 flex justify-between items-start shrink-0 relative">
           {/* Gradient Accent */}
           <div
             className={`absolute top-0 left-0 w-2 h-full ${

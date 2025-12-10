@@ -46,7 +46,8 @@ import {
 import AssetHistoryModal from "@/components/AssetHistoryModal";
 import AssetHistoryTimeline from "@/components/AssetHistoryTimeline";
 import AssetActionModal from "@/components/AssetActionModal";
-import TicketDetailsModal from "@/components/TicketDetailsModal"; // IMPORTAT: TicketDetailsModal
+import TicketDetailsModal from "@/components/TicketDetailsModal";
+import UserProfileModal from "@/components/UserProfileModal"; // Importado
 import React from "react"; // Ensure React is imported for useState usage in Modal if needed, but page.tsx has it.
 import {
   PieChart,
@@ -121,6 +122,7 @@ export default function AdminDashboard() {
 
   // Estados Modales
   const [showAssetModal, setShowAssetModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false); // Estado para modal de perfil
 
   // Estados para Acciones de Activos
   const [showTimelineModal, setShowTimelineModal] = useState(false);
@@ -434,6 +436,15 @@ export default function AdminDashboard() {
         location: newAsset.location || "Sin ubicación",
       });
       if (error) throw error;
+
+      // TRAZABILIDAD: LOG EVENT
+      await supabase.from("asset_events").insert({
+        asset_serial: newAsset.serial,
+        event_type: "CREATED",
+        description: "Equipo creado manualmente en inventario",
+        actor_id: currentUser?.id,
+      });
+
       alert("✅ Equipo registrado en inventario");
       setShowAssetModal(false);
       setNewAsset({
@@ -444,7 +455,6 @@ export default function AdminDashboard() {
         userId: "",
         location: "",
       });
-      fetchData();
       fetchData();
     } catch (error: any) {
       console.error("Error creating asset:", error);
@@ -514,7 +524,16 @@ export default function AdminDashboard() {
         });
 
         if (error) errorCount++;
-        else successCount++;
+        else {
+          successCount++;
+          // TRAZABILIDAD: LOG EVENT (Background, no await to speed up)
+          supabase.from("asset_events").insert({
+            asset_serial: serial,
+            event_type: "CREATED",
+            description: "Carga masiva desde CSV",
+            actor_id: currentUser?.id,
+          });
+        }
       }
 
       alert(
@@ -645,6 +664,14 @@ export default function AdminDashboard() {
   return (
     <AuthGuard allowedRoles={["admin", "superadmin"]}>
       <div className="min-h-screen bg-gray-100 font-sans w-full relative overflow-x-hidden">
+        {/* MODAL PERFIL */}
+        {showProfileModal && currentUser && (
+          <UserProfileModal
+            user={currentUser}
+            onClose={() => setShowProfileModal(false)}
+          />
+        )}
+
         {/* MODAL HISTORIAL DE ACTIVO */}
         {/* MODAL HISTORIAL DE ACTIVO (TICKETS) */}
         {selectedAssetSerial && (
@@ -725,12 +752,19 @@ export default function AdminDashboard() {
                 </>
               )}
             </button>
-            <div
-              className="h-10 w-10 rounded-full bg-sena-green flex items-center justify-center font-bold border-2 border-white cursor-default"
-              title="Admin"
+            <button
+              onClick={() => setShowProfileModal(true)}
+              className="h-10 w-10 rounded-full bg-sena-green flex items-center justify-center font-bold border-2 border-white cursor-pointer hover:bg-green-700 transition"
+              title="Ver Perfil"
             >
-              AD
-            </div>
+              {currentUser?.full_name
+                ? currentUser.full_name
+                    .split(" ")
+                    .slice(0, 2)
+                    .map((n) => n[0])
+                    .join("")
+                : "AD"}
+            </button>
             <button
               onClick={handleLogout}
               className="text-white/80 hover:text-white hover:bg-white/10 p-2 rounded-full transition"
@@ -1099,6 +1133,9 @@ export default function AdminDashboard() {
                         ID
                       </th>
                       <th className="p-4 text-xs font-bold text-gray-500 uppercase">
+                        Tipo
+                      </th>
+                      <th className="p-4 text-xs font-bold text-gray-500 uppercase">
                         Estado
                       </th>
                       <th className="p-4 text-xs font-bold text-gray-500 uppercase">
@@ -1132,6 +1169,17 @@ export default function AdminDashboard() {
                         >
                           <td className="p-4 font-bold text-gray-800">
                             #{ticket.id}
+                          </td>
+                          <td className="p-4">
+                            <span
+                              className={`text-[10px] font-bold px-2 py-1 rounded border ${
+                                ticket.ticket_type === "INC"
+                                  ? "bg-orange-50 text-orange-700 border-orange-200"
+                                  : "bg-blue-50 text-blue-700 border-blue-200"
+                              }`}
+                            >
+                              {ticket.ticket_type || "REQ"}
+                            </span>
                           </td>
                           <td className="p-4">
                             <span

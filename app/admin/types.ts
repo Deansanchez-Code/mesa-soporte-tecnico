@@ -72,7 +72,7 @@ export interface Ticket {
   sla_expected_end_at?: string;
   sla_total_paused_duration?: string;
   sla_last_paused_at?: string;
-  sla_pause_reason?: string;
+  sla_pause_reason?: string | null;
   is_vip_ticket?: boolean;
 
   // Legacy/Simple Hold Fields (Keep for backward compatibility or map to new logic)
