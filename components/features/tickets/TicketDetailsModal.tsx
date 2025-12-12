@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import React, { useState } from "react";
 import {
   X,
   User,
@@ -14,23 +13,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { Ticket } from "@/app/admin/types";
-
-interface TicketEvent {
-  id: number;
-  created_at: string;
-  action_type: string;
-  old_value?: string;
-  new_value?: string;
-  comment?: string;
-  actor_id?: string;
-  actor_name?: string;
-}
-
-interface PauseReason {
-  id: number;
-  reason_code: string;
-  description: string;
-}
+import { useTicketDetails } from "./hooks/useTicketDetails";
 
 interface TicketDetailsModalProps {
   ticket: Ticket;
@@ -51,144 +34,38 @@ export default function TicketDetailsModal({
   onUpdateStatus,
   currentUser,
 }: TicketDetailsModalProps) {
-  // State
-  const [selectedAgentId, setSelectedAgentId] = React.useState(
+  // --- UI State (Local) ---
+  const [selectedAgentId, setSelectedAgentId] = useState(
     ticket.assigned_agent_id || ""
   );
-  const [assigning, setAssigning] = React.useState(false);
+  const [assigning, setAssigning] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
-  const [events, setEvents] = useState<TicketEvent[]>([]);
-  const [loadingEvents, setLoadingEvents] = useState(true);
 
-  // Pause/Resume State
-  const [pauseReasons, setPauseReasons] = useState<PauseReason[]>([]);
+  // Pause UI State
   const [showPauseInput, setShowPauseInput] = useState(false);
   const [selectedReason, setSelectedReason] = useState("");
   const [customReason, setCustomReason] = useState("");
-  const [processingAction, setProcessingAction] = useState(false);
 
-  // Initial Fetch
-  useEffect(() => {
-    const fetchDetails = async () => {
-      setLoadingEvents(true);
+  // --- Business Logic Hook ---
+  const {
+    loadingEvents,
+    pauseReasons,
+    processingAction,
+    timelineItems,
+    handlePause,
+    handleResume,
+    refreshEvents,
+  } = useTicketDetails({
+    ticket,
+    currentUser,
+    onSuccess: onClose, // Close modal after status change
+  });
 
-      // 1. Fetch Events
-      const { data: eventsData, error: eventsError } = await supabase
-        .from("ticket_events")
-        .select(
-          `
-                id, created_at, action_type, old_value, new_value, comment,
-                actor:actor_id ( full_name )
-            `
-        )
-        .eq("ticket_id", ticket.id)
-        .order("created_at", { ascending: false });
+  // --- Handlers Wrappers ---
 
-      if (!eventsError && eventsData) {
-        // Flatten actor name
-        const formatted = eventsData.map((e) => ({
-          ...e,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          actor_name: (e as any).actor?.full_name || "Sistema",
-        }));
-        setEvents(formatted);
-      }
-
-      // 2. Fetch Pause Reasons (Only if needed)
-      const { data: reasonsData } = await supabase
-        .from("pause_reasons")
-        .select("*")
-        .eq("is_active", true);
-
-      if (reasonsData) {
-        setPauseReasons(reasonsData);
-      }
-
-      setLoadingEvents(false);
-    };
-
-    fetchDetails();
-  }, [ticket.id]);
-
-  // Handle Pause
-  const handlePause = async () => {
-    if (!selectedReason) return;
-    setProcessingAction(true);
-
-    const finalReason =
-      selectedReason === "OTHER" ? customReason : selectedReason;
-    if (!finalReason) {
-      setProcessingAction(false);
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from("tickets")
-        .update({
-          sla_status: "paused",
-          sla_pause_reason: finalReason,
-          // Lógica inteligente: Si el motivo menciona repuestos/garantía -> Freezer
-          // Si es otra cosa (ej: 'esperando usuario') -> Se mantiene en EN_PROGRESO pero pausado
-          status: /repuesto|garant|proveedor|compra/i.test(finalReason)
-            ? "EN_ESPERA"
-            : "EN_PROGRESO",
-        })
-        .eq("id", ticket.id);
-
-      if (error) throw error;
-
-      // TRAZABILIDAD: Registrar evento
-      if (currentUser?.id) {
-        await supabase.from("ticket_events").insert({
-          ticket_id: ticket.id,
-          actor_id: currentUser.id,
-          action_type: "PAUSED",
-          comment: `Pausado por: ${finalReason}. (Estado: ${
-            /repuesto|garant|proveedor|compra/i.test(finalReason)
-              ? "En Espera"
-              : "Operativo"
-          })`,
-        });
-      }
-
-      onClose(); // Triggers refresh in parent
-    } catch (e) {
-      console.error("Error pausing ticket:", e);
-      alert("Error al pausar el ticket.");
-    }
-  };
-
-  // Handle Resume
-  const handleResume = async () => {
-    setProcessingAction(true);
-    try {
-      const { error } = await supabase
-        .from("tickets")
-        .update({
-          sla_status: "running",
-          status: "EN_PROGRESO", // Auto-move to In Progress
-        })
-        .eq("id", ticket.id);
-
-      if (error) throw error;
-
-      // TRAZABILIDAD: Registrar evento
-      if (currentUser?.id) {
-        await supabase.from("ticket_events").insert({
-          ticket_id: ticket.id,
-          actor_id: currentUser.id,
-          action_type: "RESUMED",
-          comment: "SLA Reanudado manualmente.",
-        });
-      }
-
-      onClose();
-    } catch (e) {
-      console.error("Error resuming ticket:", e);
-      alert("Error al reanudar el ticket.");
-    }
+  const onConfirmPause = async () => {
+    await handlePause(selectedReason, customReason);
   };
 
   const handleAssign = async () => {
@@ -205,22 +82,42 @@ export default function TicketDetailsModal({
     }
   };
 
-  // Legacy Description Parser (Keep for backward compatibility)
-  const parseDescription = (desc?: string) => {
-    if (!desc) return [];
-    const parts = desc.split(/\n\n\[/);
-    return parts.slice(1).map((part) => {
-      const closeBracketIndex = part.indexOf("]");
-      if (closeBracketIndex === -1) return { date: "", text: part };
-      const date = part.substring(0, closeBracketIndex);
-      const text = part
-        .substring(closeBracketIndex + 1)
-        .replace(" SEGUIMIENTO: ", "")
-        .trim();
-      return { date, text, isLegacy: true };
-    });
+  const handleSendComment = async () => {
+    if (!newComment.trim() || !onAddComment) return;
+    setSubmittingComment(true);
+    try {
+      await onAddComment(ticket.id, newComment);
+      setNewComment("");
+      // Refresh events to show the new comment immediately in timeline (if backend saves it as event or log)
+      // Note: onAddComment logic in parent usually inserts into ticket_events or updates description.
+      // If it inserts into `ticket_events`, we should refresh.
+      await refreshEvents();
+    } catch (e) {
+      console.error("Error sending comment:", e);
+    } finally {
+      setSubmittingComment(false);
+    }
   };
-  const legacyUpdates = parseDescription(ticket.description);
+
+  const handleResolve = async () => {
+    if (!newComment.trim()) {
+      return alert("Escribe una solución/comentario primero.");
+    }
+    if (!onUpdateStatus || !onAddComment) return;
+
+    if (confirm("¿Resolver ticket?")) {
+      setSubmittingComment(true);
+      try {
+        await onUpdateStatus(ticket.id, "RESUELTO");
+        await onAddComment(ticket.id, newComment);
+        onClose();
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setSubmittingComment(false);
+      }
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200 backdrop-blur-sm">
@@ -271,7 +168,7 @@ export default function TicketDetailsModal({
               <>
                 {ticket.sla_status === "paused" ? (
                   <button
-                    onClick={handleResume}
+                    onClick={() => handleResume()}
                     disabled={processingAction}
                     className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-all"
                   >
@@ -320,7 +217,7 @@ export default function TicketDetailsModal({
                             Cancelar
                           </button>
                           <button
-                            onClick={handlePause}
+                            onClick={onConfirmPause}
                             disabled={processingAction || !selectedReason}
                             className="text-xs bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700 disabled:opacity-50"
                           >
@@ -453,20 +350,7 @@ export default function TicketDetailsModal({
                       ticket.status !== "RESUELTO" &&
                       ticket.status !== "CERRADO" && (
                         <button
-                          onClick={async () => {
-                            if (!newComment.trim())
-                              return alert(
-                                "Escribe una solución/comentario primero."
-                              );
-                            if (confirm("¿Resolver ticket?")) {
-                              setSubmittingComment(true);
-                              await onUpdateStatus(ticket.id, "RESUELTO");
-                              if (onAddComment)
-                                await onAddComment(ticket.id, newComment); // Log solution
-                              setSubmittingComment(false);
-                              onClose();
-                            }
-                          }}
+                          onClick={handleResolve}
                           className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-bold"
                           disabled={submittingComment}
                         >
@@ -474,16 +358,7 @@ export default function TicketDetailsModal({
                         </button>
                       )}
                     <button
-                      onClick={async () => {
-                        if (!newComment.trim()) return;
-                        setSubmittingComment(true);
-                        await onAddComment(ticket.id, newComment);
-                        setNewComment("");
-                        setSubmittingComment(false);
-                        // Refresh events logic would be ideal here calling internal fetchDetails again
-                        // But for now we rely on parent refresh or optimistic update?
-                        // Actually, we should probably re-fetch events here.
-                      }}
+                      onClick={handleSendComment}
                       className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold disabled:opacity-50"
                       disabled={submittingComment || !newComment.trim()}
                     >
@@ -506,50 +381,10 @@ export default function TicketDetailsModal({
                 </h3>
 
                 <div className="relative border-l-2 border-gray-100 ml-2 space-y-6">
-                  {/* Timeline Logic Extracted for Safety */}
-                  {[
-                    ...legacyUpdates.map((u) => ({
-                      type: "legacy" as const,
-                      date: new Date(u.date).getTime(),
-                      displayDate: u.date,
-                      text: u.text,
-                      title: "Nota de Seguimiento",
-                      actor: undefined,
-                      rawType: undefined,
-                    })),
-                    ...events.map((e) => ({
-                      type: "event" as const,
-                      date: new Date(e.created_at).getTime(),
-                      displayDate: new Date(e.created_at).toLocaleString(),
-                      text: e.comment
-                        ? e.comment
-                        : `${e.old_value || "?"} ➔ ${e.new_value || "?"}`,
-                      title:
-                        e.action_type === "STATUS_CHANGE"
-                          ? "Cambio de Estado"
-                          : e.action_type === "PAUSED"
-                          ? "Ticket Pausado"
-                          : e.action_type === "RESUMED"
-                          ? "Ticket Reanudado"
-                          : e.action_type,
-                      actor: e.actor_name,
-                      rawType: e.action_type,
-                    })),
-                    {
-                      type: "creation" as const,
-                      date: new Date(ticket.created_at).getTime(),
-                      displayDate: new Date(ticket.created_at).toLocaleString(),
-                      title: "Ticket Creado",
-                      text: undefined,
-                      actor: undefined,
-                      rawType: undefined,
-                    },
-                  ]
-                    .sort((a, b) => b.date - a.date)
-                    .map((item, idx) => (
-                      <div key={idx} className="relative pl-6 group">
-                        <div
-                          className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white ring-1 
+                  {timelineItems.map((item, idx) => (
+                    <div key={idx} className="relative pl-6 group">
+                      <div
+                        className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white ring-1 
                                   ${
                                     item.rawType === "PAUSED"
                                       ? "bg-purple-500 ring-purple-200"
@@ -561,39 +396,39 @@ export default function TicketDetailsModal({
                                       ? "bg-gray-300 ring-gray-200"
                                       : "bg-gray-400 ring-gray-200"
                                   }`}
-                        ></div>
+                      ></div>
 
-                        <div className="flex justify-between items-start">
-                          <h4
-                            className={`font-bold text-xs ${
-                              item.rawType === "PAUSED"
-                                ? "text-purple-700"
-                                : "text-gray-700"
-                            }`}
-                          >
-                            {item.title}
-                          </h4>
-                          <span className="text-[10px] text-gray-400">
-                            {item.displayDate}
-                          </span>
-                        </div>
-
-                        {item.actor && (
-                          <p className="text-[10px] text-gray-400 mb-1">
-                            por{" "}
-                            <span className="font-medium text-gray-600">
-                              {item.actor}
-                            </span>
-                          </p>
-                        )}
-
-                        {item.text && (
-                          <div className="mt-1 text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100">
-                            {item.text}
-                          </div>
-                        )}
+                      <div className="flex justify-between items-start">
+                        <h4
+                          className={`font-bold text-xs ${
+                            item.rawType === "PAUSED"
+                              ? "text-purple-700"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          {item.title}
+                        </h4>
+                        <span className="text-[10px] text-gray-400">
+                          {item.displayDate}
+                        </span>
                       </div>
-                    ))}
+
+                      {item.actor && (
+                        <p className="text-[10px] text-gray-400 mb-1">
+                          por{" "}
+                          <span className="font-medium text-gray-600">
+                            {item.actor}
+                          </span>
+                        </p>
+                      )}
+
+                      {item.text && (
+                        <div className="mt-1 text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100">
+                          {item.text}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

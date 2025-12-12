@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import {
   Monitor,
   Cpu,
@@ -18,29 +17,8 @@ import {
 } from "lucide-react";
 import PanicButtonModal from "./PanicButtonModal";
 import AuditoriumReservationForm from "@/components/features/reservations/AuditoriumReservationForm";
-
-interface User {
-  id: string;
-  full_name: string;
-  area: string;
-  username: string;
-  role: string;
-}
-
-interface Asset {
-  id: number;
-  serial_number: string;
-  type: string;
-  brand: string;
-  model: string;
-  location?: string;
-}
-
-interface Outage {
-  id: number;
-  title: string;
-  description: string;
-}
+import { useTicketRequest } from "./hooks/useTicketRequest";
+import { User, Asset } from "./types";
 
 interface AssetCardProps {
   asset: Asset;
@@ -95,289 +73,73 @@ export default function UserRequestForm({
   onViewChange?: (view: "SELECTION" | "TICKET" | "RESERVATION") => void;
   currentView?: "SELECTION" | "TICKET" | "RESERVATION";
 }) {
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [locationAssets, setLocationAssets] = useState<Asset[]>([]);
+  // Use the new custom hook
+  const {
+    // Data
+    assets,
+    locationAssets,
+    areas,
+    categoryGroups,
+    activeOutage,
+
+    // Form State
+    category,
+    setCategory,
+    selectedAsset,
+    setSelectedAsset,
+    manualSerial,
+    setManualSerial,
+    location,
+    setLocation,
+    isSubmitting,
+    isLocationLocked,
+
+    // Search / Validation
+    showSuggestions,
+    setShowSuggestions,
+    suggestions,
+    isValidSerial,
+    setIsValidSerial,
+    isSearching,
+
+    // Handlers
+    handleSubmitTicket,
+  } = useTicketRequest({
+    user,
+    initialLocation,
+    onSuccess: onCancel,
+  });
 
   // VISTA ACTUAL: 'SELECTION' | 'TICKET' | 'RESERVATION'
   const [view, setView] = useState<"SELECTION" | "TICKET" | "RESERVATION">(
     currentView || "SELECTION"
   );
 
-  // Sincronizar con la prop currentView (para navegación del navegador)
-  // ESTO SOLO ESCUCHA CAMBIOS DESDE ARRIBA (Padre/URL)
+  // Sincronizar con la prop currentView
   useEffect(() => {
     if (currentView && currentView !== view) {
       setView(currentView);
     }
-  }, [currentView, view]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView]);
 
-  // MANEJADOR UNIFICADO DE CAMBIO DE VISTA
-  // Rompe el bucle infinito al no usar un useEffect para notificar al padre
   const handleViewChange = (
     newView: "SELECTION" | "TICKET" | "RESERVATION"
   ) => {
-    // 1. Notificar al padre si es controlado
     if (onViewChange) {
       onViewChange(newView);
     }
-
-    // 2. Actualizar localmente si NO es controlado (o para feedback inmediato optimista)
-    // Nota: Si es controlado, el padre devolverá la prop y el useEffect de arriba actualizará 'view'.
-    // Pero si no hay onViewChange, debemos hacerlo nosotros.
     if (!onViewChange) {
       setView(newView);
     }
   };
 
-  // Estados del Formulario Ticket
-  const [category, setCategory] = useState<string | null>(null);
-  const [selectedAsset, setSelectedAsset] = useState<string>("");
-  const [manualSerial, setManualSerial] = useState("");
-  const [suggestions, setSuggestions] = useState<Asset[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isValidSerial, setIsValidSerial] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-
-  const [location, setLocation] = useState(initialLocation || user.area || "");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLocationLocked, setIsLocationLocked] = useState(false);
-  const [areas, setAreas] = useState<string[]>([]);
-
-  const [categoryGroups, setCategoryGroups] = useState<
-    Record<string, string[]>
-  >({});
-
-  // Búsqueda inteligente de seriales
-  useEffect(() => {
-    const searchSerial = async () => {
-      if (!manualSerial) {
-        setSuggestions([]);
-        setIsValidSerial(false);
-        setShowSuggestions(false);
-        return;
-      }
-
-      // Si ya es válido (seleccionado), no buscamos de nuevo para no abrir el menú
-      if (isValidSerial) return;
-
-      setIsSearching(true);
-      setIsSearching(true);
-      try {
-        const response = await fetch(
-          `/api/assets/search?q=${encodeURIComponent(manualSerial)}`
-        );
-        const { data } = await response.json();
-
-        if (data) {
-          setSuggestions(data);
-          setShowSuggestions(true);
-
-          // Validar si lo que escribió ya es un match exacto
-          const exactMatch = data.find(
-            (a: Asset) =>
-              a.serial_number.toLowerCase() === manualSerial.toLowerCase()
-          );
-          if (exactMatch) setIsValidSerial(true);
-        }
-      } catch (error) {
-        console.error("Error buscando serial:", error);
-      } finally {
-        setIsSearching(false);
-      }
-    };
-
-    const timeout = setTimeout(searchSerial, 300);
-    return () => clearTimeout(timeout);
-  }, [manualSerial, isValidSerial]);
-
-  // Estado para el Modal de Pánico y Alertas Activas
   const [showPanicModal, setShowPanicModal] = useState(false);
-  const [activeOutage, setActiveOutage] = useState<Outage | null>(null);
-
-  // 1. Cargar activos y areas
-  useEffect(() => {
-    async function fetchData() {
-      // Cargar Activos
-      const { data: assetsData } = await supabase
-        .from("assets")
-        .select("*")
-        .eq("assigned_to_user_id", user.id);
-
-      if (assetsData) setAssets(assetsData);
-
-      // Cargar Areas
-      const { data: areasData } = await supabase
-        .from("areas")
-        .select("name")
-        .order("name");
-
-      if (areasData) setAreas(areasData.map((a) => a.name));
-
-      // Cargar Categorias Dinamicas
-      const { data: catData } = await supabase
-        .from("ticket_categories_config")
-        .select("id, user_selection_text")
-        .eq("is_active", true)
-        .order("user_selection_text"); // or id
-
-      if (catData && catData.length > 0) {
-        // Group by Prefix
-        const groups: Record<string, string[]> = {};
-        catData.forEach((item) => {
-          const parts = item.user_selection_text.split(": ");
-          const group = parts.length > 1 ? parts[0] : "General";
-
-          if (!groups[group]) groups[group] = [];
-          groups[group].push(item.user_selection_text);
-        });
-        setCategoryGroups(groups);
-      } else {
-        // Fallback if no seed data
-        setCategoryGroups({
-          General: ["HARDWARE", "SOFTWARE"],
-        });
-      }
-    }
-    fetchData();
-  }, [user.id]);
-
-  // 1b. Cargar activos de la ubicación (Dinámico)
-  useEffect(() => {
-    const fetchLocationAssets = async () => {
-      if (!location || location.length < 3) {
-        setLocationAssets([]);
-        return;
-      }
-
-      const { data } = await supabase
-        .from("assets")
-        .select("*")
-        .ilike("location", location);
-
-      if (data) {
-        // Filtrar los que ya están en 'assets' (mis asignados) para no duplicar visualmente
-        const myAssetIds = new Set(assets.map((a) => a.id));
-        const newAssets = data.filter((a) => !myAssetIds.has(a.id));
-        setLocationAssets(newAssets);
-      }
-    };
-
-    const timeout = setTimeout(fetchLocationAssets, 600); // Debounce
-    return () => clearTimeout(timeout);
-  }, [location, assets]);
-
-  // EFECTO: Detectar tipo de activo para bloquear/desbloquear ubicación
-  useEffect(() => {
-    let currentAsset: Asset | undefined;
-
-    // Buscar el activo seleccionado en las listas disponibles
-    if (selectedAsset) {
-      currentAsset =
-        assets.find((a) => a.serial_number === selectedAsset) ||
-        locationAssets.find((a) => a.serial_number === selectedAsset) ||
-        suggestions.find((a) => a.serial_number === selectedAsset);
-    } else if (isValidSerial && manualSerial) {
-      currentAsset = suggestions.find((a) => a.serial_number === manualSerial);
-    }
-
-    if (currentAsset) {
-      const type = currentAsset.type || "";
-      // Normalizamos para quitar tildes (Portátil -> PORTATIL)
-      const normalizedType = type
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toUpperCase();
-
-      // Si es portátil -> Desbloquear y permitir cambios
-      if (
-        normalizedType.includes("PORTATIL") ||
-        normalizedType.includes("LAPTOP") ||
-        normalizedType.includes("TABLET") ||
-        normalizedType.includes("MOVIL")
-      ) {
-        setIsLocationLocked(false);
-      } else {
-        // Si es fijo (Torre, Impresora, etc.) -> Bloquear en su ubicación registrada (si tiene)
-        if (currentAsset.location) {
-          setLocation(currentAsset.location);
-          setIsLocationLocked(true);
-        } else {
-          // Si no tiene ubicación registrada, dejamos libre
-          setIsLocationLocked(false);
-        }
-      }
-    } else {
-      // Si no hay activo seleccionado, desbloquear para que usuario elija
-      setIsLocationLocked(false);
-    }
-  }, [
-    selectedAsset,
-    isValidSerial,
-    manualSerial,
-    assets,
-    locationAssets,
-    suggestions,
-  ]);
-
-  // 2. DETECTOR DE FALLAS MASIVAS ("Efecto Waze")
-  useEffect(() => {
-    async function checkOutages() {
-      if (!location) return;
-
-      const { data } = await supabase
-        .from("mass_outages")
-        .select("*")
-        .eq("is_active", true)
-        .eq("location_scope", location)
-        .maybeSingle();
-
-      if (data) {
-        setActiveOutage(data);
-      } else {
-        setActiveOutage(null);
-      }
-    }
-
-    const timer = setTimeout(() => {
-      checkOutages();
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [location]);
-
-  // 3. Enviar Ticket Normal
-  const handleSubmitTicket = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!category || !location) return;
-
-    setIsSubmitting(true);
-
-    try {
-      const { error } = await supabase.from("tickets").insert({
-        user_id: user.id,
-        category: category,
-        asset_serial: selectedAsset || manualSerial || null,
-        location: location,
-        status: "PENDIENTE",
-      });
-
-      if (error) throw error;
-
-      alert("✅ ¡Ticket creado exitosamente! Un técnico va en camino.");
-      onCancel();
-    } catch (error) {
-      console.error("Error creando ticket:", error);
-      alert("❌ Error al crear el ticket. Intenta de nuevo.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   // --- VISTA DE SELECCIÓN (CARDS) ---
   if (view === "SELECTION") {
     return (
       <div className="w-full max-w-5xl mx-auto animate-in fade-in zoom-in duration-300">
-        {/* HEADER ELIMINADO: Ahora se muestra en el layout principal */}
         <div className="mb-6"></div>
 
         <div className="flex flex-col gap-3 max-w-2xl mx-auto">
@@ -416,16 +178,6 @@ export default function UserRequestForm({
               </p>
             </div>
           </button>
-
-          {/* CARD 3: EMERGENCIA CRÍTICA (ELIMINADO POR SOLICITUD) */}
-          {/* 
-          <button
-            onClick={() => setShowPanicModal(true)}
-            className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-red-500 transition-all duration-300 flex flex-col items-center text-center gap-2 relative overflow-hidden"
-          >
-           ...
-          </button> 
-          */}
         </div>
 
         <div className="mt-12 text-center">
@@ -437,7 +189,7 @@ export default function UserRequestForm({
           </button>
         </div>
 
-        {/* Modal de Pánico (Accesible desde aquí también) */}
+        {/* Modal de Pánico */}
         {showPanicModal && (
           <PanicButtonModal
             user={user}
@@ -545,7 +297,6 @@ export default function UserRequestForm({
                       </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {items.map((itemStr) => {
-                          // Extract pure label for display if formatted like "Group: Label"
                           const displayLabel = itemStr.includes(": ")
                             ? itemStr.split(": ")[1]
                             : itemStr;
@@ -623,7 +374,7 @@ export default function UserRequestForm({
                   </div>
                 )}
 
-                {/* CAMPO MANUAL DE SERIAL (Búsqueda Inteligente) */}
+                {/* CAMPO MANUAL DE SERIAL */}
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 relative">
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                     {user.role === "contractor" || user.role === "external"
@@ -636,7 +387,7 @@ export default function UserRequestForm({
                       value={manualSerial}
                       onChange={(e) => {
                         setManualSerial(e.target.value);
-                        setIsValidSerial(false); // Reset validation on change
+                        setIsValidSerial(false);
                         if (e.target.value) setSelectedAsset("");
                       }}
                       onFocus={() => {
@@ -644,7 +395,6 @@ export default function UserRequestForm({
                           setShowSuggestions(true);
                       }}
                       onBlur={() => {
-                        // Delay hide to allow click on suggestion
                         setTimeout(() => setShowSuggestions(false), 200);
                       }}
                       placeholder="Escribe para buscar serial..."
@@ -656,7 +406,6 @@ export default function UserRequestForm({
                           : "border-gray-300 focus:ring-sena-green"
                       }`}
                     />
-                    {/* Icono Izquierda (Search/Loader) */}
                     <div className="absolute left-3 top-2.5 text-gray-400">
                       {isSearching ? (
                         <Loader2 className="w-5 h-5 animate-spin" />
@@ -664,7 +413,6 @@ export default function UserRequestForm({
                         <Search className="w-5 h-5" />
                       )}
                     </div>
-                    {/* Icono Derecha (Validación) */}
                     <div className="absolute right-3 top-2.5">
                       {isValidSerial ? (
                         <Check className="w-5 h-5 text-green-600" />
@@ -673,7 +421,6 @@ export default function UserRequestForm({
                       ) : null}
                     </div>
 
-                    {/* SUGGESTIONS DROPDOWN */}
                     {showSuggestions && suggestions.length > 0 && (
                       <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                         {suggestions.map((asset) => (
@@ -700,7 +447,6 @@ export default function UserRequestForm({
                     )}
                   </div>
 
-                  {/* Mensajes de Ayuda/Error */}
                   <div className="mt-1 min-h-[20px]">
                     {manualSerial && !isValidSerial && !isSearching ? (
                       <p className="text-[10px] text-red-500 font-bold flex items-center gap-1">
@@ -747,7 +493,6 @@ export default function UserRequestForm({
                     ))}
                   </select>
 
-                  {/* Icono de flecha (chevron) para indicar dropdown (opcional, pero ayuda UX) */}
                   {!isLocationLocked && (
                     <div className="absolute right-4 top-3.5 text-gray-400 pointer-events-none">
                       <svg
@@ -771,9 +516,7 @@ export default function UserRequestForm({
                       className="absolute right-4 top-3.5 text-gray-400"
                       title="Ubicación fija del equipo"
                     >
-                      <Loader2 className="w-5 h-5 animate-spin hidden" />{" "}
-                      {/* Dummy fallback */}
-                      🔒
+                      <Loader2 className="w-5 h-5 animate-spin hidden" /> 🔒
                     </div>
                   )}
                 </div>
@@ -799,17 +542,18 @@ export default function UserRequestForm({
                     isSubmitting ||
                     !location ||
                     (!selectedAsset && !isValidSerial)
-                      ? "bg-gray-300 cursor-not-allowed shadow-none"
-                      : "bg-sena-green hover:bg-green-700 hover:scale-[1.02]"
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-sena-green hover:bg-[#2d8500] hover:scale-105"
                   }`}
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" /> Enviando...
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Enviando...
                     </>
                   ) : (
                     <>
-                      ENVIAR REPORTE <Send className="w-5 h-5" />
+                      ENVIAR SOLICITUD <Send className="w-4 h-4" />
                     </>
                   )}
                 </button>
