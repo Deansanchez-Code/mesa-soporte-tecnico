@@ -2,13 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import {
-  Calendar,
-  AlertTriangle,
-  CheckCircle,
-  Info,
-  Loader2,
-} from "lucide-react";
+import { Calendar, AlertTriangle, CheckCircle } from "lucide-react";
 
 interface Reservation {
   id: number;
@@ -209,9 +203,11 @@ export default function AuditoriumReservationForm({
 
       alert("✅ Reserva(s) confirmada(s) con éxito.");
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      alert(`❌ Error: ${error.message || "Error desconocido"}`);
+      const message =
+        error instanceof Error ? error.message : "Error desconocido";
+      alert(`❌ Error: ${message}`);
     } finally {
       setLoading(false);
     }

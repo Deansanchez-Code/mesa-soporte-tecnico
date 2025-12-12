@@ -456,7 +456,7 @@ export default function AdminDashboard() {
         location: "",
       });
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating asset:", error);
       // Validar si es error de Supabase/postgres
       const sbError = error as {
