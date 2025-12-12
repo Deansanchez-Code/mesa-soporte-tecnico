@@ -223,7 +223,7 @@ export default function AssetHistoryTimeline({
                     {/* Comments */}
                     {log.comments && (
                       <p className="text-sm text-gray-600 mb-4 italic border-l-2 border-gray-200 pl-3">
-                        "{log.comments}"
+                        &quot;{log.comments}&quot;
                       </p>
                     )}
 

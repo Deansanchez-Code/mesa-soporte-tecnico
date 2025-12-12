@@ -10,7 +10,7 @@ import {
   Monitor,
   Calendar,
 } from "lucide-react";
-import UserRequestForm from "@/components/UserRequestForm";
+import UserRequestForm from "@/components/features/requests/UserRequestForm";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 

@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import PanicButtonModal from "./PanicButtonModal";
-import AuditoriumReservationForm from "./AuditoriumReservationForm";
+import AuditoriumReservationForm from "@/components/features/reservations/AuditoriumReservationForm";
 
 interface User {
   id: string;

@@ -43,10 +43,10 @@ import {
   Ticket,
   Stats,
 } from "@/app/admin/types";
-import AssetHistoryModal from "@/components/AssetHistoryModal";
-import AssetHistoryTimeline from "@/components/AssetHistoryTimeline";
-import AssetActionModal from "@/components/AssetActionModal";
-import TicketDetailsModal from "@/components/TicketDetailsModal";
+import AssetHistoryModal from "@/components/features/assets/AssetHistoryModal";
+import AssetHistoryTimeline from "@/components/features/assets/AssetHistoryTimeline";
+import AssetActionModal from "@/components/features/assets/AssetActionModal";
+import TicketDetailsModal from "@/components/features/tickets/TicketDetailsModal";
 import UserProfileModal from "@/components/UserProfileModal"; // Importado
 import React from "react"; // Ensure React is imported for useState usage in Modal if needed, but page.tsx has it.
 import {

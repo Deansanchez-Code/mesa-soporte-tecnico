@@ -1,6 +1,6 @@
 "use client";
 
-import AssetHistoryModal from "@/components/AssetHistoryModal";
+import AssetHistoryModal from "@/components/features/assets/AssetHistoryModal";
 import AuthGuard from "@/components/AuthGuard";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -24,10 +24,10 @@ import {
   Crown, // For VIP
   History, // Added for History Tab
 } from "lucide-react";
-import TicketHistory from "@/components/TicketHistory";
+import TicketHistory from "@/components/features/tickets/TicketHistory";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import TicketDetailsModal from "@/components/TicketDetailsModal";
+import TicketDetailsModal from "@/components/features/tickets/TicketDetailsModal";
 import NotificationManager from "@/components/NotificationManager";
 import UserProfileModal from "@/components/UserProfileModal";
 

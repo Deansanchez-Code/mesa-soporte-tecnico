@@ -42,11 +42,11 @@ export function useUserProfile() {
         if (error) throw error;
 
         setUser(data as UserProfile);
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Ignorar error si no encuentra registros (PGRST116)
-        if (err.code !== "PGRST116") {
+        if ((err as { code?: string }).code !== "PGRST116") {
           console.error("Error fetching user profile:", err);
-          setError(err.message);
+          setError(err instanceof Error ? err.message : "Error desconocido");
         }
       } finally {
         setLoading(false);

@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     // If the constraint is removed, then we can insert directly.
     // Given the architecture, let's try to create the Auth user to be safe and consistent.
 
-    let userId = authUser?.user?.id;
+    const userId = authUser?.user?.id;
 
     if (authError) {
       // If user already exists in Auth but not in public, we might recover.
@@ -73,9 +73,10 @@ export async function POST(req: NextRequest) {
         area,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error creating user:", error);
-    const msg = error.message || "Failed to create user";
+    const msg =
+      error instanceof Error ? error.message : "Failed to create user";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
