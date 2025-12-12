@@ -780,10 +780,16 @@ export default function AdminDashboard() {
           <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div
               onClick={() => {
-                setActiveTab("tickets");
-                setTicketFilter("ALL");
+                if (currentUser?.role !== "superadmin") {
+                  setActiveTab("tickets");
+                  setTicketFilter("ALL");
+                }
               }}
-              className="bg-white p-6 rounded-xl shadow-sm border-b-4 border-sena-green flex justify-between items-center cursor-pointer hover:shadow-md transition"
+              className={`bg-white p-6 rounded-xl shadow-sm border-b-4 border-sena-green flex justify-between items-center transition ${
+                currentUser?.role === "superadmin"
+                  ? "cursor-default"
+                  : "cursor-pointer hover:shadow-md"
+              }`}
             >
               <div>
                 <p className="text-gray-500 text-xs font-bold uppercase">
@@ -800,10 +806,16 @@ export default function AdminDashboard() {
             </div>
             <div
               onClick={() => {
-                setActiveTab("tickets");
-                setTicketFilter("PENDING");
+                if (currentUser?.role !== "superadmin") {
+                  setActiveTab("tickets");
+                  setTicketFilter("PENDING");
+                }
               }}
-              className="bg-white p-6 rounded-xl shadow-sm border-b-4 border-red-500 flex justify-between items-center cursor-pointer hover:shadow-md transition"
+              className={`bg-white p-6 rounded-xl shadow-sm border-b-4 border-red-500 flex justify-between items-center transition ${
+                currentUser?.role === "superadmin"
+                  ? "cursor-default"
+                  : "cursor-pointer hover:shadow-md"
+              }`}
             >
               <div>
                 <p className="text-gray-500 text-xs font-bold uppercase">
@@ -880,16 +892,18 @@ export default function AdminDashboard() {
             >
               <PieChartIcon className="w-4 h-4" /> Métricas y Gráficos
             </button>
-            <button
-              onClick={() => setActiveTab("tickets")}
-              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
-                activeTab === "tickets"
-                  ? "border-b-4 border-sena-blue text-sena-blue"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <FileText className="w-4 h-4" /> Tickets
-            </button>
+            {currentUser?.role !== "superadmin" && (
+              <button
+                onClick={() => setActiveTab("tickets")}
+                className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
+                  activeTab === "tickets"
+                    ? "border-b-4 border-sena-blue text-sena-blue"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <FileText className="w-4 h-4" /> Tickets
+              </button>
+            )}
             <button
               onClick={() => setActiveTab("assets")}
               className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
