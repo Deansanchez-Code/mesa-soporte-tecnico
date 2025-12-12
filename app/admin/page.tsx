@@ -47,8 +47,10 @@ import AssetHistoryModal from "@/components/features/assets/AssetHistoryModal";
 import AssetHistoryTimeline from "@/components/features/assets/AssetHistoryTimeline";
 import AssetActionModal from "@/components/features/assets/AssetActionModal";
 import TicketDetailsModal from "@/components/features/tickets/TicketDetailsModal";
-import UserProfileModal from "@/components/UserProfileModal"; // Importado
+import UserProfileModal from "@/components/UserProfileModal";
 import React from "react"; // Ensure React is imported for useState usage in Modal if needed, but page.tsx has it.
+import { useTicketsQuery } from "@/components/features/tickets/hooks/useTicketsQuery";
+import PaginationControls from "@/components/ui/PaginationControls";
 import {
   PieChart,
   Pie,
@@ -87,7 +89,7 @@ export default function AdminDashboard() {
   const [mounted, setMounted] = useState(false); // Fix Recharts hydration error
   const [searchTerm, setSearchTerm] = useState(""); // Buscador general
   const [selectedAssetSerial, setSelectedAssetSerial] = useState<string | null>(
-    null
+    null,
   ); // Modal historial
   const [currentAdminName, setCurrentAdminName] = useState("Super Admin");
   const [ticketFilter, setTicketFilter] = useState<"ALL" | "PENDING">("ALL"); // Filtro para la pestaña de tickets
@@ -101,8 +103,20 @@ export default function AdminDashboard() {
   // Estados Datos
   const [agents, setAgents] = useState<Agent[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [tickets, setTickets] = useState<Ticket[]>([]); // Lista completa de tickets
-  const [usersList, setUsersList] = useState<User[]>([]); // Para el select de asignar
+  // const [tickets, setTickets] = useState<Ticket[]>([]); // Replaced by useQuery
+  const [usersList, setUsersList] = useState<User[]>([]);
+
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
+  const { data: ticketsData, isLoading: isLoadingTickets } = useTicketsQuery({
+    page,
+    pageSize,
+    status: ticketFilter,
+  });
+
+  const tickets = ticketsData?.data || [];
+  const totalTicketsCount = ticketsData?.count || 0;
 
   // Estado para métricas
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,7 +144,7 @@ export default function AdminDashboard() {
   const [selectedAssetForAction, setSelectedAssetForAction] =
     useState<Asset | null>(null);
   const [actionType, setActionType] = useState<"TRANSFER" | "DECOMMISSION">(
-    "TRANSFER"
+    "TRANSFER",
   );
 
   const [newAsset, setNewAsset] = useState({
@@ -240,14 +254,14 @@ export default function AdminDashboard() {
       { data: allUsers },
       { data: areasData },
       { data: catsData },
-      { data: allTickets, count: ticketCount },
+      { data: allTickets }, // Re-added for metrics
       { count: pendingCount },
     ] = await Promise.all([
       // 1. Agentes
       supabase
         .from("users")
         .select(
-          "id, full_name, username, email, role, area, created_at, is_active, perm_create_assets, perm_transfer_assets, perm_decommission_assets, is_vip"
+          "id, full_name, username, email, role, area, created_at, is_active, perm_create_assets, perm_transfer_assets, perm_decommission_assets, is_vip",
         )
         .in("role", ["agent", "admin", "superadmin"])
         .order("created_at", { ascending: false }),
@@ -255,29 +269,26 @@ export default function AdminDashboard() {
       supabase
         .from("assets")
         .select(
-          "id, serial_number, type, brand, model, assigned_to_user_id, location, created_at, users(full_name)"
+          "id, serial_number, type, brand, model, assigned_to_user_id, location, created_at, users(full_name)",
         )
         .order("created_at", { ascending: false }),
       // 3. Usuarios
       supabase
         .from("users")
         .select(
-          "id, full_name, username, email, role, area, is_vip, is_active, employment_type, job_category, auth_id"
+          "id, full_name, username, email, role, area, is_vip, is_active, employment_type, job_category, auth_id",
         )
         .order("full_name"),
       // 4. Areas
       supabase.from("areas").select("id, name").order("name"),
       // 5. Categorias
       supabase.from("categories").select("id, name").order("name"),
-      // 6. Tickets
+      // 6. Tickets (for metrics)
       supabase
         .from("tickets")
-        .select(
-          "*, users:users!tickets_user_id_fkey(full_name), assigned_agent:users!tickets_assigned_agent_id_fkey(full_name)",
-          { count: "exact" }
-        )
+        .select("*")
         .order("created_at", { ascending: false }),
-      // 7. Conteo Pendientes
+      // 7. Conteo Pendientes (Optional: keep for stats or move to separate query)
       supabase
         .from("tickets")
         .select("*", { count: "exact", head: true })
@@ -292,10 +303,10 @@ export default function AdminDashboard() {
       areas: areasData || [],
       categories: catsData || [],
     });
-    if (allTickets) setTickets(allTickets as unknown as Ticket[]);
+    // if (allTickets) setTickets(allTickets as unknown as Ticket[]); // Managed by useQuery
 
     setStats({
-      totalTickets: ticketCount || 0,
+      totalTickets: allTickets?.length || 0, // Now using allTickets for total count
       pendingTickets: pendingCount || 0,
       totalAssets: assetsData?.length || 0,
     });
@@ -308,7 +319,7 @@ export default function AdminDashboard() {
           acc[ticket.status] = (acc[ticket.status] || 0) + 1;
           return acc;
         },
-        {}
+        {},
       );
       const statusData = [
         {
@@ -342,7 +353,7 @@ export default function AdminDashboard() {
           acc[month] = (acc[month] || 0) + 1;
           return acc;
         },
-        {}
+        {},
       );
       const monthlyData = Object.keys(monthlyCounts).map((key) => ({
         name: key,
@@ -362,7 +373,7 @@ export default function AdminDashboard() {
           }
           return acc;
         },
-        {}
+        {},
       );
       const agentData = Object.keys(agentCounts)
         .map((key) => ({
@@ -467,7 +478,7 @@ export default function AdminDashboard() {
 
       if (sbError.code === "42501" || sbError.status === 403) {
         alert(
-          "⛔ Error de permisos: No tienes autorización para crear equipos."
+          "⛔ Error de permisos: No tienes autorización para crear equipos.",
         );
       } else if (sbError.code === "23505") {
         alert("⚠️ Error: El serial ya existe en la base de datos.");
@@ -482,7 +493,7 @@ export default function AdminDashboard() {
     const headers = "Serial,Tipo,Marca,Modelo,Ubicacion";
     const blob = new Blob(
       [`\uFEFF${headers}\nEJ123,Portátil,HP,ProBook,Sede Central`],
-      { type: "text/csv;charset=utf-8;" }
+      { type: "text/csv;charset=utf-8;" },
     );
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -510,7 +521,7 @@ export default function AdminDashboard() {
         if (cols.length < 5) continue; // Mínimo serial, tipo, marca, modelo, ubicacion
 
         const [serial, type, brand, model, location] = cols.map((c) =>
-          c.trim()
+          c.trim(),
         );
         if (!serial) continue;
 
@@ -537,7 +548,7 @@ export default function AdminDashboard() {
       }
 
       alert(
-        `Carga finalizada:\n✅ ${successCount} creados\n❌ ${errorCount} fallidos (posibles duplicados)`
+        `Carga finalizada:\n✅ ${successCount} creados\n❌ ${errorCount} fallidos (posibles duplicados)`,
       );
       fetchData();
     };
@@ -559,7 +570,7 @@ export default function AdminDashboard() {
 
   const handleDeleteConfig = async (
     type: "areas" | "categories",
-    id: number
+    id: number,
   ) => {
     if (!confirm("¿Eliminar este elemento?")) return;
     await supabase.from(type).delete().eq("id", id);
@@ -648,7 +659,7 @@ export default function AdminDashboard() {
       link.href = url;
       link.setAttribute(
         "download",
-        `reporte_gestion_tic_${new Date().toISOString().split("T")[0]}.csv`
+        `reporte_gestion_tic_${new Date().toISOString().split("T")[0]}.csv`,
       );
       document.body.appendChild(link);
       link.click();
@@ -968,13 +979,13 @@ export default function AdminDashboard() {
                                   value: number;
                                   color: string;
                                 },
-                                index: number
+                                index: number,
                               ) => (
                                 <Cell
                                   key={`cell-${index}`}
                                   fill={entry.color}
                                 />
-                              )
+                              ),
                             )}
                           </Pie>
                           <Tooltip />
@@ -1117,7 +1128,10 @@ export default function AdminDashboard() {
                 </h2>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setTicketFilter("ALL")}
+                    onClick={() => {
+                      setTicketFilter("ALL");
+                      setPage(1);
+                    }}
                     className={`px-3 py-1 rounded text-xs font-bold ${
                       ticketFilter === "ALL"
                         ? "bg-sena-blue text-white"
@@ -1127,7 +1141,10 @@ export default function AdminDashboard() {
                     Todos
                   </button>
                   <button
-                    onClick={() => setTicketFilter("PENDING")}
+                    onClick={() => {
+                      setTicketFilter("PENDING");
+                      setPage(1);
+                    }}
                     className={`px-3 py-1 rounded text-xs font-bold ${
                       ticketFilter === "PENDING"
                         ? "bg-red-500 text-white"
@@ -1167,12 +1184,17 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {tickets
-                      .filter(
-                        (t) =>
-                          ticketFilter === "ALL" || t.status === "PENDIENTE"
-                      )
-                      .map((ticket) => (
+                    {isLoadingTickets ? (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="p-8 text-center text-gray-500"
+                        >
+                          Cargando tickets...
+                        </td>
+                      </tr>
+                    ) : (
+                      tickets.map((ticket) => (
                         <tr
                           key={ticket.id}
                           className="hover:bg-gray-50 cursor-pointer transition"
@@ -1202,10 +1224,10 @@ export default function AdminDashboard() {
                                 ticket.status === "CERRADO"
                                   ? "bg-green-100 text-green-700"
                                   : ticket.status === "EN_PROGRESO"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : ticket.status === "EN_ESPERA"
-                                  ? "bg-purple-100 text-purple-700"
-                                  : "bg-red-100 text-red-700"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : ticket.status === "EN_ESPERA"
+                                      ? "bg-purple-100 text-purple-700"
+                                      : "bg-red-100 text-red-700"
                               }`}
                             >
                               {ticket.status}
@@ -1224,10 +1246,18 @@ export default function AdminDashboard() {
                             {new Date(ticket.created_at).toLocaleDateString()}
                           </td>
                         </tr>
-                      ))}
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
+
+              <PaginationControls
+                currentPage={page}
+                totalCount={totalTicketsCount}
+                pageSize={pageSize}
+                onPageChange={setPage}
+              />
             </section>
           )}
 
@@ -1326,7 +1356,7 @@ export default function AdminDashboard() {
                             .includes(searchTerm.toLowerCase()) ||
                           (a.users?.full_name || "")
                             .toLowerCase()
-                            .includes(searchTerm.toLowerCase())
+                            .includes(searchTerm.toLowerCase()),
                       )
                       .map((asset) => (
                         <tr
@@ -1584,7 +1614,7 @@ export default function AdminDashboard() {
                           .map((a) => a.location)
                           .filter((l) => l && l !== "Sin ubicación"),
                         ...configData.areas.map((area) => area.name),
-                      ])
+                      ]),
                     )
                       .sort()
                       .map((loc, index) => (
