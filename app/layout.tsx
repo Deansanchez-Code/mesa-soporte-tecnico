@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "Soporte TIC SENA",
@@ -25,7 +26,10 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning className="overflow-x-hidden">
       <body className="bg-gray-50 text-gray-900 antialiased flex flex-col min-h-screen overflow-x-hidden">
         <main className="flex-1 flex flex-col">
-          <NotificationProvider>{children}</NotificationProvider>
+          <NotificationProvider>
+            {children}
+            <Toaster richColors position="top-right" />
+          </NotificationProvider>
         </main>
         <footer className="py-6 text-center text-xs text-gray-400 font-medium">
           <p>
