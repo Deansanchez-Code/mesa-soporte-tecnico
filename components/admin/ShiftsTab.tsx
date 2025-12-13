@@ -17,6 +17,7 @@ import { format, startOfWeek, addDays, subDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { isColombianHoliday } from "@/utils/colombiaHolidays";
 
 import { User } from "@/app/admin/types";
 
@@ -218,16 +219,31 @@ export default function ShiftsTab() {
   };
 
   // Presets de Turnos
-  const SHIFT_PRESETS = [
-    { label: "Seleccionar Turno...", value: "" },
-    { label: "Oficina (8am - 5pm)", start: "08:00", end: "17:00" },
-    { label: "Mañana (6am - 2pm)", start: "06:00", end: "14:00" },
-    { label: "Tarde (2pm - 10pm)", start: "14:00", end: "22:00" },
-    { label: "Noche (10pm - 6am)", start: "22:00", end: "06:00" },
-    { label: "Limpiar Semana", start: "", end: "" },
-  ];
 
   const applyPreset = (agentId: string, start: string, end: string) => {
+    let includeHolidays = true;
+
+    // Check for holidays only if we are assigning a shift (not clearing)
+    if (start && end) {
+      const holidaysInWeek = weekDays.filter((d) => {
+        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        return !isWeekend && isColombianHoliday(d);
+      });
+
+      if (holidaysInWeek.length > 0) {
+        // Found holidays
+        const holidayNames = holidaysInWeek
+          .map((h) => format(h, "dd MMM", { locale: es }))
+          .join(", ");
+        const userWantsHoliday = window.confirm(
+          `Se detectaron días festivos en esta semana (${holidayNames}).\n\n¿Desea asignar el turno también a los días festivos?\n(Cancelar dejará los festivos en blanco)`,
+        );
+        if (!userWantsHoliday) {
+          includeHolidays = false;
+        }
+      }
+    }
+
     setSchedules((prev) => {
       const agentSch = prev[agentId]
         ? { ...prev[agentId] }
@@ -238,10 +254,17 @@ export default function ShiftsTab() {
       weekDays.forEach((d) => {
         const dayStr = format(d, "yyyy-MM-dd");
         const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+        const isHoliday = isColombianHoliday(d);
 
         if (!isWeekend) {
           if (start && end) {
-            newDays[dayStr] = { start, end, is_off: false };
+            if (isHoliday && !includeHolidays) {
+              // User rejected holiday assignment -> leave blank
+              newDays[dayStr] = { start: "", end: "", is_off: false };
+            } else {
+              // Normal assignment
+              newDays[dayStr] = { start, end, is_off: false };
+            }
           } else {
             // Clear
             newDays[dayStr] = { start: "", end: "", is_off: false };
@@ -352,21 +375,35 @@ export default function ShiftsTab() {
                   <th className="px-4 py-3 sticky left-0 bg-gray-50 z-10 w-48">
                     Agente
                   </th>
-                  {weekDays.map((day) => (
-                    <th
-                      key={day.toString()}
-                      className="px-4 py-3 min-w-[140px] text-center"
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-bold">
-                          {format(day, "EEEE", { locale: es })}
-                        </span>
-                        <span className="text-gray-500 text-[10px]">
-                          {format(day, "dd MMM")}
-                        </span>
-                      </div>
-                    </th>
-                  ))}
+                  {weekDays.map((day) => {
+                    const isHoliday = isColombianHoliday(day);
+                    return (
+                      <th
+                        key={day.toString()}
+                        className={`px-4 py-3 min-w-[140px] text-center ${
+                          isHoliday ? "bg-red-50" : ""
+                        }`}
+                      >
+                        <div className="flex flex-col">
+                          <span
+                            className={`font-bold ${isHoliday ? "text-red-600" : ""}`}
+                          >
+                            {format(day, "EEEE", { locale: es })}
+                            {isHoliday && (
+                              <span className="ml-1 text-[9px] bg-red-100 text-red-600 px-1 rounded">
+                                Festivo
+                              </span>
+                            )}
+                          </span>
+                          <span
+                            className={`${isHoliday ? "text-red-500" : "text-gray-500"} text-[10px]`}
+                          >
+                            {format(day, "dd MMM")}
+                          </span>
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -391,32 +428,39 @@ export default function ShiftsTab() {
                           {agent.username}
                         </div>
                         <select
-                          className="mt-2 text-xs border rounded p-1 w-full bg-gray-50"
+                          className="mt-2 text-xs border rounded p-1 w-full bg-gray-50 cursor-pointer hover:bg-gray-100"
                           onChange={(e) => {
                             if (!e.target.value) return;
-                            const preset = SHIFT_PRESETS.find(
-                              (p) => p.label === e.target.value,
-                            );
-                            if (preset) {
-                              applyPreset(
-                                agent.id,
-                                preset.start || "",
-                                preset.end || "",
+                            if (e.target.value === "CLEAR") {
+                              applyPreset(agent.id, "", "");
+                            } else {
+                              const preset = presets.find(
+                                (p) => p.id === e.target.value,
                               );
-                              // Reset select to default/placeholder if needed, but simple is fine
-                              e.target.value = "";
+                              if (preset) {
+                                applyPreset(agent.id, preset.start, preset.end);
+                              }
                             }
+                            e.target.value = "";
                           }}
                         >
-                          {SHIFT_PRESETS.map((p) => (
-                            <option key={p.label} value={p.label}>
-                              {p.value === "" ? "Asignar Turno..." : p.label}
+                          <option value="">Asignar Turno...</option>
+                          {presets.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.label} ({p.start} - {p.end})
                             </option>
                           ))}
+                          <option
+                            value="CLEAR"
+                            className="text-red-500 font-bold"
+                          >
+                            Limpiar Semana
+                          </option>
                         </select>
                       </td>
                       {weekDays.map((day) => {
                         const dateIso = format(day, "yyyy-MM-dd");
+                        const isHoliday = isColombianHoliday(day);
                         const dayData = schedules[agent.id]?.days[dateIso] || {
                           start: "",
                           end: "",
@@ -424,7 +468,9 @@ export default function ShiftsTab() {
                         return (
                           <td
                             key={dateIso}
-                            className="px-2 py-3 border-r last:border-r-0"
+                            className={`px-2 py-3 border-r last:border-r-0 ${
+                              isHoliday ? "bg-red-50/30" : ""
+                            }`}
                           >
                             <div className="flex flex-col gap-1">
                               <input
