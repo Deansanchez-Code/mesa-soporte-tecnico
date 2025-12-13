@@ -1,14 +1,14 @@
 "use client";
 
 import AuthGuard from "@/components/AuthGuard";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { lazy } from "react";
 import { supabase } from "@/lib/supabase";
 import { safeRemoveItem } from "@/lib/storage";
 import {
   Shield,
   Users,
   Activity,
-  BarChart3,
   Trash2,
   Monitor,
   Plus,
@@ -20,12 +20,13 @@ import {
   Settings,
   FileSpreadsheet,
   Search,
-  Clock,
   MapPin,
   LayoutDashboard,
   FileText,
-  ArrowRight,
+  ArrowRight, // Restaurado
   ShieldAlert,
+  Loader2,
+  Clock, // Nuevo para Turnos
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -33,8 +34,8 @@ import QRGenerator from "@/components/admin/QRGenerator";
 import AgentsTab from "@/components/admin/AgentsTab";
 import StaffTab from "@/components/admin/StaffTab";
 import ContractorsTab from "@/components/admin/ContractorsTab";
-// import MetricsTab from "@/components/admin/MetricsTab"; // Keeping commented or removing if completely unused. Linter says unused.
-// Fixing unused import by removing it:
+const MetricsTab = lazy(() => import("@/components/admin/MetricsTab"));
+const ShiftsTab = lazy(() => import("@/components/admin/ShiftsTab"));
 import {
   Agent,
   User,
@@ -43,27 +44,26 @@ import {
   Ticket,
   Stats,
 } from "@/app/admin/types";
-import AssetHistoryModal from "@/components/features/assets/AssetHistoryModal";
+import AuditTab from "@/components/admin/AuditTab";
+import React from "react";
+import { TicketsTableSkeleton } from "@/components/ui/skeletons/TicketsTableSkeleton";
+import DraggableDashboard from "@/components/admin/dashboard/DraggableDashboard";
 import AssetHistoryTimeline from "@/components/features/assets/AssetHistoryTimeline";
-import AssetActionModal from "@/components/features/assets/AssetActionModal";
-import TicketDetailsModal from "@/components/features/tickets/TicketDetailsModal";
-import UserProfileModal from "@/components/UserProfileModal";
-import React from "react"; // Ensure React is imported for useState usage in Modal if needed, but page.tsx has it.
+
+const AssetHistoryModal = React.lazy(
+  () => import("@/components/features/assets/AssetHistoryModal"),
+);
+const AssetActionModal = React.lazy(
+  () => import("@/components/features/assets/AssetActionModal"),
+);
+const TicketDetailsModal = React.lazy(
+  () => import("@/components/features/tickets/TicketDetailsModal"),
+);
+const UserProfileModal = React.lazy(
+  () => import("@/components/UserProfileModal"),
+);
 import { useTicketsQuery } from "@/components/features/tickets/hooks/useTicketsQuery";
 import PaginationControls from "@/components/ui/PaginationControls";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
 
 // --- TIPOS DE DATOS ---
 
@@ -71,7 +71,25 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const { user: currentUser } = useUserProfile();
+  const { user: sbUser, profile } = useUserProfile();
+
+  const currentUser = useMemo(() => {
+    if (!sbUser) return null;
+    const mappedUser = {
+      ...sbUser, // Supabase user props
+      id: sbUser.id,
+      full_name:
+        profile?.full_name || sbUser.user_metadata?.full_name || "Usuario",
+      username: profile?.username || sbUser.email?.split("@")[0] || "user",
+      role: profile?.role || "agent",
+      email: sbUser.email,
+      // Default required fields for local User type
+      is_vip: profile?.is_vip || false,
+      is_active: profile?.is_active ?? true,
+      area: profile?.area || "General",
+    };
+    return mappedUser as unknown as User;
+  }, [sbUser, profile]);
 
   // Estados Generales
   const [activeTab, setActiveTab] = useState<
@@ -83,10 +101,11 @@ export default function AdminDashboard() {
     | "tickets"
     | "staff"
     | "contractors"
+    | "audit"
+    | "shifts"
   >("agents");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [mounted, setMounted] = useState(false); // Fix Recharts hydration error
   const [searchTerm, setSearchTerm] = useState(""); // Buscador general
   const [selectedAssetSerial, setSelectedAssetSerial] = useState<string | null>(
     null,
@@ -117,15 +136,6 @@ export default function AdminDashboard() {
 
   const tickets = ticketsData?.data || [];
   const totalTicketsCount = ticketsData?.count || 0;
-
-  // Estado para métricas
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [metricsData, setMetricsData] = useState<any>({
-    statusData: [],
-    monthlyData: [],
-    agentData: [],
-    slaData: [], // Nuevo: Tiempos de resolución
-  });
 
   // Estado para Configuración
   const [configData, setConfigData] = useState<{
@@ -254,8 +264,6 @@ export default function AdminDashboard() {
       { data: allUsers },
       { data: areasData },
       { data: catsData },
-      { data: allTickets }, // Re-added for metrics
-      { count: pendingCount },
     ] = await Promise.all([
       // 1. Agentes
       supabase
@@ -283,16 +291,6 @@ export default function AdminDashboard() {
       supabase.from("areas").select("id, name").order("name"),
       // 5. Categorias
       supabase.from("categories").select("id, name").order("name"),
-      // 6. Tickets (for metrics)
-      supabase
-        .from("tickets")
-        .select("*")
-        .order("created_at", { ascending: false }),
-      // 7. Conteo Pendientes (Optional: keep for stats or move to separate query)
-      supabase
-        .from("tickets")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "PENDIENTE"),
     ]);
 
     // B. Setear Estados
@@ -303,123 +301,17 @@ export default function AdminDashboard() {
       areas: areasData || [],
       categories: catsData || [],
     });
-    // if (allTickets) setTickets(allTickets as unknown as Ticket[]); // Managed by useQuery
 
     setStats({
-      totalTickets: allTickets?.length || 0, // Now using allTickets for total count
-      pendingTickets: pendingCount || 0,
+      totalTickets: totalTicketsCount,
+      pendingTickets: 0, // Pending count was removed from query, setting 0 or relying on tickets query result if needed.
       totalAssets: assetsData?.length || 0,
     });
 
-    // PROCESAR DATOS PARA GRÁFICOS
-    if (allTickets) {
-      // 1. Por Estado
-      const statusCounts = allTickets.reduce(
-        (acc: Record<string, number>, ticket) => {
-          acc[ticket.status] = (acc[ticket.status] || 0) + 1;
-          return acc;
-        },
-        {},
-      );
-      const statusData = [
-        {
-          name: "Pendientes",
-          value: statusCounts.PENDIENTE || 0,
-          color: "#EF4444",
-        },
-        {
-          name: "En Curso",
-          value: statusCounts.EN_PROGRESO || 0,
-          color: "#3B82F6",
-        },
-        {
-          name: "Resueltos",
-          value: statusCounts.RESUELTO || 0,
-          color: "#22C55E",
-        },
-        {
-          name: "En Espera",
-          value: statusCounts.EN_ESPERA || 0,
-          color: "#A855F7",
-        },
-      ].filter((d) => d.value > 0);
-
-      // 2. Por Mes (Últimos 6 meses)
-      const monthlyCounts = allTickets.reduce(
-        (acc: Record<string, number>, ticket) => {
-          const month = new Date(ticket.created_at).toLocaleString("es-CO", {
-            month: "short",
-          });
-          acc[month] = (acc[month] || 0) + 1;
-          return acc;
-        },
-        {},
-      );
-      const monthlyData = Object.keys(monthlyCounts).map((key) => ({
-        name: key,
-        tickets: monthlyCounts[key],
-      }));
-
-      // 3. Top Agentes (Simulado por ahora ya que assigned_agent_id es string)
-      // En un caso real, haríamos join con la tabla de agentes
-      const agentCounts = allTickets.reduce(
-        (acc: Record<string, number>, ticket) => {
-          if (ticket.assigned_agent_id) {
-            // Buscamos el nombre del agente en el estado 'agents'
-            const agentName =
-              agentsData?.find((a) => a.id === ticket.assigned_agent_id)
-                ?.full_name || "Desconocido";
-            acc[agentName] = (acc[agentName] || 0) + 1;
-          }
-          return acc;
-        },
-        {},
-      );
-      const agentData = Object.keys(agentCounts)
-        .map((key) => ({
-          name: key.split(" ")[0], // Solo primer nombre para el gráfico
-          tickets: agentCounts[key],
-        }))
-        .sort((a, b) => b.tickets - a.tickets)
-        .slice(0, 5); // Top 5
-
-      // 4. SLA: Tiempo Promedio de Resolución por Técnico (Horas)
-      const agentSla: Record<string, { totalTime: number; count: number }> = {};
-
-      allTickets.forEach((t) => {
-        if (t.status === "RESUELTO" || t.status === "CERRADO") {
-          if (t.assigned_agent_id && t.updated_at && t.created_at) {
-            const start = new Date(t.created_at).getTime();
-            const end = new Date(t.updated_at).getTime();
-            const hours = (end - start) / (1000 * 60 * 60); // Horas
-
-            const agentName =
-              agentsData?.find((a) => a.id === t.assigned_agent_id)
-                ?.full_name || "Desconocido";
-
-            if (!agentSla[agentName])
-              agentSla[agentName] = { totalTime: 0, count: 0 };
-            agentSla[agentName].totalTime += hours;
-            agentSla[agentName].count += 1;
-          }
-        }
-      });
-
-      const slaData = Object.keys(agentSla)
-        .map((name) => ({
-          name: name.split(" ")[0],
-          hours: Math.round(agentSla[name].totalTime / agentSla[name].count),
-        }))
-        .sort((a, b) => a.hours - b.hours); // Menor tiempo es mejor
-
-      setMetricsData({ statusData, monthlyData, agentData, slaData });
-    }
-
     setLoading(false);
-  }, [currentUser]);
+  }, [currentUser, totalTicketsCount]);
 
   useEffect(() => {
-    setMounted(true);
     if (currentUser) fetchData();
   }, [currentUser, fetchData]);
 
@@ -772,7 +664,7 @@ export default function AdminDashboard() {
                 ? currentUser.full_name
                     .split(" ")
                     .slice(0, 2)
-                    .map((n) => n[0])
+                    .map((n: string) => n[0])
                     .join("")
                 : "AD"}
             </button>
@@ -788,326 +680,68 @@ export default function AdminDashboard() {
 
         <main className="p-6 max-w-7xl mx-auto space-y-8 w-full overflow-x-hidden">
           {/* --- KPIs --- */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div
-              onClick={() => {
-                if (currentUser?.role !== "superadmin") {
-                  setActiveTab("tickets");
-                  setTicketFilter("ALL");
-                }
-              }}
-              className={`bg-white p-6 rounded-xl shadow-sm border-b-4 border-sena-green flex justify-between items-center transition ${
-                currentUser?.role === "superadmin"
-                  ? "cursor-default"
-                  : "cursor-pointer hover:shadow-md"
-              }`}
-            >
-              <div>
-                <p className="text-gray-500 text-xs font-bold uppercase">
-                  Gestión Total
-                </p>
-                <h2 className="text-3xl font-bold text-gray-800">
-                  {stats.totalTickets}{" "}
-                  <span className="text-sm font-normal text-gray-400">
-                    tickets
-                  </span>
-                </h2>
-              </div>
-              <Activity className="w-10 h-10 text-sena-green opacity-20" />
-            </div>
-            <div
-              onClick={() => {
-                if (currentUser?.role !== "superadmin") {
-                  setActiveTab("tickets");
-                  setTicketFilter("PENDING");
-                }
-              }}
-              className={`bg-white p-6 rounded-xl shadow-sm border-b-4 border-red-500 flex justify-between items-center transition ${
-                currentUser?.role === "superadmin"
-                  ? "cursor-default"
-                  : "cursor-pointer hover:shadow-md"
-              }`}
-            >
-              <div>
-                <p className="text-gray-500 text-xs font-bold uppercase">
-                  Pendientes
-                </p>
-                <h2 className="text-3xl font-bold text-gray-800">
-                  {stats.pendingTickets}{" "}
-                  <span className="text-sm font-normal text-gray-400">
-                    casos
-                  </span>
-                </h2>
-              </div>
-              <BarChart3 className="w-10 h-10 text-red-500 opacity-20" />
-            </div>
-            <div
-              onClick={() => setActiveTab("assets")}
-              className="bg-white p-6 rounded-xl shadow-sm border-b-4 border-blue-500 flex justify-between items-center cursor-pointer hover:shadow-md transition"
-            >
-              <div>
-                <p className="text-gray-500 text-xs font-bold uppercase">
-                  Inventario Total
-                </p>
-                <h2 className="text-3xl font-bold text-gray-800">
-                  {stats.totalAssets}{" "}
-                  <span className="text-sm font-normal text-gray-400">
-                    equipos
-                  </span>
-                </h2>
-              </div>
-              <Monitor className="w-10 h-10 text-blue-500 opacity-20" />
-            </div>
-          </section>
+          {/* --- KPI CARDS (DRAGGABLE) --- */}
+          <DraggableDashboard
+            stats={stats}
+            currentUser={currentUser}
+            setActiveTab={setActiveTab}
+            setTicketFilter={setTicketFilter}
+          />
 
           {/* --- PESTAÑAS DE NAVEGACIÓN --- */}
           {/* --- PESTAÑAS DE NAVEGACIÓN (RESPONSIVE) --- */}
-          <div className="flex gap-4 border-b border-gray-300 overflow-x-auto pb-1 no-scrollbar flex-nowrap md:flex-wrap">
-            <button
-              onClick={() => setActiveTab("agents")}
-              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
-                activeTab === "agents"
-                  ? "border-b-4 border-sena-blue text-sena-blue"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <Users className="w-4 h-4" /> Personal de Mesa
-            </button>
-            <button
-              onClick={() => setActiveTab("staff")}
-              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
-                activeTab === "staff"
-                  ? "border-b-4 border-sena-blue text-sena-blue"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <Users className="w-4 h-4" /> Funcionarios
-            </button>
-            <button
-              onClick={() => setActiveTab("contractors")}
-              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
-                activeTab === "contractors"
-                  ? "border-b-4 border-sena-blue text-sena-blue"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <Users className="w-4 h-4" /> Contratistas
-            </button>
-            <button
-              onClick={() => setActiveTab("metrics")}
-              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
-                activeTab === "metrics"
-                  ? "border-b-4 border-sena-blue text-sena-blue"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <PieChartIcon className="w-4 h-4" /> Métricas y Gráficos
-            </button>
-            {currentUser?.role !== "superadmin" && (
-              <button
-                onClick={() => setActiveTab("tickets")}
-                className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
-                  activeTab === "tickets"
-                    ? "border-b-4 border-sena-blue text-sena-blue"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <FileText className="w-4 h-4" /> Tickets
-              </button>
-            )}
-            <button
-              onClick={() => setActiveTab("assets")}
-              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
-                activeTab === "assets"
-                  ? "border-b-4 border-sena-blue text-sena-blue"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <Laptop className="w-4 h-4" /> Inventario de Equipos
-            </button>
-            <button
-              onClick={() => setActiveTab("qr")}
-              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
-                activeTab === "qr"
-                  ? "border-b-4 border-sena-blue text-sena-blue"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <QrCode className="w-4 h-4" /> Códigos QR
-            </button>
-            <button
-              onClick={() => setActiveTab("settings")}
-              className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 transition-all ${
-                activeTab === "settings"
-                  ? "border-b-4 border-sena-blue text-sena-blue"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <Settings className="w-4 h-4" /> Configuración
-            </button>
+          {/* --- PESTAÑA NAVEGACIÓN ESTILO CARPETA (SENA) --- */}
+          <div className="flex flex-wrap items-end gap-1 border-b-[3px] border-[#39A900] px-2 pt-4">
+            {[
+              { id: "agents", label: "Mesa", icon: Users },
+              { id: "staff", label: "Funcionarios", icon: Users },
+              { id: "contractors", label: "Contratistas", icon: Users },
+              { id: "audit", label: "Auditoría", icon: ShieldAlert },
+              { id: "shifts", label: "Turnos", icon: Clock },
+              { id: "metrics", label: "Métricas", icon: PieChartIcon },
+              ...(currentUser?.role !== "superadmin"
+                ? [{ id: "tickets", label: "Tickets", icon: FileText }]
+                : []),
+              { id: "assets", label: "Inventario", icon: Laptop },
+              { id: "qr", label: "QR", icon: QrCode },
+              { id: "settings", label: "Config", icon: Settings },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                  className={`
+                    group relative flex-grow md:flex-grow-0 flex items-center justify-center gap-2 px-4 rounded-t-lg border-t-2 border-x-2 transition-all duration-200 ease-out whitespace-nowrap
+                    ${
+                      isActive
+                        ? "bg-white text-[#39A900] py-3 -mb-[3px] z-10 font-extrabold border-[#39A900] border-b-white"
+                        : "bg-gray-100 text-gray-500 py-2.5 mb-0 z-0 hover:bg-[#e6f4e3] hover:text-[#39A900] border-gray-200"
+                    }
+                  `}
+                >
+                  <Icon
+                    className={`w-4 h-4 transition-colors ${
+                      isActive
+                        ? "text-[#39A900]"
+                        : "text-gray-400 group-hover:text-[#39A900]"
+                    }`}
+                  />
+                  <span className="text-sm">{tab.label}</span>
+
+                  {/* Top Accent for Active */}
+                  {isActive && (
+                    <div className="absolute top-0 inset-x-0 h-1 bg-[#39A900] rounded-t-sm" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* --- CONTENIDO PESTAÑA: MÉTRICAS --- */}
-          {activeTab === "metrics" && (
-            <section className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* GRÁFICO 1: ESTADO DE TICKETS */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                  <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
-                    <PieChartIcon className="w-5 h-5 text-sena-blue" />{" "}
-                    Distribución de Casos
-                  </h3>
-                  <div className="h-64">
-                    {mounted &&
-                    metricsData.statusData &&
-                    metricsData.statusData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={metricsData.statusData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={80}
-                            paddingAngle={5}
-                            dataKey="value"
-                          >
-                            {metricsData.statusData.map(
-                              (
-                                entry: {
-                                  name: string;
-                                  value: number;
-                                  color: string;
-                                },
-                                index: number,
-                              ) => (
-                                <Cell
-                                  key={`cell-${index}`}
-                                  fill={entry.color}
-                                />
-                              ),
-                            )}
-                          </Pie>
-                          <Tooltip />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-gray-400 text-sm">
-                        No hay datos disponibles
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* GRÁFICO 2: TOP AGENTES */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                  <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-sena-green" /> Top Agentes
-                    (Tickets)
-                  </h3>
-                  <div className="h-64 w-full">
-                    {mounted &&
-                    metricsData.agentData &&
-                    metricsData.agentData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={metricsData.agentData}
-                          layout="vertical"
-                        >
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            horizontal={false}
-                          />
-                          <XAxis type="number" />
-                          <YAxis dataKey="name" type="category" width={80} />
-                          <Tooltip />
-                          <Bar
-                            dataKey="tickets"
-                            fill="#39A900"
-                            radius={[0, 4, 4, 0]}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-gray-400 text-sm">
-                        No hay datos disponibles
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* GRÁFICO 3: EVOLUCIÓN MENSUAL (Ocupa todo el ancho) */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 md:col-span-2">
-                  <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-purple-500" />{" "}
-                    Solicitudes por Mes
-                  </h3>
-                  <div className="h-64 w-full">
-                    {mounted &&
-                    metricsData.monthlyData &&
-                    metricsData.monthlyData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={metricsData.monthlyData}>
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            vertical={false}
-                          />
-                          <XAxis dataKey="name" />
-                          <YAxis />
-                          <Tooltip />
-                          <Bar
-                            dataKey="tickets"
-                            fill="#00324D"
-                            radius={[4, 4, 0, 0]}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-gray-400 text-sm">
-                        No hay datos disponibles
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* GRÁFICO 4: SLA (TIEMPO RESOLUCIÓN) */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 md:col-span-2">
-                  <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-orange-500" /> Tiempo
-                    Promedio de Resolución (Horas)
-                  </h3>
-                  <div className="h-64 w-full">
-                    {mounted &&
-                    metricsData.slaData &&
-                    metricsData.slaData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={metricsData.slaData}>
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            vertical={false}
-                          />
-                          <XAxis dataKey="name" />
-                          <YAxis />
-                          <Tooltip formatter={(value) => `${value} horas`} />
-                          <Bar
-                            dataKey="hours"
-                            fill="#F97316"
-                            radius={[4, 4, 0, 0]}
-                            name="Horas Promedio"
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-gray-400 text-sm">
-                        No hay datos disponibles
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
+          {activeTab === "metrics" && <MetricsTab />}
 
           {/* --- CONTENIDO PESTAÑA: AGENTES / USUARIOS --- */}
           {activeTab === "agents" && (
@@ -1185,14 +819,7 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {isLoadingTickets ? (
-                      <tr>
-                        <td
-                          colSpan={7}
-                          className="p-8 text-center text-gray-500"
-                        >
-                          Cargando tickets...
-                        </td>
-                      </tr>
+                      <TicketsTableSkeleton />
                     ) : (
                       tickets.map((ticket) => (
                         <tr
@@ -1274,6 +901,25 @@ export default function AdminDashboard() {
           {activeTab === "contractors" && (
             <ContractorsTab users={usersList} onRefresh={fetchData} />
           )}
+
+          {/* --- CONTENIDO PESTAÑA: AUDITORÍA --- */}
+          {activeTab === "audit" && <AuditTab />}
+
+          {/* --- CONTENIDO PESTAÑA: AUDITORÍA (Placeholder) --- */}
+          {activeTab === "audit" && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px] flex items-center justify-center text-gray-400">
+              <div className="text-center">
+                <ShieldAlert className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                <h3 className="text-lg font-bold text-gray-600">
+                  Panel de Auditoría
+                </h3>
+                <p>Próximamente: Logs de acceso y cambios críticos.</p>
+              </div>
+            </div>
+          )}
+
+          {/* --- CONTENIDO PESTAÑA: TURNOS --- */}
+          {activeTab === "shifts" && <ShiftsTab />}
 
           {/* --- CONTENIDO PESTAÑA: ACTIVOS --- */}
           {activeTab === "assets" && (
@@ -1663,15 +1309,61 @@ export default function AdminDashboard() {
         )}
 
         {showTicketModal && selectedTicket && (
-          <TicketDetailsModal
-            ticket={selectedTicket}
-            onClose={() => setShowTicketModal(false)}
-            agents={agents}
-            onAssign={handleAssignTicket}
-            onAddComment={handleAddComment}
-            onUpdateStatus={handleUpdateStatus}
-            currentUser={currentUser || undefined}
-          />
+          <React.Suspense
+            fallback={
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                <Loader2 className="w-12 h-12 text-white animate-spin" />
+              </div>
+            }
+          >
+            <TicketDetailsModal
+              ticket={selectedTicket}
+              onClose={() => setShowTicketModal(false)}
+              agents={agents}
+              onAssign={handleAssignTicket}
+              onAddComment={handleAddComment}
+              onUpdateStatus={handleUpdateStatus}
+              currentUser={currentUser || undefined}
+            />
+          </React.Suspense>
+        )}
+
+        {/* --- MODAL 3: HISTORIAL DE ACTIVOS (LAZY) --- */}
+        {showTimelineModal && selectedAssetForAction && (
+          <React.Suspense
+            fallback={
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                <Loader2 className="w-12 h-12 text-white animate-spin" />
+              </div>
+            }
+          >
+            <AssetHistoryModal
+              serialNumber={selectedAssetForAction.serial_number}
+              onClose={() => setShowTimelineModal(false)}
+            />
+          </React.Suspense>
+        )}
+
+        {/* --- MODAL 4: ACCIONES ACTIVO (TRANSFER/BAJA) (LAZY) --- */}
+        {showActionModal && selectedAssetForAction && (
+          <React.Suspense
+            fallback={
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                <Loader2 className="w-12 h-12 text-white animate-spin" />
+              </div>
+            }
+          >
+            <AssetActionModal
+              asset={selectedAssetForAction}
+              action={actionType}
+              currentUserId={currentUser?.id || ""}
+              onClose={() => setShowActionModal(false)}
+              onSuccess={() => {
+                setShowActionModal(false);
+                fetchData();
+              }}
+            />
+          </React.Suspense>
         )}
       </div>
     </AuthGuard>

@@ -1,60 +1,74 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { User } from "@supabase/supabase-js";
 
 export interface UserProfile {
-  id: string;
-  email: string;
-  full_name: string;
-  username: string;
-  role: "admin" | "agent" | "user" | "superadmin";
-  area: string;
-  is_active: boolean;
-  is_vip: boolean;
-  employment_type?: string;
-  job_category?: string;
+  user: User | null;
+  profile: Record<string, unknown> | null;
+  loading: boolean;
+  role: string | null;
 }
 
 export function useUserProfile() {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<UserProfile>({
+    user: null,
+    profile: null, // Si necesitamos datos extra de tabla 'users'
+    loading: true,
+    role: null,
+  });
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    async function getUser() {
       try {
-        // 1. Get Auth Session (Cookie based)
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
-        if (!session) {
-          setLoading(false);
+        if (!session?.user) {
+          setState((prev) => ({ ...prev, loading: false }));
           return;
         }
 
-        // 2. Fetch Profile from Public Table
-        const { data, error } = await supabase
-          .from("users")
-          .select("*")
-          .eq("id", session.user.id)
-          .single();
+        const user = session.user;
+        const role = user.user_metadata?.role || "user"; // Asumimos rol en metadata
 
-        if (error) throw error;
-
-        setUser(data as UserProfile);
-      } catch (err: unknown) {
-        // Ignorar error si no encuentra registros (PGRST116)
-        if ((err as { code?: string }).code !== "PGRST116") {
-          console.error("Error fetching user profile:", err);
-          setError(err instanceof Error ? err.message : "Error desconocido");
-        }
-      } finally {
-        setLoading(false);
+        setState({
+          user,
+          profile: user.user_metadata,
+          loading: false,
+          role,
+        });
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+        setState((prev) => ({ ...prev, loading: false }));
       }
-    };
+    }
 
-    fetchProfile();
+    getUser();
+
+    // Listener de cambios de auth
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === "SIGNED_OUT") {
+          setState({ user: null, profile: null, loading: false, role: null });
+        } else if (session?.user) {
+          const user = session.user;
+          setState({
+            user,
+            profile: user.user_metadata,
+            loading: false,
+            role: user.user_metadata?.role || "user",
+          });
+        }
+      },
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
-  return { user, loading, error };
+  return state;
 }

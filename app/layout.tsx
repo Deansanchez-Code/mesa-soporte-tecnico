@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { Toaster } from "sonner";
+import SessionMonitor from "@/components/features/shifts/SessionMonitor";
 import QueryProvider from "@/components/providers/QueryProvider";
 
 export const metadata: Metadata = {
@@ -30,6 +31,7 @@ export default function RootLayout({
           <NotificationProvider>
             <QueryProvider>
               {children}
+              <SessionMonitor />
               <Toaster richColors position="top-right" />
             </QueryProvider>
           </NotificationProvider>

@@ -102,3 +102,16 @@ export interface StaffUploadRow {
   Ubicación: string;
   VIP?: string;
 }
+
+export interface AuditLog {
+  id: string;
+  created_at: string;
+  actor_id: string;
+  action: string;
+  resource: string;
+  resource_id: string;
+  details: Record<string, unknown>;
+  ip_address?: string;
+  // Joins
+  users?: { full_name: string; email: string };
+}

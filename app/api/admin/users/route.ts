@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
       autoRefreshToken: false,
       persistSession: false,
     },
-  }
+  },
 );
 
 // HELPER: Verify requester is Admin
@@ -21,7 +21,7 @@ async function verifyAdmin(request: Request) {
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
 
   const token = authHeader.replace("Bearer ", "");
@@ -42,6 +42,41 @@ async function verifyAdmin(request: Request) {
   return profile?.role === "admin" || profile?.role === "superadmin";
 }
 
+// LIST USERS (Support pagination and filtering)
+export async function GET(request: Request) {
+  if (!(await verifyAdmin(request))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const limit = parseInt(searchParams.get("limit") || "100");
+    const offset = parseInt(searchParams.get("offset") || "0");
+    const role = searchParams.get("role");
+
+    let query = supabaseAdmin
+      .from("users")
+      .select("*", { count: "exact" })
+      .range(offset, offset + limit - 1)
+      .order("created_at", { ascending: false });
+
+    if (role) {
+      query = query.eq("role", role);
+    }
+
+    const { data: users, error, count } = await query;
+
+    if (error) throw error;
+
+    return NextResponse.json({ users, count });
+  } catch (error: unknown) {
+    console.error("Fetch error:", error);
+    const message =
+      error instanceof Error ? error.message : "Error fetching users";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   if (!(await verifyAdmin(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -54,7 +89,7 @@ export async function POST(request: Request) {
     if (!email || !password) {
       return NextResponse.json(
         { error: "Email y contraseña son obligatorios" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -81,7 +116,7 @@ export async function POST(request: Request) {
     if (!authUser.user) {
       return NextResponse.json(
         { error: "No se pudo crear el usuario" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -135,7 +170,7 @@ export async function PUT(request: Request) {
     if (!id) {
       return NextResponse.json(
         { error: "ID de usuario requerido" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -146,25 +181,18 @@ export async function PUT(request: Request) {
       // Attempt 1: Update by ID
       const { error: pwdError } = await supabaseAdmin.auth.admin.updateUserById(
         id,
-        { password: password }
+        { password: password },
       );
 
       if (pwdError) {
-        console.log(
-          `Update by ID ${id} failed: ${pwdError.message}. Trying recovery by email ${email}...`
-        );
-
-        // Attempt 2: Find user by Email (maybe ID mismatch?) or Create
         if (email) {
           // Find existing
           const { data: output } = await supabaseAdmin.auth.admin.listUsers();
           // Note: Pagination defaults to 50. In large orgs this might miss users, but filtering by email directly is not standard in admin-js
           const existingUser = output.users.find(
-            (u) => u.email?.toLowerCase() === email.toLowerCase()
+            (u) => u.email?.toLowerCase() === email.toLowerCase(),
           );
-
           if (existingUser) {
-            console.log(`Found existing user by email: ${existingUser.id}`);
             targetAuthId = existingUser.id;
             const { error: retryError } =
               await supabaseAdmin.auth.admin.updateUserById(targetAuthId, {
@@ -172,10 +200,6 @@ export async function PUT(request: Request) {
               });
             if (retryError) throw retryError;
           } else {
-            // Create new
-            console.log(
-              `Auth User not found. Creating new Auth user with PRESERVED ID: ${id}...`
-            );
             const { data: newAuth, error: createError } =
               await supabaseAdmin.auth.admin.createUser({
                 id: id, // <--- CRITICAL: Force the Auth ID to match the Public ID
@@ -207,9 +231,7 @@ export async function PUT(request: Request) {
               .eq("id", id);
 
             if (linkError) {
-              console.log("Relinking public user auth_id failed.");
-            } else {
-              console.log("Relinked public user to correct Auth ID.");
+              console.warn("Failed to link auth_id:", linkError);
             }
           }
         } else {
@@ -251,10 +273,8 @@ export async function PUT(request: Request) {
     if (updateError) throw updateError;
 
     // If no rows updated (maybe 'id' passed was the PK, not auth_id, or auth_id changed), try updating by 'id' PK
+
     if (!updatedByAuth || updatedByAuth.length === 0) {
-      console.log(
-        "Profile update via auth_id returned 0 rows. Trying via ID (PK)..."
-      );
       const { error: retryUpdateError } = await supabaseAdmin
         .from("users")
         .update(updates)
@@ -326,7 +346,7 @@ export async function DELETE(request: Request) {
       id,
       {
         ban_duration: "876000h", // 100 years ban (effectively permanent)
-      }
+      },
     );
 
     if (authError) {
@@ -397,7 +417,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(
       { error: "Parámetros de acción masiva inválidos" },
-      { status: 400 }
+      { status: 400 },
     );
   } catch (error: unknown) {
     console.error("Bulk update error:", error);

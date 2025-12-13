@@ -1,11 +1,27 @@
 "use client";
 
-import { UserProfile } from "@/hooks/useUserProfile";
-import { X, Camera, User, Mail, Shield, MapPin, Briefcase } from "lucide-react";
-import { useState } from "react";
+import { User } from "@/app/admin/types";
+import {
+  X,
+  Camera,
+  Mail,
+  Shield,
+  MapPin,
+  Briefcase,
+  Clock,
+  CalendarDays,
+} from "lucide-react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import {
+  startOfWeek,
+  startOfDay,
+  isAfter,
+  differenceInMinutes,
+} from "date-fns";
 
 interface UserProfileModalProps {
-  user: UserProfile;
+  user: User;
   onClose: () => void;
 }
 
@@ -13,8 +29,71 @@ export default function UserProfileModal({
   user,
   onClose,
 }: UserProfileModalProps) {
-  // Estado local para una posible implementación futura de carga de imagen
   const [isHoveringAvatar, setIsHoveringAvatar] = useState(false);
+  const [stats, setStats] = useState({
+    todayMinutes: 0,
+    weekMinutes: 0,
+    overtimeMinutes: 0,
+    loading: true,
+  });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user.id) return;
+
+      const now = new Date();
+      const todayStart = startOfDay(now).toISOString();
+      const weekStart = startOfWeek(now, { weekStartsOn: 1 }).toISOString();
+
+      const { data: sessions } = await supabase
+        .from("work_sessions")
+        .select("*")
+        .eq("user_id", user.id)
+        .gte("session_start", weekStart); // Fetch week data
+
+      if (sessions) {
+        let dayMins = 0;
+        let weekMins = 0;
+        let overtimeMins = 0;
+
+        sessions.forEach((session) => {
+          const start = new Date(session.session_start);
+          const end = session.session_end
+            ? new Date(session.session_end)
+            : new Date(); // If ongoing, calc until now
+
+          const duration = differenceInMinutes(end, start);
+
+          // Week total
+          weekMins += duration;
+
+          // Today total
+          if (
+            isAfter(start, new Date(todayStart)) ||
+            start.toISOString() === todayStart
+          ) {
+            dayMins += duration;
+          }
+
+          // Overtime (Flagged in DB or calculated? For now rely on flag or simple metric)
+          if (session.is_overtime) {
+            overtimeMins += duration;
+          }
+        });
+
+        setStats({
+          todayMinutes: dayMins,
+          weekMinutes: weekMins,
+          overtimeMinutes: overtimeMins,
+          loading: false,
+        });
+      } else {
+        setStats((prev) => ({ ...prev, loading: false }));
+      }
+    };
+
+    fetchStats();
+  }, [user.id]);
 
   const getInitials = (name: string) => {
     return name
@@ -36,6 +115,12 @@ export default function UserProfileModal({
       default:
         return "bg-gray-100 text-gray-700 border-gray-200";
     }
+  };
+
+  const formatHours = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${h}h ${m}m`;
   };
 
   return (
@@ -65,7 +150,7 @@ export default function UserProfileModal({
             >
               <div className="w-24 h-24 rounded-full bg-white p-1 shadow-lg">
                 <div className="w-full h-full rounded-full bg-sena-blue flex items-center justify-center text-white text-3xl font-bold border-4 border-white">
-                  {getInitials(user.full_name)}
+                  {getInitials(user.full_name || "Usuario")}
                 </div>
               </div>
 
@@ -85,20 +170,46 @@ export default function UserProfileModal({
 
           <div className="text-center mb-6">
             <h2 className="text-xl font-bold text-gray-800">
-              {user.full_name}
+              {user.full_name || "Usuario"}
             </h2>
-            <p className="text-sm text-gray-500 font-medium">{user.username}</p>
+            <p className="text-sm text-gray-500 font-medium">
+              {user.username || "user"}
+            </p>
             <div className="mt-2 flex justify-center">
               <span
                 className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1 ${getRoleBadgeColor(
-                  user.role
+                  user.role || "user",
                 )}`}
               >
                 <Shield className="w-3 h-3" />
-                {user.role.toUpperCase()}
+                {(user.role || "user").toUpperCase()}
               </span>
             </div>
           </div>
+
+          {/* Estadísticas de Asistencia */}
+          {(user.role === "agent" || user.role === "admin") && (
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 text-center">
+                <div className="flex items-center justify-center gap-1 text-blue-600 mb-1">
+                  <Clock className="w-3 h-3" />
+                  <span className="text-xs font-bold uppercase">Hoy</span>
+                </div>
+                <div className="text-lg font-bold text-blue-800">
+                  {stats.loading ? "..." : formatHours(stats.todayMinutes)}
+                </div>
+              </div>
+              <div className="bg-green-50 p-3 rounded-xl border border-green-100 text-center">
+                <div className="flex items-center justify-center gap-1 text-green-600 mb-1">
+                  <CalendarDays className="w-3 h-3" />
+                  <span className="text-xs font-bold uppercase">Semana</span>
+                </div>
+                <div className="text-lg font-bold text-green-800">
+                  {stats.loading ? "..." : formatHours(stats.weekMinutes)}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
@@ -110,7 +221,7 @@ export default function UserProfileModal({
                   Correo Electrónico
                 </label>
                 <p className="text-sm font-medium text-gray-700 break-all">
-                  {user.email}
+                  {user.email || "No registrado"}
                 </p>
               </div>
             </div>
