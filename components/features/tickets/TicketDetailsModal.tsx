@@ -9,7 +9,6 @@ import { TicketTimeline } from "./TicketTimeline";
 import { TicketActions } from "./TicketActions";
 import { TicketInfoSidebar } from "./components/TicketInfoSidebar";
 import { TicketAssigner } from "./components/TicketAssigner";
-import Logger from "@/lib/logger";
 
 interface TicketDetailsModalProps {
   ticket: Ticket;

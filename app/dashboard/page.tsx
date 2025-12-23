@@ -29,7 +29,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import TicketDetailsModal from "@/components/features/tickets/TicketDetailsModal";
 import NotificationManager from "@/components/NotificationManager";
-import UserProfileModal from "@/components/UserProfileModal";
+import UserProfileModal from "@/components/shared/UserProfileModal";
 
 // --- DEFINICIÓN DE TIPOS (Incluyendo campos SLA) ---
 import { Ticket } from "@/app/admin/types";

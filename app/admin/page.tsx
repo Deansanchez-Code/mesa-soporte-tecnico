@@ -60,7 +60,7 @@ const TicketDetailsModal = React.lazy(
   () => import("@/components/features/tickets/TicketDetailsModal"),
 );
 const UserProfileModal = React.lazy(
-  () => import("@/components/UserProfileModal"),
+  () => import("@/components/shared/UserProfileModal"),
 );
 import { useTicketsQuery } from "@/components/features/tickets/hooks/useTicketsQuery";
 import PaginationControls from "@/components/ui/PaginationControls";
