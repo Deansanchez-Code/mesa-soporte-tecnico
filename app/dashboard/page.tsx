@@ -102,7 +102,7 @@ export default function AgentDashboard() {
   const [showFreezer, setShowFreezer] = useState(false);
   // Estado para el modal de historial de activos
   const [selectedAssetSerial, setSelectedAssetSerial] = useState<string | null>(
-    null
+    null,
   );
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showMetricsModal, setShowMetricsModal] = useState(false);
@@ -110,17 +110,17 @@ export default function AgentDashboard() {
 
   const [isResolvedCollapsed, setIsResolvedCollapsed] = useState(false);
   const [solutionTexts, setSolutionTexts] = useState<Record<number, string>>(
-    {}
+    {},
   );
 
   // Estados para filtros de métricas
   const [metricsStartDate, setMetricsStartDate] = useState(
     new Date(new Date().getFullYear(), new Date().getMonth(), 1)
       .toISOString()
-      .split("T")[0]
+      .split("T")[0],
   );
   const [metricsEndDate, setMetricsEndDate] = useState(
-    new Date().toISOString().split("T")[0]
+    new Date().toISOString().split("T")[0],
   );
 
   // VISTA DEL DASHBOARD
@@ -138,7 +138,7 @@ export default function AgentDashboard() {
         users:users!tickets_user_id_fkey ( full_name, area ),
         assigned_agent:users!tickets_assigned_agent_id_fkey ( full_name ),
         assets ( model, type, serial_number )
-      `
+      `,
         )
         .order("created_at", { ascending: false });
 
@@ -178,7 +178,7 @@ export default function AgentDashboard() {
       alert(
         `Error reasignando ticket: ${
           error.message || error.details || JSON.stringify(error)
-        }`
+        }`,
       );
     } else {
       alert("Ticket reasignado correctamente");
@@ -201,7 +201,7 @@ export default function AgentDashboard() {
         { event: "*", schema: "public", table: "tickets" },
         () => {
           void fetchTickets(); // Recargar si algo cambia
-        }
+        },
       )
       .subscribe();
 
@@ -251,7 +251,7 @@ export default function AgentDashboard() {
     if (!isHolding) {
       // >>> CONGELAR <<<
       const reason = prompt(
-        "Ingrese el motivo de pausa (Ej: Espera Repuesto, Espera Usuario, etc):"
+        "Ingrese el motivo de pausa (Ej: Espera Repuesto, Espera Usuario, etc):",
       );
       if (!reason) return; // Cancelar si no escribe motivo
 
@@ -287,7 +287,7 @@ export default function AgentDashboard() {
       alert(
         `Error al actualizar SLA: ${
           error.message || error.details || JSON.stringify(error)
-        }`
+        }`,
       );
     } else {
       fetchTickets(); // Recargar datos manualmente
@@ -297,7 +297,7 @@ export default function AgentDashboard() {
   // --- 3.1 CAMBIAR CATEGORÍA ---
   const handleCategoryChange = async (
     ticketId: number,
-    newCategory: string
+    newCategory: string,
   ) => {
     const { error } = await supabase
       .from("tickets")
@@ -316,7 +316,7 @@ export default function AgentDashboard() {
   // Versión INTERACTIVA (para el Dashboard/Cards) - Pide prompt
   const promptAddComment = async (
     ticketId: number,
-    currentDescription: string
+    currentDescription: string,
   ) => {
     const comment = prompt("Ingrese su comentario de seguimiento:");
     if (!comment) return;
@@ -328,7 +328,7 @@ export default function AgentDashboard() {
   const saveTicketComment = async (
     ticketId: number,
     newComment: string,
-    currentDescription?: string // Opcional, si no se pasa se busca (o se concatena en DB si fuera posible, aqui concatenamos en JS)
+    currentDescription?: string, // Opcional, si no se pasa se busca (o se concatena en DB si fuera posible, aqui concatenamos en JS)
   ) => {
     if (!newComment) return;
 
@@ -412,13 +412,13 @@ export default function AgentDashboard() {
       alert(
         `Error actualizando ticket: ${
           error.message || error.details || JSON.stringify(error)
-        }`
+        }`,
       );
     } else if (!data || data.length === 0) {
       // Si no hay error pero no devolvió datos, es probable que RLS lo haya bloqueado silenciosamente
       console.error("Actualización ignorada por RLS (sin permisos)");
       alert(
-        "⚠️ No se pudo actualizar el estado. Es posible que no tengas permisos para modificar este ticket o que ya haya sido modificado."
+        "⚠️ No se pudo actualizar el estado. Es posible que no tengas permisos para modificar este ticket o que ya haya sido modificado.",
       );
     } else {
       // Éxito
@@ -437,7 +437,7 @@ export default function AgentDashboard() {
   // --- 5. DRAG AND DROP HANDLERS ---
   const handleDragStart = (
     e: React.DragEvent<HTMLDivElement>,
-    ticketId: number
+    ticketId: number,
   ) => {
     e.dataTransfer.setData("ticketId", ticketId.toString());
     e.dataTransfer.effectAllowed = "move";
@@ -450,7 +450,7 @@ export default function AgentDashboard() {
 
   const handleDrop = (
     e: React.DragEvent<HTMLDivElement>,
-    newStatus: string
+    newStatus: string,
   ) => {
     e.preventDefault();
     const ticketIdStr = e.dataTransfer.getData("ticketId");
@@ -483,13 +483,13 @@ export default function AgentDashboard() {
 
   // Aplicamos el sort a las listas filtradas
   const pendingTickets = sortTickets(
-    tickets.filter((t) => t.status === "PENDIENTE")
+    tickets.filter((t) => t.status === "PENDIENTE"),
   );
   const inProgressTickets = sortTickets(
-    tickets.filter((t) => t.status === "EN_PROGRESO")
+    tickets.filter((t) => t.status === "EN_PROGRESO"),
   );
   const waitingTickets = tickets.filter(
-    (t) => t.status === "EN_ESPERA" || t.status === "WAITING_PARTS"
+    (t) => t.status === "EN_ESPERA" || t.status === "WAITING_PARTS",
   );
   // Nota: waitingTickets usualmente no requiere sort estricto visual, pero si se quiere:
   // const waitingTickets = sortTickets(tickets.filter((t) => t.status === "EN_ESPERA"));
@@ -515,7 +515,7 @@ export default function AgentDashboard() {
       const isMine =
         t.assigned_agent_id === currentUser.id ||
         (t.assigned_agent &&
-          t.assigned_agent.full_name === currentUser.full_name);
+          t.assigned_agent.full_name === currentUser.user_metadata?.full_name);
 
       const ticketDate = new Date(t.created_at);
       const start = new Date(metricsStartDate);
@@ -554,7 +554,7 @@ export default function AgentDashboard() {
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `reporte_agente_${metricsStartDate}_${metricsEndDate}.csv`
+      `reporte_agente_${metricsStartDate}_${metricsEndDate}.csv`,
     );
     document.body.appendChild(link);
     link.click();
@@ -592,7 +592,8 @@ export default function AgentDashboard() {
         {/* MODAL DE PERFIL DE USUARIO */}
         {showProfileModal && currentUser && (
           <UserProfileModal
-            user={currentUser}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            user={currentUser as any}
             onClose={() => setShowProfileModal(false)}
           />
         )}
@@ -602,7 +603,8 @@ export default function AgentDashboard() {
           <TicketDetailsModal
             ticket={selectedTicket}
             onClose={() => setSelectedTicket(null)}
-            currentUser={currentUser || undefined}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            currentUser={(currentUser as any) || undefined}
             onUpdateStatus={updateStatus}
             onAssign={(tId) => updateStatus(tId, "EN_PROGRESO")}
             onAddComment={saveTicketComment}
@@ -662,7 +664,7 @@ export default function AgentDashboard() {
                           t.assigned_agent_id === currentUser.id ||
                           (t.assigned_agent &&
                             t.assigned_agent.full_name ===
-                              currentUser.full_name);
+                              currentUser.user_metadata?.full_name);
 
                         const ticketDate = new Date(t.created_at);
                         const start = new Date(metricsStartDate);
@@ -698,12 +700,15 @@ export default function AgentDashboard() {
                 </h4>
                 <div className="space-y-2">
                   {Object.entries(
-                    tickets.reduce((acc, ticket) => {
-                      if (!ticket.assets) return acc;
-                      const key = `${ticket.assets.type} ${ticket.assets.model} (${ticket.assets.serial_number})`;
-                      acc[key] = (acc[key] || 0) + 1;
-                      return acc;
-                    }, {} as Record<string, number>)
+                    tickets.reduce(
+                      (acc, ticket) => {
+                        if (!ticket.assets) return acc;
+                        const key = `${ticket.assets.type} ${ticket.assets.model} (${ticket.assets.serial_number})`;
+                        acc[key] = (acc[key] || 0) + 1;
+                        return acc;
+                      },
+                      {} as Record<string, number>,
+                    ),
                   )
                     .sort(([, a], [, b]) => b - a)
                     .slice(0, 5)
@@ -748,7 +753,7 @@ export default function AgentDashboard() {
               Mesa de Ayuda <span className="text-sena-green">TIC</span>
               {currentUser && (
                 <span className="ml-2 text-sm font-normal text-gray-500">
-                  | {currentUser.full_name}
+                  | {currentUser.user_metadata?.full_name}
                 </span>
               )}
             </h1>
@@ -786,8 +791,8 @@ export default function AgentDashboard() {
               className="h-9 w-9 rounded-full bg-sena-blue flex items-center justify-center text-white font-bold text-sm shadow-md border-2 border-white ring-2 ring-gray-100 hover:ring-sena-green transition-all cursor-pointer"
               title="Tu Perfil"
             >
-              {currentUser?.full_name
-                ? currentUser.full_name
+              {currentUser?.user_metadata?.full_name
+                ? ((currentUser.user_metadata?.full_name as string) || "")
                     .split(" ")
                     .map((n) => n[0])
                     .slice(0, 2)
@@ -934,7 +939,7 @@ export default function AgentDashboard() {
                           <div
                             className="flex items-center gap-1 text-[10px] text-gray-400"
                             title={`Actualizado: ${new Date(
-                              ticket.updated_at || ticket.created_at
+                              ticket.updated_at || ticket.created_at,
                             ).toLocaleString()}`}
                           >
                             <Clock className="w-3 h-3" />
@@ -954,7 +959,7 @@ export default function AgentDashboard() {
                           onClick={() =>
                             promptAddComment(
                               ticket.id,
-                              ticket.description || ""
+                              ticket.description || "",
                             )
                           }
                           className="w-full mb-2 bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 text-xs py-1.5 rounded-lg font-bold flex items-center justify-center gap-2 transition cursor-pointer"
@@ -1014,7 +1019,7 @@ export default function AgentDashboard() {
                         draggable
                         onDragStart={(e) => handleDragStart(e, ticket.id)}
                         className={`bg-white p-4 rounded-xl shadow-md border border-gray-200 ${getPriorityColor(
-                          ticket
+                          ticket,
                         )} ${
                           ticket.is_vip_ticket
                             ? "ring-2 ring-yellow-400 bg-yellow-50/20 shadow-yellow-100"
@@ -1067,12 +1072,12 @@ export default function AgentDashboard() {
                             <div
                               className="flex items-center gap-1 text-[10px] text-gray-400"
                               title={`Actualizado: ${new Date(
-                                ticket.updated_at || ticket.created_at
+                                ticket.updated_at || ticket.created_at,
                               ).toLocaleString()}`}
                             >
                               <Clock className="w-3 h-3" />
                               {getTimeAgo(
-                                ticket.updated_at || ticket.created_at
+                                ticket.updated_at || ticket.created_at,
                               )}
                             </div>
                           </div>
@@ -1091,7 +1096,7 @@ export default function AgentDashboard() {
                             <button
                               onClick={() =>
                                 setSelectedAssetSerial(
-                                  ticket.assets!.serial_number
+                                  ticket.assets!.serial_number,
                                 )
                               }
                               className="bg-gray-50 p-1.5 rounded text-xs text-gray-500 flex items-center gap-2 border border-gray-100 w-fit hover:bg-gray-100 hover:text-sena-blue transition-colors mt-1"
@@ -1142,7 +1147,7 @@ export default function AgentDashboard() {
                         draggable
                         onDragStart={(e) => handleDragStart(e, ticket.id)}
                         className={`bg-white p-4 rounded-xl shadow-md border border-gray-200 ${getPriorityColor(
-                          ticket
+                          ticket,
                         )} ${
                           ticket.is_vip_ticket
                             ? "ring-2 ring-yellow-400 bg-yellow-50/20 shadow-yellow-100"
@@ -1225,12 +1230,12 @@ export default function AgentDashboard() {
                             <div
                               className="flex items-center gap-1 text-[10px] text-gray-400"
                               title={`Actualizado: ${new Date(
-                                ticket.updated_at || ticket.created_at
+                                ticket.updated_at || ticket.created_at,
                               ).toLocaleString()}`}
                             >
                               <Clock className="w-3 h-3" />
                               {getTimeAgo(
-                                ticket.updated_at || ticket.created_at
+                                ticket.updated_at || ticket.created_at,
                               )}
                             </div>
                           </div>
@@ -1246,7 +1251,7 @@ export default function AgentDashboard() {
                           <button
                             onClick={() =>
                               setSelectedAssetSerial(
-                                ticket.assets!.serial_number
+                                ticket.assets!.serial_number,
                               )
                             }
                             className="text-xs text-blue-600 hover:underline mb-3 flex items-center gap-1"
@@ -1367,7 +1372,7 @@ export default function AgentDashboard() {
                         <div
                           key={ticket.id}
                           className={`bg-white p-4 rounded-xl shadow-sm border ${getPriorityColor(
-                            ticket
+                            ticket,
                           )} opacity-75 hover:opacity-100 transition-all duration-200 hover:shadow-sm cursor-pointer`}
                           onClick={(e) => {
                             if ((e.target as HTMLElement).closest("button"))
@@ -1412,12 +1417,12 @@ export default function AgentDashboard() {
                             <div
                               className="flex items-center gap-1 text-[10px] text-gray-400"
                               title={`Actualizado: ${new Date(
-                                ticket.updated_at || ticket.created_at
+                                ticket.updated_at || ticket.created_at,
                               ).toLocaleString()}`}
                             >
                               <Clock className="w-3 h-3" />
                               {getTimeAgo(
-                                ticket.updated_at || ticket.created_at
+                                ticket.updated_at || ticket.created_at,
                               )}
                             </div>
                           </div>

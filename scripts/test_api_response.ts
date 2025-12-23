@@ -1,5 +1,3 @@
-import fetch from "node-fetch";
-
 async function testApi() {
   try {
     console.log("Testing /api/auth/register-contractor...");
@@ -15,7 +13,7 @@ async function testApi() {
           role: "user",
           area: "Test Area",
         }),
-      }
+      },
     );
 
     console.log("Status:", res.status);
