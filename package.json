@@ -10,8 +10,8 @@
     "test": "vitest",
     "prepare": "husky",
     "audit": "pnpm audit",
-    "db:dump": "echo 'Error: SUPABASE_PROJECT_ID not set' && exit 1",
-    "types:sync": "echo 'Error: SUPABASE_PROJECT_ID not set' && exit 1",
+    "db:dump": "node scripts/db-backup.js",
+    "types:sync": "node scripts/types-sync.js",
     "test:all": "vitest run"
   },
   "dependencies": {

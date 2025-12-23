@@ -4,16 +4,8 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const {
-      title,
-      start_time,
-      end_time,
-      user_id,
-      auditorium_id,
-      resources,
-      // For conflict override check (optional, or we handle purely via admin rights)
-      force_override,
-    } = body;
+    const { title, start_time, end_time, user_id, auditorium_id, resources } =
+      body;
 
     if (!user_id || !title || !start_time || !end_time) {
       return NextResponse.json(

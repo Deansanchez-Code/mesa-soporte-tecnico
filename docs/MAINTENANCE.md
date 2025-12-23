@@ -12,12 +12,20 @@ Mantener las librerías actualizadas es crucial para evitar vulnerabilidades de 
 
 ### Automatización en `package.json`
 
-Se añadirán los siguientes scripts para facilitar el mantenimiento:
+> **Nota Importante:** Para los comandos de base de datos (`db:dump` y `types:sync`), se utiliza un binario local de **Supabase CLI**.
+>
+> **Configuración Inicial:**
+>
+> 1. Ejecutar script de instalación (una sola vez): `node scripts/setup-supabase.js`
+> 2. Loguearse en la CLI local: `scripts\bin\supabase.exe login`
+> 3. **Requisito para Backups:** Tener instalada y ejecutándose la aplicación **Docker Desktop**.
+
+Se han añadido los siguientes scripts para facilitar el mantenimiento:
 
 ```json
 "audit": "pnpm audit",
-"db:dump": "supabase db dump > database/dumps/backup_$(date +%F).sql",
-"types:sync": "supabase gen types typescript --project-id \"$SUPABASE_PROJECT_ID\" > app/admin/types.ts",
+"db:dump": "node scripts/db-backup.js",
+"types:sync": "node scripts/types-sync.js",
 "test:all": "vitest run"
 ```
 
@@ -26,7 +34,7 @@ Se añadirán los siguientes scripts para facilitar el mantenimiento:
 Aunque Supabase realiza backups automáticos, se recomienda tener copias locales de la estructura y datos críticos.
 
 - **Acción:** Realizar dumps periódicos del esquema.
-- **Comando:** `supabase db dump > database/dumps/backup_$(date +%F).sql`
+- **Comando:** `pnpm run db:dump`
 - **Recomendación:** Automatizar esto mediante un GitHub Action o cron job si se despliega en infraestructura propia.
 
 ## 3. Calidad de Código (Linting & Formatting)
@@ -50,7 +58,7 @@ Se dispone de Vitest, pero la cobertura debe expandirse.
 Para evitar errores de tipado manuales.
 
 - **Acción:** Generar tipos automáticamente cuando cambie la DB.
-- **Comando:** `supabase gen types typescript --project-id "tu-project-id" > app/admin/types.ts` (Ajustar ruta según corresponda).
+- **Comando:** `pnpm run types:sync`
 
 ## 6. Monitoreo en Producción
 

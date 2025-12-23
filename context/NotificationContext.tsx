@@ -62,7 +62,7 @@ export function NotificationProvider({
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "tickets" },
-        (payload) => {
+        (_payload) => {
           setUnreadCount((prev) => prev + 1);
           playSound();
         }
