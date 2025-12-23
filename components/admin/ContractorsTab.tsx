@@ -14,32 +14,34 @@ import { User } from "@/app/admin/types";
 interface ContractorsTabProps {
   users: User[];
   onRefresh: () => void;
+  currentUserRole?: string;
 }
 
 export default function ContractorsTab({
   users,
   onRefresh,
+  currentUserRole,
 }: ContractorsTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<"contractors" | "planta">(
-    "contractors"
+    "contractors",
   );
 
   // Filter logic
   const contractors = users.filter((u) => u.employment_type === "contratista");
   const plantaUsers = users.filter(
-    (u) => u.employment_type === "planta" || !u.employment_type
+    (u) => u.employment_type === "planta" || !u.employment_type,
   );
 
   const instructors = contractors.filter(
-    (u) => u.job_category === "instructor"
+    (u) => u.job_category === "instructor",
   );
   const officials = contractors.filter((u) => u.job_category === "funcionario");
 
   const plantaInstructors = plantaUsers.filter(
-    (u) => u.job_category === "instructor"
+    (u) => u.job_category === "instructor",
   );
   const plantaOfficials = plantaUsers.filter(
-    (u) => u.job_category === "funcionario"
+    (u) => u.job_category === "funcionario",
   );
 
   const handleBulkAction = async (job_category: string, enable: boolean) => {
@@ -47,7 +49,7 @@ export default function ContractorsTab({
       !confirm(
         `¿Estás seguro de que deseas ${
           enable ? "HABILITAR" : "DESHABILITAR"
-        } el acceso a TODOS los ${job_category}s?`
+        } el acceso a TODOS los ${job_category}s?`,
       )
     )
       return;
@@ -154,6 +156,7 @@ export default function ContractorsTab({
               onBulkAction={handleBulkAction}
               onToggleUser={handleIndividualToggle}
               showBulkActions={true}
+              currentUserRole={currentUserRole}
             />
 
             <ContractorGroup
@@ -164,6 +167,7 @@ export default function ContractorsTab({
               onBulkAction={handleBulkAction}
               onToggleUser={handleIndividualToggle}
               showBulkActions={true}
+              currentUserRole={currentUserRole}
             />
           </div>
         )}
@@ -191,6 +195,7 @@ export default function ContractorsTab({
               onBulkAction={() => {}}
               onToggleUser={handleIndividualToggle}
               showBulkActions={false}
+              currentUserRole={currentUserRole}
             />
 
             <ContractorGroup
@@ -201,6 +206,7 @@ export default function ContractorsTab({
               onBulkAction={() => {}}
               onToggleUser={handleIndividualToggle}
               showBulkActions={false}
+              currentUserRole={currentUserRole}
             />
           </div>
         )}
@@ -227,6 +233,7 @@ function ContractorGroup({
   onBulkAction,
   onToggleUser,
   showBulkActions = true,
+  currentUserRole,
 }: {
   title: string;
   subtitle: string;
@@ -235,6 +242,7 @@ function ContractorGroup({
   onBulkAction: (cat: string, en: boolean) => void;
   onToggleUser: (u: User) => void;
   showBulkActions?: boolean;
+  currentUserRole?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -242,7 +250,7 @@ function ContractorGroup({
   const filteredUsers = users.filter(
     (u) =>
       u.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      u.username.toLowerCase().includes(search.toLowerCase())
+      u.username.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -273,7 +281,7 @@ function ContractorGroup({
           </div>
 
           {/* ACTIONS SECTION (Only if Bulk Actions Enabled) */}
-          {showBulkActions && (
+          {showBulkActions && currentUserRole !== "admin" && (
             <div
               className="flex items-center gap-3 self-end sm:self-auto bg-white p-1.5 rounded-lg border border-gray-100 shadow-sm"
               onClick={(e) => e.stopPropagation()}
@@ -331,6 +339,7 @@ function ContractorGroup({
                   key={user.id}
                   user={user}
                   onToggle={() => onToggleUser(user)}
+                  currentUserRole={currentUserRole}
                 />
               ))}
             </div>
@@ -341,7 +350,15 @@ function ContractorGroup({
   );
 }
 
-function UserCard({ user, onToggle }: { user: User; onToggle: () => void }) {
+function UserCard({
+  user,
+  onToggle,
+  currentUserRole,
+}: {
+  user: User;
+  onToggle: () => void;
+  currentUserRole?: string;
+}) {
   return (
     <div
       className={`
@@ -368,9 +385,15 @@ function UserCard({ user, onToggle }: { user: User; onToggle: () => void }) {
 
       <button
         onClick={onToggle}
+        disabled={currentUserRole === "admin"}
         className={`
-               relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sena-green focus:ring-offset-2
+               relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sena-green focus:ring-offset-2
                ${user.is_active ? "bg-sena-green" : "bg-gray-200"}
+               ${
+                 currentUserRole === "admin"
+                   ? "cursor-not-allowed opacity-50"
+                   : "cursor-pointer"
+               }
             `}
         role="switch"
         aria-checked={user.is_active}

@@ -109,7 +109,7 @@ export default function DraggableDashboard({
         id="pending-tickets"
         title="Pendientes"
         value={stats.pendingTickets}
-        subtext="casos"
+        subtext="tickets"
         icon={BarChart3}
         borderColorClass="border-red-500"
         iconColorClass="text-red-500"

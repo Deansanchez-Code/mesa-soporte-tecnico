@@ -749,6 +749,7 @@ export default function AdminDashboard() {
               agents={agents}
               onRefresh={fetchData}
               configData={configData}
+              currentUserRole={currentUser?.role}
             />
           )}
 
@@ -894,12 +895,17 @@ export default function AdminDashboard() {
               usersList={usersList}
               onRefresh={fetchData}
               configData={configData}
+              currentUserRole={currentUser?.role}
             />
           )}
 
           {/* --- CONTENIDO PESTAÑA: CONTRATISTAS --- */}
           {activeTab === "contractors" && (
-            <ContractorsTab users={usersList} onRefresh={fetchData} />
+            <ContractorsTab
+              users={usersList}
+              onRefresh={fetchData}
+              currentUserRole={currentUser?.role}
+            />
           )}
 
           {/* --- CONTENIDO PESTAÑA: AUDITORÍA --- */}
@@ -948,12 +954,14 @@ export default function AdminDashboard() {
                     </label>
                   </div>
 
-                  <button
-                    onClick={() => setShowAssetModal(true)}
-                    className="bg-sena-blue hover:bg-blue-900 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition"
-                  >
-                    <Plus className="w-4 h-4" /> Nuevo Equipo
-                  </button>
+                  {currentUser?.role !== "admin" && (
+                    <button
+                      onClick={() => setShowAssetModal(true)}
+                      className="bg-sena-blue hover:bg-blue-900 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition"
+                    >
+                      <Plus className="w-4 h-4" /> Nuevo Equipo
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1046,34 +1054,39 @@ export default function AdminDashboard() {
                               <Activity className="w-4 h-4" />
                             </button>
 
-                            {/* TRASLADO */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedAssetForAction(asset);
-                                setActionType("TRANSFER");
-                                setShowActionModal(true);
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
-                              title="Trasladar Activo"
-                            >
-                              <ArrowRight className="w-4 h-4" />
-                            </button>
+                            {currentUser?.role !== "admin" && (
+                              <>
+                                {/* TRASLADO */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedAssetForAction(asset);
+                                    setActionType("TRANSFER");
+                                    setShowActionModal(true);
+                                  }}
+                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
+                                  title="Trasladar Activo"
+                                >
+                                  <ArrowRight className="w-4 h-4" />
+                                </button>
 
-                            {/* DAR DE BAJA (Solo si no está ya dado de baja) */}
-                            {asset.users?.full_name !== "Equipos de Baja" && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedAssetForAction(asset);
-                                  setActionType("DECOMMISSION");
-                                  setShowActionModal(true);
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition"
-                                title="Dar de Baja"
-                              >
-                                <ShieldAlert className="w-4 h-4" />
-                              </button>
+                                {/* DAR DE BAJA (Solo si no está ya dado de baja) */}
+                                {asset.users?.full_name !==
+                                  "Equipos de Baja" && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedAssetForAction(asset);
+                                      setActionType("DECOMMISSION");
+                                      setShowActionModal(true);
+                                    }}
+                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition"
+                                    title="Dar de Baja"
+                                  >
+                                    <ShieldAlert className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </>
                             )}
                           </td>
                         </tr>
@@ -1105,21 +1118,23 @@ export default function AdminDashboard() {
                 <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
                   <MapPin className="w-5 h-5 text-sena-blue" /> Gestión de Áreas
                 </h3>
-                <div className="flex gap-2 mb-4">
-                  <input
-                    type="text"
-                    placeholder="Nueva área..."
-                    className="flex-1 border p-2 rounded"
-                    value={newConfigItem}
-                    onChange={(e) => setNewConfigItem(e.target.value)}
-                  />
-                  <button
-                    onClick={() => handleAddConfig("areas")}
-                    className="bg-sena-green text-white px-4 py-2 rounded font-bold"
-                  >
-                    +
-                  </button>
-                </div>
+                {currentUser?.role !== "admin" && (
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="text"
+                      placeholder="Nueva área..."
+                      className="flex-1 border p-2 rounded"
+                      value={newConfigItem}
+                      onChange={(e) => setNewConfigItem(e.target.value)}
+                    />
+                    <button
+                      onClick={() => handleAddConfig("areas")}
+                      className="bg-sena-green text-white px-4 py-2 rounded font-bold"
+                    >
+                      +
+                    </button>
+                  </div>
+                )}
                 <ul className="space-y-2">
                   {configData.areas.map((area) => (
                     <li
@@ -1127,12 +1142,14 @@ export default function AdminDashboard() {
                       className="flex justify-between items-center bg-gray-50 p-2 rounded"
                     >
                       <span>{area.name}</span>
-                      <button
-                        onClick={() => handleDeleteConfig("areas", area.id)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {currentUser?.role !== "admin" && (
+                        <button
+                          onClick={() => handleDeleteConfig("areas", area.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -1144,21 +1161,23 @@ export default function AdminDashboard() {
                   <Activity className="w-5 h-5 text-purple-500" /> Gestión de
                   Categorías
                 </h3>
-                <div className="flex gap-2 mb-4">
-                  <input
-                    type="text"
-                    placeholder="Nueva categoría..."
-                    className="flex-1 border p-2 rounded"
-                    value={newConfigItem}
-                    onChange={(e) => setNewConfigItem(e.target.value)}
-                  />
-                  <button
-                    onClick={() => handleAddConfig("categories")}
-                    className="bg-purple-600 text-white px-4 py-2 rounded font-bold"
-                  >
-                    +
-                  </button>
-                </div>
+                {currentUser?.role !== "admin" && (
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="text"
+                      placeholder="Nueva categoría..."
+                      className="flex-1 border p-2 rounded"
+                      value={newConfigItem}
+                      onChange={(e) => setNewConfigItem(e.target.value)}
+                    />
+                    <button
+                      onClick={() => handleAddConfig("categories")}
+                      className="bg-purple-600 text-white px-4 py-2 rounded font-bold"
+                    >
+                      +
+                    </button>
+                  </div>
+                )}
                 <ul className="space-y-2">
                   {configData.categories.map((cat) => (
                     <li
@@ -1166,12 +1185,16 @@ export default function AdminDashboard() {
                       className="flex justify-between items-center bg-gray-50 p-2 rounded"
                     >
                       <span>{cat.name}</span>
-                      <button
-                        onClick={() => handleDeleteConfig("categories", cat.id)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {currentUser?.role !== "admin" && (
+                        <button
+                          onClick={() =>
+                            handleDeleteConfig("categories", cat.id)
+                          }
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>

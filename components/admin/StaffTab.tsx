@@ -14,12 +14,14 @@ interface StaffTabProps {
   configData: {
     areas: ConfigItem[];
   };
+  currentUserRole?: string;
 }
 
 export default function StaffTab({
   usersList,
   onRefresh,
   configData,
+  currentUserRole,
 }: StaffTabProps) {
   const {
     showAgentModal,
@@ -35,7 +37,7 @@ export default function StaffTab({
   const [searchTerm, setSearchTerm] = useState("");
 
   const handleBulkStaffUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>
+    e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -86,7 +88,7 @@ export default function StaffTab({
         }
 
         alert(
-          `Carga finalizada.\n✅ Exitosos: ${successCount}\n❌ Fallidos: ${errorCount}`
+          `Carga finalizada.\n✅ Exitosos: ${successCount}\n❌ Fallidos: ${errorCount}`,
         );
         onRefresh();
       } catch (error) {
@@ -114,36 +116,38 @@ export default function StaffTab({
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between gap-4">
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              resetUserForm();
-              setNewAgent({ ...newAgent, role: "user" });
-              setShowAgentModal(true);
-            }}
-            className="flex items-center gap-2 bg-sena-green text-white px-4 py-2 rounded-lg hover:bg-green-700 transition shadow-sm font-bold"
-          >
-            <UserPlus className="w-4 h-4" /> Nuevo Funcionario
-          </button>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition cursor-pointer font-medium">
-              <FileSpreadsheet className="w-4 h-4 text-green-600" />
-              Carga Masiva
-              <input
-                type="file"
-                accept=".xlsx, .xls"
-                className="hidden"
-                onChange={handleBulkStaffUpload}
-              />
-            </label>
+        {currentUserRole !== "admin" && (
+          <div className="flex gap-2">
             <button
-              onClick={handleDownloadStaffTemplate}
-              className="text-xs text-blue-600 hover:underline"
+              onClick={() => {
+                resetUserForm();
+                setNewAgent({ ...newAgent, role: "user" });
+                setShowAgentModal(true);
+              }}
+              className="flex items-center gap-2 bg-sena-green text-white px-4 py-2 rounded-lg hover:bg-green-700 transition shadow-sm font-bold"
             >
-              Descargar Plantilla
+              <UserPlus className="w-4 h-4" /> Nuevo Funcionario
             </button>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition cursor-pointer font-medium">
+                <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                Carga Masiva
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                  onChange={handleBulkStaffUpload}
+                />
+              </label>
+              <button
+                onClick={handleDownloadStaffTemplate}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                Descargar Plantilla
+              </button>
+            </div>
           </div>
-        </div>
+        )}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -171,9 +175,11 @@ export default function StaffTab({
                   Ubicación
                 </th>
                 <th className="px-6 py-3 font-semibold text-gray-600">VIP</th>
-                <th className="px-6 py-3 font-semibold text-gray-600 text-right">
-                  Acciones
-                </th>
+                {currentUserRole !== "admin" && (
+                  <th className="px-6 py-3 font-semibold text-gray-600 text-right">
+                    Acciones
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -207,24 +213,26 @@ export default function StaffTab({
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="px-6 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleEditUser(user)}
-                          className="p-1 hover:bg-gray-100 rounded text-blue-600 transition"
-                          title="Editar"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteUser(user.id)}
-                          className="p-1 hover:bg-gray-100 rounded text-red-600 transition"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+                    {currentUserRole !== "admin" && (
+                      <td className="px-6 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleEditUser(user)}
+                            className="p-1 hover:bg-gray-100 rounded text-blue-600 transition"
+                            title="Editar"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="p-1 hover:bg-gray-100 rounded text-red-600 transition"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
             </tbody>

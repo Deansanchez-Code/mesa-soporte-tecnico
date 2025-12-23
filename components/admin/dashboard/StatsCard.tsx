@@ -40,7 +40,9 @@ export function StatsCard({
           )}
         </h2>
       </div>
-      <Icon className={`w-10 h-10 opacity-20 ${iconColorClass}`} />
+      <div className="p-3 bg-gray-50 rounded-full">
+        <Icon className={`w-8 h-8 ${iconColorClass}`} />
+      </div>
     </div>
   );
 }

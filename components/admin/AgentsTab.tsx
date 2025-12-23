@@ -12,12 +12,14 @@ interface AgentsTabProps {
   configData: {
     areas: ConfigItem[];
   };
+  currentUserRole?: string;
 }
 
 export default function AgentsTab({
   agents,
   onRefresh,
   configData,
+  currentUserRole,
 }: AgentsTabProps) {
   const {
     showAgentModal,
@@ -38,16 +40,18 @@ export default function AgentsTab({
         <h2 className="text-xl font-bold text-gray-800">
           Gestión de Usuarios (Técnicos y Admins)
         </h2>
-        <button
-          onClick={() => {
-            resetUserForm();
-            setNewAgent({ ...newAgent, role: "agent" });
-            setShowAgentModal(true);
-          }}
-          className="bg-sena-blue hover:bg-blue-900 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition"
-        >
-          <UserPlus className="w-4 h-4" /> Nuevo Usuario
-        </button>
+        {currentUserRole !== "admin" && (
+          <button
+            onClick={() => {
+              resetUserForm();
+              setNewAgent({ ...newAgent, role: "agent" });
+              setShowAgentModal(true);
+            }}
+            className="bg-sena-blue hover:bg-blue-900 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition"
+          >
+            <UserPlus className="w-4 h-4" /> Nuevo Usuario
+          </button>
+        )}
       </div>
 
       <div className="mb-4 relative">
@@ -83,9 +87,11 @@ export default function AgentsTab({
               <th className="p-4 text-xs font-bold text-gray-500 uppercase">
                 Permisos
               </th>
-              <th className="p-4 text-xs font-bold text-gray-500 uppercase text-right">
-                Acciones
-              </th>
+              {currentUserRole !== "admin" && (
+                <th className="p-4 text-xs font-bold text-gray-500 uppercase text-right">
+                  Acciones
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -96,7 +102,7 @@ export default function AgentsTab({
                     .toLowerCase()
                     .includes(searchTerm.toLowerCase()) ||
                   a.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  a.role.toLowerCase().includes(searchTerm.toLowerCase())
+                  a.role.toLowerCase().includes(searchTerm.toLowerCase()),
               )
               .map((agent) => (
                 <tr key={agent.id} className="hover:bg-gray-50">
@@ -120,15 +126,15 @@ export default function AgentsTab({
                         agent.role === "superadmin"
                           ? "bg-purple-100 text-purple-700"
                           : agent.role === "admin"
-                          ? "bg-orange-100 text-orange-700"
-                          : "bg-blue-100 text-blue-700"
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-blue-100 text-blue-700"
                       }`}
                     >
                       {agent.role === "superadmin"
                         ? "Super Admin"
                         : agent.role === "admin"
-                        ? "Admin"
-                        : "Técnico"}
+                          ? "Admin"
+                          : "Técnico"}
                     </span>
                   </td>
                   <td className="p-4 text-sm text-gray-600">
@@ -169,22 +175,24 @@ export default function AgentsTab({
                     </div>
                   </td>
                   <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleEditUser(agent)}
-                        className="p-1 hover:bg-gray-100 rounded text-blue-600 transition"
-                        title="Editar"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(agent.id)}
-                        className="p-1 hover:bg-gray-100 rounded text-red-600 transition"
-                        title="Eliminar"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {currentUserRole !== "admin" && (
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleEditUser(agent)}
+                          className="p-1 hover:bg-gray-100 rounded text-blue-600 transition"
+                          title="Editar"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(agent.id)}
+                          className="p-1 hover:bg-gray-100 rounded text-red-600 transition"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

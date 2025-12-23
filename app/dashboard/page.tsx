@@ -89,7 +89,7 @@ const CountdownTimer = ({ targetDate }: { targetDate?: string }) => {
 
 export default function AgentDashboard() {
   const router = useRouter();
-  const { user: currentUser } = useUserProfile();
+  const { user: currentUser, role } = useUserProfile();
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [agents, setAgents] = useState<
@@ -367,15 +367,15 @@ export default function AgentDashboard() {
       const user = userStr ? JSON.parse(userStr) : null;
 
       if (newStatus === "EN_PROGRESO") {
-        // Asignar al usuario actual al tomar el caso
+        // Asignar al usuario actual al tomar el ticket
         if (user && user.id) {
           updates.assigned_agent_id = user.id;
         }
       } else if (newStatus === "PENDIENTE") {
-        // Desasignar al soltar el caso
+        // Desasignar al soltar el ticket
         updates.assigned_agent_id = null;
       } else if (newStatus === "RESUELTO") {
-        // Asignar al usuario actual si cierra el caso ("El que cierra gana")
+        // Asignar al usuario actual si cierra el ticket ("El que cierra gana")
         if (user && user.id) {
           updates.assigned_agent_id = user.id;
         }
@@ -423,10 +423,10 @@ export default function AgentDashboard() {
     } else {
       // Éxito
       const statusMessages: Record<string, string> = {
-        EN_PROGRESO: "Caso atendido correctamente",
-        RESUELTO: "Caso resuelto correctamente",
-        EN_ESPERA: "Caso pausado correctamente",
-        PENDIENTE: "Caso devuelto a pendientes",
+        EN_PROGRESO: "Ticket atendido correctamente",
+        RESUELTO: "Ticket resuelto correctamente",
+        EN_ESPERA: "Ticket pausado correctamente",
+        PENDIENTE: "Ticket devuelto a pendientes",
       };
       // Solo mostramos alert si NO es un drag & drop (opcional, pero por ahora lo dejamos para feedback)
       // Podríamos usar un toast en el futuro
@@ -760,8 +760,7 @@ export default function AgentDashboard() {
           </div>
 
           <div className="flex items-center gap-4">
-            {(currentUser?.role === "admin" ||
-              currentUser?.role === "superadmin") && (
+            {(role === "admin" || role === "superadmin") && (
               <Link
                 href="/admin"
                 className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all border cursor-pointer bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200 shadow-sm"
