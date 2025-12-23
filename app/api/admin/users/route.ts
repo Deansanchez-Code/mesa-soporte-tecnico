@@ -120,34 +120,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Wait for Trigger and Update Profile (Sync)
-    // The DB trigger 'on_auth_user_created' creates the public.users row immediately.
-    // We just need to update the extra fields that might not be in the basic metadata sync.
-
-    // Tiny delay to ensure trigger has fired (usually instant, but safety first in async serverless)
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const { error: profileError } = await supabaseAdmin
-      .from("users")
-      .update({
-        full_name: fullName,
-        username: otherData.username || email.split("@")[0],
-        role: role,
-        area: area,
-        is_active: true,
-        employment_type: otherData.employment_type || "planta",
-        job_category: otherData.job_category || "funcionario",
-        perm_create_assets: otherData.perm_create_assets,
-        perm_transfer_assets: otherData.perm_transfer_assets,
-        perm_decommission_assets: otherData.perm_decommission_assets,
-        is_vip: otherData.is_vip,
-      })
-      .eq("id", authUser.user.id);
-
-    if (profileError) {
-      console.error("Error updating profile extras:", profileError);
-      // Not critical to fail the whole request if user exists, but good to know.
-    }
+    // 2. Response immediately (Trigger handles the rest)
+    // Thanks to the improved trigger `handle_new_user`, we don't need to wait or update manually.
+    // The metadata passed in `createUser` is enough.
 
     return NextResponse.json({ success: true, user: authUser.user });
   } catch (error: unknown) {
