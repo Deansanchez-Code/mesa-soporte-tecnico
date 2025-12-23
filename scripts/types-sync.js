@@ -1,4 +1,5 @@
 /* eslint-disable */
+// @ts-nocheck
 const { exec } = require("child_process");
 const path = require("path");
 const fs = require("fs");
@@ -12,7 +13,7 @@ const EXT = os.platform() === "win32" ? ".exe" : "";
 const SUPABASE_BIN = path.join(BIN_DIR, `supabase${EXT}`);
 
 console.log(
-  `🔄 Iniciando sincronización de tipos para el proyecto: ${PROJECT_ID}`
+  `🔄 Iniciando sincronización de tipos para el proyecto: ${PROJECT_ID}`,
 );
 
 if (!fs.existsSync(SUPABASE_BIN)) {
@@ -27,7 +28,7 @@ exec(command, (error, stdout, stderr) => {
   if (error) {
     console.error(`❌ Error al sincronizar tipos: ${error.message}`);
     console.error(
-      `👉 Asegúrate de estar logueado. Ejecuta manualmente en tu terminal:`
+      `👉 Asegúrate de estar logueado. Ejecuta manualmente en tu terminal:`,
     );
     console.error(`   "${SUPABASE_BIN}" login`);
     process.exit(1);

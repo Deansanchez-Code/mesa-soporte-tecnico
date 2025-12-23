@@ -1,4 +1,5 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
+/* eslint-disable */
+// @ts-nocheck
 const { exec } = require("child_process");
 const path = require("path");
 const fs = require("fs");
@@ -39,16 +40,16 @@ exec(command, (error, stdout, stderr) => {
       errString.includes("must be linked")
     ) {
       console.error(
-        `\n⚠️  ATENCIÓN: El proyecto no está vinculado localmente.`
+        `\n⚠️  ATENCIÓN: El proyecto no está vinculado localmente.`,
       );
       console.error(
-        `👉 Para que el backup funcione, debes vincular el proyecto una sola vez.`
+        `👉 Para que el backup funcione, debes vincular el proyecto una sola vez.`,
       );
       console.error(
-        `   Ejecuta esto en tu terminal y escribe la contraseña de tu base de datos:`
+        `   Ejecuta esto en tu terminal y escribe la contraseña de tu base de datos:`,
       );
       console.error(
-        `\n   scripts\\bin\\supabase.exe link --project-ref ${PROJECT_ID}\n`
+        `\n   scripts\\bin\\supabase.exe link --project-ref ${PROJECT_ID}\n`,
       );
     }
     // Check for Docker errors
@@ -59,17 +60,17 @@ exec(command, (error, stdout, stderr) => {
     ) {
       console.error(`\n⚠️  ERROR DE DOCKER DETECTADO`);
       console.error(
-        `   El comando 'supabase db dump' utiliza Docker para garantizar la compatibilidad.`
+        `   El comando 'supabase db dump' utiliza Docker para garantizar la compatibilidad.`,
       );
       console.error(
-        `   Parece que Docker Desktop no está ejecutándose o no está instalado.`
+        `   Parece que Docker Desktop no está ejecutándose o no está instalado.`,
       );
       console.error(`\n   SOLUCIÓN:`);
       console.error(
-        `   1. Abre Docker Desktop y espera a que el motor arranque.`
+        `   1. Abre Docker Desktop y espera a que el motor arranque.`,
       );
       console.error(
-        `   2. Si no lo tienes, instálalo desde: https://docs.docker.com/desktop/install/windows-install/`
+        `   2. Si no lo tienes, instálalo desde: https://docs.docker.com/desktop/install/windows-install/`,
       );
       console.error(`   3. Vuelve a ejecutar este comando.`);
     } else {
@@ -83,7 +84,7 @@ exec(command, (error, stdout, stderr) => {
     const usefulLogs = stderr
       .split("\n")
       .filter(
-        (l) => !l.includes("Initialising") && !l.includes("Dumping schemas")
+        (l) => !l.includes("Initialising") && !l.includes("Dumping schemas"),
       )
       .join("\n");
     if (usefulLogs.trim()) console.log(`ℹ️ Info: ${usefulLogs}`);

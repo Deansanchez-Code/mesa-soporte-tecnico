@@ -1,4 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
@@ -15,13 +14,6 @@ if (!supabaseUrl || !supabaseServiceKey) {
   console.error("❌ Missing Supabase URL or Service Role Key in .env.local");
   process.exit(1);
 }
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
 
 const migrationFiles = [
   "database/migrations/20251208_add_ticket_types_and_sla.sql",
@@ -70,10 +62,10 @@ async function applyMigrations() {
       // to run these in the Supabase SQL Editor if this script fails.
 
       console.log(
-        "⚠️ NOTICE: For security, Supabase-js cannot execute raw DDL directly without a helper function."
+        "⚠️ NOTICE: For security, Supabase-js cannot execute raw DDL directly without a helper function.",
       );
       console.log(
-        "   Please run the contents of this file in your Supabase SQL Editor."
+        "   Please run the contents of this file in your Supabase SQL Editor.",
       );
       console.log(`   File content preview: ${sql.substring(0, 50)}...`);
     } catch (err) {

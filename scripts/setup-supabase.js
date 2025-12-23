@@ -1,4 +1,5 @@
 /* eslint-disable */
+// @ts-nocheck
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
@@ -48,8 +49,8 @@ function downloadFile(url, destPath) {
       if (response.statusCode !== 200) {
         reject(
           new Error(
-            `Falló descarga: ${response.statusCode} ${response.statusMessage}`
-          )
+            `Falló descarga: ${response.statusCode} ${response.statusMessage}`,
+          ),
         );
         return;
       }
@@ -69,7 +70,7 @@ async function install() {
   try {
     console.log("🔍 Buscando última versión de Supabase CLI...");
     const release = await fetchJson(
-      "https://api.github.com/repos/supabase/cli/releases/latest"
+      "https://api.github.com/repos/supabase/cli/releases/latest",
     );
     const version = release.tag_name;
     console.log(`✨ Última versión encontrada: ${version}`);
@@ -89,7 +90,7 @@ async function install() {
         a.name.toLowerCase().includes(platform) &&
         (a.name.toLowerCase().includes(arch) ||
           (arch === "amd64" && a.name.toLowerCase().includes("x86_64"))) &&
-        (a.name.endsWith(".zip") || a.name.endsWith(".tar.gz"))
+        (a.name.endsWith(".zip") || a.name.endsWith(".tar.gz")),
     );
 
     if (!targetAsset) {
@@ -117,7 +118,7 @@ async function install() {
         execSync(`tar -xf "${destFile}" -C "${BIN_DIR}"`);
       }
       console.log(
-        `✅ Supabase CLI instalado en: ${path.join(BIN_DIR, EXE_NAME)}`
+        `✅ Supabase CLI instalado en: ${path.join(BIN_DIR, EXE_NAME)}`,
       );
       fs.unlinkSync(destFile);
     } catch (e) {

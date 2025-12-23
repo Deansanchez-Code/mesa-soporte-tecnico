@@ -52,7 +52,7 @@ export function NotificationProvider({
       try {
         const audio = new Audio("/notification.mp3");
         audio.play().catch((e) => console.log("Audio play failed", e));
-      } catch (e) {
+      } catch {
         // console.error("Audio error", e);
       }
     };
@@ -62,10 +62,10 @@ export function NotificationProvider({
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "tickets" },
-        (_payload) => {
+        () => {
           setUnreadCount((prev) => prev + 1);
           playSound();
-        }
+        },
       )
       .subscribe();
 

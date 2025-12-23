@@ -5,7 +5,7 @@ dotenv.config({ path: ".env.local" });
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
 async function checkPolicies() {
@@ -18,7 +18,7 @@ async function checkPolicies() {
     // fallback: run a SQL via RPC if available, or just assume I need to fix them blindly or via migration inspection.
     console.error(
       "Error fetching policies (expected if not exposed):",
-      error.message
+      error.message,
     );
     return;
   }
@@ -31,5 +31,5 @@ async function checkPolicies() {
 // But better yet, I will create a SQL script to list policies and output to a file if I could run it.
 // I will assume I need to fix RLS.
 
-// Instead, I will verify if I can select from 'assets' as a "Contractor".
 // I'll simulate a login (or use a known user ID) and try to fetch.
+checkPolicies().catch(console.error);
