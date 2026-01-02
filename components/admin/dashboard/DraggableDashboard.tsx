@@ -20,14 +20,14 @@ import { Activity, BarChart3, Monitor } from "lucide-react";
 import { SortableStatsCard } from "./SortableStatsCard";
 import { Stats } from "@/app/admin/types";
 
+// Import user type if available or define compatible shape
+import { UserAgent } from "../UserModal"; // Reusing checking consistency
+
 interface DraggableDashboardProps {
   stats: Stats;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  currentUser: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setActiveTab: (tab: any) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setTicketFilter: (filter: any) => void;
+  currentUser: UserAgent | null;
+  setActiveTab: (tab: string) => void;
+  setTicketFilter: (filter: string) => void;
 }
 
 export default function DraggableDashboard({

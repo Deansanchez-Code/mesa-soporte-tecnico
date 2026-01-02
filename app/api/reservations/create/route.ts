@@ -1,17 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { z } from "zod";
+import {
+  unauthorized,
+  forbidden,
+  getUserFromRequest,
+  verifyUserPermissions,
+} from "@/lib/auth-check";
+
+const ReservationSchema = z.object({
+  title: z.string().min(3),
+  start_time: z.string().datetime({ offset: true }), // ISO8601
+  end_time: z.string().datetime({ offset: true }),
+  user_id: z.string().uuid(),
+  auditorium_id: z.string().optional(),
+  resources: z.array(z.string()).optional().nullable(),
+});
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { title, start_time, end_time, user_id, auditorium_id, resources } =
-      body;
+    const user = await getUserFromRequest(req);
+    if (!user) return unauthorized();
 
-    if (!user_id || !title || !start_time || !end_time) {
+    const body = await req.json();
+    const parseResult = ReservationSchema.safeParse(body);
+
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
+        { error: "Invalid data", details: parseResult.error.format() },
+        { status: 400 },
       );
+    }
+
+    const { title, start_time, end_time, user_id, auditorium_id, resources } =
+      parseResult.data;
+
+    // Ownership Check
+    if (user.id !== user_id) {
+      const isAdmin = await verifyUserPermissions(user.id, [
+        "admin",
+        "superadmin",
+      ]);
+      if (!isAdmin) return forbidden("Cannot create reservation for others");
     }
 
     const supabaseAdmin = getSupabaseAdmin();
@@ -26,15 +56,7 @@ export async function POST(req: NextRequest) {
       .gt("end_time", start_time);
 
     if (conflicts && conflicts.length > 0) {
-      // If force_override is true, we should have logic here to cancel them?
-      // For now, let's keep it simple: API rejects if conflict, Frontend handles the "User agreed to override" by sending a "cancel" request first?
-      // Or we can assume the Frontend already handled the cancellation.
-      // Realistically, for this specific app, let's assume valid requests from frontend are trusted after user confirmation.
-      // But wait, if we are overriding, the previous reservation must be CANCELLED or blocked.
-      // If logic sends 'force_override', we might kill the old ones (logic moved from frontend to API is cleaner but riskier without auth).
-      // Let's stick to: Backend simply inserts. If User Logic required cancellation, Frontend should call an endpoint for that.
-      // BUT, Frontend can't call 'update' on other users' reservations due to RLS!
-      // So we MUST handle override here or in a separate 'cancel' endpoint.
+      // Logic for conflicts (omitted for now as per original code comment)
     }
 
     // 2. Create Reservation
@@ -63,7 +85,7 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

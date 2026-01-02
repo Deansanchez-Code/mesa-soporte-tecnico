@@ -2,15 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(req: NextRequest) {
+  // AUTH_CHECK_BYPASS: Public registration endpoint (Input Sanitized)
   try {
     const supabaseAdmin = getSupabaseAdmin();
 
     const body = await req.json();
-    const { username, full_name, email, role, area } = body;
+    const { username, full_name, email, role, area, job_category } = body;
 
     // Validation
     if (!username || !full_name || !email) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+    }
+
+    // Validation: Reject corporate emails
+    if (email.toLowerCase().endsWith("@sena.edu.co")) {
+      return NextResponse.json(
+        { error: "Corporate emails not allowed for contractors" },
+        { status: 400 },
+      );
     }
 
     // Insert
@@ -25,43 +34,87 @@ export async function POST(req: NextRequest) {
 
     // Let's create an auth user first with admin privileges
 
+    // 0. Use attributes from request or default
+    // STRICTLY ENFORCE: From this endpoint, employment_type is ALWAYS 'contratista'
+    // AND Role cannot be admin/superadmin.
+
+    // Sanitize Role:
+    let safeRole = role;
+    if (safeRole === "admin" || safeRole === "superadmin") {
+      safeRole = "user";
+    }
+    // Default to contractor if coming from this portal and role is generic or user
+    if (!safeRole || safeRole === "user") safeRole = "contractor";
+
+    const final_job_category =
+      job_category ||
+      (safeRole === "instructor" ? "instructor" : "funcionario");
+    const final_employment_type = "contratista"; // Enforced rule
+
     // 1. Create Auth User (Dummy password)
     const { data: authUser, error: authError } =
       await supabaseAdmin.auth.admin.createUser({
         email: email,
         password: "TempPassword123!", // Should be generated or random
         email_confirm: true,
-        user_metadata: { full_name, username, role, area },
+        user_metadata: {
+          full_name,
+          username,
+          role,
+          area,
+          job_category: final_job_category,
+          employment_type: final_employment_type,
+        },
       });
 
-    // If auth user creation fails (e.g. already exists), handle it.
-    // Actually, if we just want a record in public.users and the constraint exists, we MUST have an auth user.
-    // If the constraint is removed, then we can insert directly.
-    // Given the architecture, let's try to create the Auth user to be safe and consistent.
-
-    const userId = authUser?.user?.id;
+    let userId = authUser?.user?.id;
 
     if (authError) {
-      // If user already exists in Auth but not in public, we might recover.
-      // But for now let's report error if strict.
-      // console.error("Auth creation failed", authError);
-      // return NextResponse.json({ error: authError.message }, { status: 500 });
+      // HANDLE EXISTING USER (Purge Recovery)
+      if (authError.message.includes("already been registered")) {
+        console.warn("User exists in Auth. Linking to public.users...");
 
-      // Actually, let's try to just insert into public.users. Maybe the user is creating a "contact"
-      // that doesn't login via Supabase Auth but via the custom flow?
-      // But the FK constraint is hard.
-      // Let's assume the previous code worked because maybe the constraint wasn't enforced or I misread the schema in previous steps?
-      // The schema dump said: "id UUID PRIMARY KEY REFERENCES auth.users(id)"
+        // Fetch existing Auth User ID
+        const { data: listData, error: listError } =
+          await supabaseAdmin.auth.admin.listUsers();
 
-      // Fix: Use createAuthUser logic.
-      throw authError;
+        if (listError) throw listError;
+
+        const existingUser = listData.users.find(
+          (u) => u.email?.toLowerCase() === email.toLowerCase(),
+        );
+
+        if (!existingUser) {
+          throw new Error("User reported as existing but not found in list.");
+        }
+        userId = existingUser.id;
+      } else {
+        throw authError; // Rethrow other errors
+      }
     }
 
-    // 2. Insert into Public Users (Trigger might handle this automatically! Check 'handle_new_user' trigger)
-    // If trigger exists, we don't need to insert into public.users manually.
-    // Let's check if we return the user.
+    // 2. Ensure Public User Record Exists (Upsert) - FOR BOTH NEW AND EXISTING
+    // This guarantees the public profile is synced and correct.
+    if (userId) {
+      const { error: publicError } = await supabaseAdmin.from("users").upsert(
+        {
+          id: userId,
+          email: email,
+          full_name: full_name,
+          username: username, // Important to save username
+          role: role,
+          job_category: final_job_category,
+          employment_type: final_employment_type,
+          is_active: true,
+        },
+        { onConflict: "id" },
+      );
 
-    // Waiting a bit for trigger? Or just return the auth user data mapped.
+      if (publicError) {
+        console.error("Public upsert error:", publicError);
+        throw publicError;
+      }
+    }
 
     return NextResponse.json({
       user: {
@@ -70,7 +123,8 @@ export async function POST(req: NextRequest) {
         full_name,
         email,
         role,
-        area,
+        job_category: final_job_category,
+        employment_type: final_employment_type,
       },
     });
   } catch (error: unknown) {

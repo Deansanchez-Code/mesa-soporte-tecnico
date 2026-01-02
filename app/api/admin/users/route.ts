@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 
 // Initialize Supabase Admin Client
 const supabaseAdmin = createClient(
@@ -13,39 +13,23 @@ const supabaseAdmin = createClient(
   },
 );
 
-// HELPER: Verify requester is Admin
-async function verifyAdmin(request: Request) {
-  // Use a standard client to check the auth token passed in headers
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader) return false;
+import {
+  forbidden,
+  getUserFromRequest,
+  verifyUserPermissions,
+} from "@/lib/auth-check";
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
-
-  const token = authHeader.replace("Bearer ", "");
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(token);
-
-  if (error || !user) return false;
-
-  // Check role in public.users
-  const { data: profile } = await supabaseAdmin
-    .from("users")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  return profile?.role === "admin" || profile?.role === "superadmin";
+// HELPER: Integrated Authentication Check
+async function ensureAdmin(request: NextRequest) {
+  const user = await getUserFromRequest(request); // No cast needed
+  if (!user) return false;
+  return await verifyUserPermissions(user.id, ["admin", "superadmin"]);
 }
 
 // LIST USERS (Support pagination and filtering)
-export async function GET(request: Request) {
-  if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+export async function GET(request: NextRequest) {
+  if (!(await ensureAdmin(request))) {
+    return forbidden();
   }
 
   try {
@@ -77,9 +61,9 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
-  if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+export async function POST(request: NextRequest) {
+  if (!(await ensureAdmin(request))) {
+    return forbidden();
   }
 
   try {
@@ -133,9 +117,9 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
-  if (!(await verifyAdmin(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+export async function PUT(request: NextRequest) {
+  if (!(await ensureAdmin(request))) {
+    return forbidden();
   }
 
   try {
@@ -237,22 +221,50 @@ export async function PUT(request: Request) {
       updates.deleted_at = new Date().toISOString();
     }
 
+    // 2. Prepare DB Updates (Protect against extra fields and map keys)
+    const dbUpdates: Record<string, unknown> = {};
+
+    // MAPPING: Frontend (camelCase) -> DB (snake_case)
+    if (updates.fullName) dbUpdates.full_name = updates.fullName;
+    // Direct matches
+    if (updates.username) dbUpdates.username = updates.username;
+    if (updates.role) dbUpdates.role = updates.role;
+    if (updates.area) dbUpdates.area = updates.area;
+    if (updates.employment_type)
+      dbUpdates.employment_type = updates.employment_type;
+    if (updates.job_category) dbUpdates.job_category = updates.job_category;
+    if (typeof updates.is_active === "boolean")
+      dbUpdates.is_active = updates.is_active;
+    if (typeof updates.is_vip === "boolean") dbUpdates.is_vip = updates.is_vip;
+
+    // Permissions
+    if (typeof updates.perm_create_assets === "boolean")
+      dbUpdates.perm_create_assets = updates.perm_create_assets;
+    if (typeof updates.perm_transfer_assets === "boolean")
+      dbUpdates.perm_transfer_assets = updates.perm_transfer_assets;
+    if (typeof updates.perm_decommission_assets === "boolean")
+      dbUpdates.perm_decommission_assets = updates.perm_decommission_assets;
+    if (typeof updates.perm_manage_assignments === "boolean")
+      dbUpdates.perm_manage_assignments = updates.perm_manage_assignments;
+
+    // Update timestamps if needed (Supabase usually handles this via trigger, but we can force it)
+    dbUpdates.updated_at = new Date().toISOString();
+
     // 2. Update Profile in Public Table
     // Try updating by auth_id first
     const { data: updatedByAuth, error: updateError } = await supabaseAdmin
       .from("users")
-      .update(updates)
+      .update(dbUpdates)
       .eq("auth_id", id)
       .select();
 
     if (updateError) throw updateError;
 
     // If no rows updated (maybe 'id' passed was the PK, not auth_id, or auth_id changed), try updating by 'id' PK
-
     if (!updatedByAuth || updatedByAuth.length === 0) {
       const { error: retryUpdateError } = await supabaseAdmin
         .from("users")
-        .update(updates)
+        .update(dbUpdates)
         .eq("id", id);
 
       if (retryUpdateError) throw retryUpdateError;
@@ -264,7 +276,9 @@ export async function PUT(request: Request) {
       updates.role ||
       updates.area ||
       updates.employment_type ||
-      updates.job_category
+      updates.employment_type ||
+      updates.job_category ||
+      typeof updates.perm_manage_assignments === "boolean"
     ) {
       const metadataUpdates: Record<string, unknown> = {};
 
@@ -275,6 +289,9 @@ export async function PUT(request: Request) {
         metadataUpdates.employment_type = updates.employment_type;
       if (updates.job_category)
         metadataUpdates.job_category = updates.job_category;
+      if (typeof updates.perm_manage_assignments === "boolean")
+        metadataUpdates.perm_manage_assignments =
+          updates.perm_manage_assignments;
 
       try {
         await supabaseAdmin.auth.admin.updateUserById(id, {
@@ -294,7 +311,7 @@ export async function PUT(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
@@ -338,7 +355,7 @@ export async function DELETE(request: Request) {
   }
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const { action, job_category, employment_type } = body;

@@ -9,6 +9,9 @@ export interface UserProfile {
   profile: Record<string, unknown> | null;
   loading: boolean;
   role: string | null;
+  permissions?: {
+    manage_assignments: boolean;
+  };
 }
 
 export function useUserProfile() {
@@ -35,6 +38,10 @@ export function useUserProfile() {
         const role = user.user_metadata?.role || "user"; // Asumimos rol en metadata
 
         setState({
+          permissions: {
+            manage_assignments:
+              (user.user_metadata?.perm_manage_assignments as boolean) || false,
+          },
           user,
           profile: user.user_metadata,
           loading: false,

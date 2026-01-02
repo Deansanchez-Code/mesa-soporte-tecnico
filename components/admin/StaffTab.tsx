@@ -187,6 +187,7 @@ export default function StaffTab({
                 .filter((u) => {
                   return (
                     u.role === "user" &&
+                    u.employment_type?.toLowerCase() !== "contratista" && // Exclude contractors
                     (u.full_name
                       .toLowerCase()
                       .includes(searchTerm.toLowerCase()) ||

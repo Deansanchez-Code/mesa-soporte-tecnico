@@ -3,14 +3,31 @@
 import { Key } from "lucide-react";
 import { ConfigItem } from "@/app/admin/types";
 
+// Define interface locally or import from shared types
+export interface UserAgent {
+  id?: string; // Optional for new users
+  fullName: string;
+  username: string;
+  role: string;
+  password?: string;
+  employment_type?: string;
+  job_category?: string;
+  area?: string;
+  isEditing?: boolean;
+  is_vip?: boolean;
+  // Permissions
+  perm_create_assets?: boolean;
+  perm_transfer_assets?: boolean;
+  perm_decommission_assets?: boolean;
+  perm_manage_assignments?: boolean;
+}
+
 interface UserModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  newAgent: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setNewAgent: (agent: any) => void;
+  newAgent: UserAgent;
+  setNewAgent: (agent: UserAgent) => void;
   areas: ConfigItem[];
 }
 
@@ -113,25 +130,27 @@ export default function UserModal({
             </select>
           </div>
 
-          {newAgent.employment_type === "contratista" && (
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                Categoría (Contratistas)
-              </label>
-              <select
-                className="w-full border border-gray-300 rounded-lg p-2"
-                value={newAgent.job_category || "funcionario"}
-                onChange={(e) =>
-                  setNewAgent({ ...newAgent, job_category: e.target.value })
-                }
-              >
-                <option value="funcionario">
-                  Funcionario (Apoyo Administrativo/Otros)
-                </option>
-                <option value="instructor">Instructor</option>
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+              Cargo (
+              {newAgent.employment_type === "contratista"
+                ? "Contratista"
+                : "Planta"}
+              )
+            </label>
+            <select
+              className="w-full border border-gray-300 rounded-lg p-2"
+              value={newAgent.job_category || "funcionario"}
+              onChange={(e) =>
+                setNewAgent({ ...newAgent, job_category: e.target.value })
+              }
+            >
+              <option value="funcionario">
+                Funcionario (Apoyo Administrativo/Otros)
+              </option>
+              <option value="instructor">Instructor</option>
+            </select>
+          </div>
 
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
@@ -156,12 +175,13 @@ export default function UserModal({
           </div>
 
           {/* PERMISOS ADICIONALES (Solo si es Agente/Admin/Superadmin) */}
+          {/* PERMISOS DE ASSETS (Solo si es Agente/Admin/Superadmin) */}
           {(newAgent.role === "agent" ||
             newAgent.role === "admin" ||
             newAgent.role === "superadmin") && (
             <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-2">
               <p className="text-xs font-bold text-gray-500 uppercase mb-2">
-                Permisos Especiales
+                Permisos de Inventario
               </p>
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input
@@ -207,6 +227,27 @@ export default function UserModal({
               </label>
             </div>
           )}
+
+          {/* PERMISOS DE COORDINACIÓN (Disponible para todos) */}
+          <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 space-y-2">
+            <p className="text-xs font-bold text-purple-700 uppercase mb-2">
+              Permisos de Coordinación
+            </p>
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={newAgent.perm_manage_assignments}
+                onChange={(e) =>
+                  setNewAgent({
+                    ...newAgent,
+                    perm_manage_assignments: e.target.checked,
+                  })
+                }
+                className="rounded text-purple-600 focus:ring-purple-600"
+              />
+              Gestionar Asignaciones de Ambientes
+            </label>
+          </div>
 
           {/* OPCIONES AVANZADAS */}
           <div className="pt-2 border-t border-gray-100">

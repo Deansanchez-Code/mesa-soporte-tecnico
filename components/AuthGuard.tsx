@@ -94,11 +94,10 @@ export default function AuthGuard({
         <ShieldAlert className="w-16 h-16 mb-4" />
         <h1 className="text-2xl font-bold">Acceso Restringido</h1>
 
-        <div className="mt-4 p-4 bg-red-100 rounded text-xs font-mono text-center">
-          <p>Debug Info:</p>
-          <p>User: {user?.email || "No User"}</p>
-          <p>App Role: {currentRole || "No Role"}</p>
-          <p>Auth Role: {user?.role || "No Auth Role"}</p>
+        <h1 className="text-2xl font-bold">Acceso Restringido</h1>
+
+        <div className="mt-4 text-sm text-red-600 text-center max-w-md">
+          <p>No tienes permisos para acceder a esta sección.</p>
         </div>
 
         <button

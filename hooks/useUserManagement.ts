@@ -20,6 +20,7 @@ export function useUserManagement(onRefresh: () => void) {
     is_vip: false,
     employment_type: "planta",
     job_category: "funcionario",
+    perm_manage_assignments: false,
     isEditing: false,
   });
 
@@ -38,6 +39,7 @@ export function useUserManagement(onRefresh: () => void) {
       is_vip: false,
       employment_type: "planta",
       job_category: "funcionario",
+      perm_manage_assignments: false,
       isEditing: false,
     });
   };
@@ -79,6 +81,7 @@ export function useUserManagement(onRefresh: () => void) {
         is_vip: newAgent.is_vip,
         employment_type: newAgent.employment_type,
         job_category: newAgent.job_category,
+        perm_manage_assignments: newAgent.perm_manage_assignments,
       };
 
       const method = newAgent.isEditing ? "PUT" : "POST";
@@ -98,7 +101,7 @@ export function useUserManagement(onRefresh: () => void) {
       }
 
       alert(
-        newAgent.isEditing ? "✅ Usuario actualizado" : "✅ Usuario creado"
+        newAgent.isEditing ? "✅ Usuario actualizado" : "✅ Usuario creado",
       );
       setShowAgentModal(false);
       resetUserForm();
@@ -126,6 +129,7 @@ export function useUserManagement(onRefresh: () => void) {
       is_vip: user.is_vip,
       employment_type: user.employment_type || "planta",
       job_category: user.job_category || "funcionario",
+      perm_manage_assignments: user.perm_manage_assignments || false,
       isEditing: true,
     });
     setShowAgentModal(true);
@@ -135,7 +139,7 @@ export function useUserManagement(onRefresh: () => void) {
     // SOFT DELETE WARNING
     if (
       !confirm(
-        "⚠️ ¿Seguro que deseas DESACTIVAR este usuario?\n\nEl usuario no podrá ingresar más, pero sus datos históricos se conservarán por 6 años."
+        "⚠️ ¿Seguro que deseas DESACTIVAR este usuario?\n\nEl usuario no podrá ingresar más, pero sus datos históricos se conservarán por 6 años.",
       )
     )
       return;

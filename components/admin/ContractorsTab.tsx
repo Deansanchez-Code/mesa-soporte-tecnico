@@ -27,21 +27,29 @@ export default function ContractorsTab({
   );
 
   // Filter logic
-  const contractors = users.filter((u) => u.employment_type === "contratista");
+  // Filter logic (Case Insensitive)
+  const contractors = users.filter(
+    (u) => u.employment_type?.toLowerCase() === "contratista",
+  );
   const plantaUsers = users.filter(
-    (u) => u.employment_type === "planta" || !u.employment_type,
+    (u) =>
+      u.employment_type?.toLowerCase() === "planta" ||
+      u.employment_type?.toLowerCase() === "funcionario" || // En caso de inconsistencia
+      !u.employment_type,
   );
 
   const instructors = contractors.filter(
-    (u) => u.job_category === "instructor",
+    (u) => u.job_category?.toLowerCase() === "instructor",
   );
-  const officials = contractors.filter((u) => u.job_category === "funcionario");
+  const officials = contractors.filter(
+    (u) => u.job_category?.toLowerCase() === "funcionario",
+  );
 
   const plantaInstructors = plantaUsers.filter(
-    (u) => u.job_category === "instructor",
+    (u) => u.job_category?.toLowerCase() === "instructor",
   );
   const plantaOfficials = plantaUsers.filter(
-    (u) => u.job_category === "funcionario",
+    (u) => u.job_category?.toLowerCase() === "funcionario",
   );
 
   const handleBulkAction = async (job_category: string, enable: boolean) => {

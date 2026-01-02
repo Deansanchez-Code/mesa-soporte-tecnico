@@ -1,7 +1,7 @@
 import { Ticket } from "@/app/admin/types";
 
 export interface TicketEvent {
-  id: number;
+  id: string;
   created_at: string;
   action_type: string;
   old_value?: string;

@@ -1,0 +1,1038 @@
+[
+  {
+    "file": "app\\admin\\page.tsx",
+    "line": 308,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "app\\admin\\page.tsx",
+    "line": 309,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "app\\admin\\page.tsx",
+    "line": 310,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "app\\api\\admin\\delete-user\\route.ts",
+    "line": 59,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "app\\api\\admin\\fix-masanchez\\route.ts",
+    "line": 40,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "app\\api\\admin\\fix-masanchez\\route.ts",
+    "line": 72,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "app\\api\\admin\\purge-users\\route.ts",
+    "line": 35,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "app\\api\\admin\\purge-users\\route.ts",
+    "line": 42,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "app\\api\\instructors\\route.ts",
+    "line": 21,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "app\\api\\instructors\\route.ts",
+    "line": 38,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "app\\api\\instructors\\route.ts",
+    "line": 65,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "components\\admin\\dashboard\\DraggableDashboard.tsx",
+    "line": 53,
+    "type": "Unsafe LocalStorage",
+    "message": "Direct localStorage usage causes hydration errors. Use a safe wrapper.",
+    "severity": "MEDIUM"
+  },
+  {
+    "file": "components\\admin\\dashboard\\DraggableDashboard.tsx",
+    "line": 80,
+    "type": "Unsafe LocalStorage",
+    "message": "Direct localStorage usage causes hydration errors. Use a safe wrapper.",
+    "severity": "MEDIUM"
+  },
+  {
+    "file": "components\\admin\\ShiftsTab.tsx",
+    "line": 56,
+    "type": "Unsafe LocalStorage",
+    "message": "Direct localStorage usage causes hydration errors. Use a safe wrapper.",
+    "severity": "MEDIUM"
+  },
+  {
+    "file": "components\\admin\\ShiftsTab.tsx",
+    "line": 68,
+    "type": "Unsafe LocalStorage",
+    "message": "Direct localStorage usage causes hydration errors. Use a safe wrapper.",
+    "severity": "MEDIUM"
+  },
+  {
+    "file": "components\\AuthGuard.tsx",
+    "line": 22,
+    "type": "Unsafe LocalStorage",
+    "message": "Direct localStorage usage causes hydration errors. Use a safe wrapper.",
+    "severity": "MEDIUM"
+  },
+  {
+    "file": "components\\AuthGuard.tsx",
+    "line": 23,
+    "type": "Unsafe LocalStorage",
+    "message": "Direct localStorage usage causes hydration errors. Use a safe wrapper.",
+    "severity": "MEDIUM"
+  },
+  {
+    "file": "components\\features\\assignments\\BulkAssignmentModal.tsx",
+    "line": 76,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "components\\features\\assignments\\BulkAssignmentModal.tsx",
+    "line": 78,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "components\\features\\assignments\\BulkAssignmentModal.tsx",
+    "line": 94,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "components\\features\\assignments\\BulkAssignmentModal.tsx",
+    "line": 149,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "components\\features\\assignments\\BulkAssignmentModal.tsx",
+    "line": 171,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "components\\features\\assignments\\CalendarView.tsx",
+    "line": 78,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "components\\features\\assignments\\CalendarView.tsx",
+    "line": 97,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "components\\features\\assignments\\CalendarView.tsx",
+    "line": 124,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "components\\NotificationManager.tsx",
+    "line": 90,
+    "type": "Unsafe LocalStorage",
+    "message": "Direct localStorage usage causes hydration errors. Use a safe wrapper.",
+    "severity": "MEDIUM"
+  },
+  {
+    "file": "components\\NotificationManager.tsx",
+    "line": 146,
+    "type": "Unsafe LocalStorage",
+    "message": "Direct localStorage usage causes hydration errors. Use a safe wrapper.",
+    "severity": "MEDIUM"
+  },
+  {
+    "file": "context\\NotificationContext.tsx",
+    "line": 54,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "lib\\storage.ts",
+    "line": 39,
+    "type": "Unsafe LocalStorage",
+    "message": "Direct localStorage usage causes hydration errors. Use a safe wrapper.",
+    "severity": "MEDIUM"
+  },
+  {
+    "file": "lib\\storage.ts",
+    "line": 51,
+    "type": "Unsafe LocalStorage",
+    "message": "Direct localStorage usage causes hydration errors. Use a safe wrapper.",
+    "severity": "MEDIUM"
+  },
+  {
+    "file": "lib\\storage.ts",
+    "line": 67,
+    "type": "Unsafe LocalStorage",
+    "message": "Direct localStorage usage causes hydration errors. Use a safe wrapper.",
+    "severity": "MEDIUM"
+  },
+  {
+    "file": "scripts\\apply_migrations.ts",
+    "line": 27,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\apply_migrations.ts",
+    "line": 31,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\apply_migrations.ts",
+    "line": 64,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\apply_migrations.ts",
+    "line": 67,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\apply_migrations.ts",
+    "line": 70,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\apply_migrations.ts",
+    "line": 76,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\check_env_vars.ts",
+    "line": 4,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\check_env_vars.ts",
+    "line": 5,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\check_env_vars.ts",
+    "line": 9,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\check_env_vars.ts",
+    "line": 13,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\database\\seed_superadmin.ts",
+    "line": 28,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\database\\seed_superadmin.ts",
+    "line": 40,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\database\\seed_superadmin.ts",
+    "line": 42,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\database\\seed_superadmin.ts",
+    "line": 52,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\db-backup.js",
+    "line": 21,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\db-backup.js",
+    "line": 90,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\db-backup.js",
+    "line": 92,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\debug\\debug_users.ts",
+    "line": 16,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\debug\\debug_users.ts",
+    "line": 18,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\debug\\debug_users.ts",
+    "line": 20,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\debug_audit_logs.ts",
+    "line": 17,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\debug_audit_logs.ts",
+    "line": 27,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\debug_audit_logs.ts",
+    "line": 39,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\debug_audit_logs.ts",
+    "line": 43,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\debug_audit_logs.ts",
+    "line": 52,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\debug_rls.ts",
+    "line": 26,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deployment_audit.ts",
+    "line": 21,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deployment_audit.ts",
+    "line": 29,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deployment_audit.ts",
+    "line": 61,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deployment_audit.ts",
+    "line": 69,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deployment_audit.ts",
+    "line": 79,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deployment_audit.ts",
+    "line": 104,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deployment_audit.ts",
+    "line": 133,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deployment_audit.ts",
+    "line": 144,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deploy_audit.ts",
+    "line": 22,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deploy_audit.ts",
+    "line": 23,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deploy_audit.ts",
+    "line": 24,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deploy_audit.ts",
+    "line": 25,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deploy_audit.ts",
+    "line": 31,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deploy_audit.ts",
+    "line": 38,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\deploy_audit.ts",
+    "line": 52,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\migrate-users.js",
+    "line": 18,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\migrate-users.js",
+    "line": 31,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\migrate-users.js",
+    "line": 38,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\migrate-users.js",
+    "line": 76,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\migrate-users.js",
+    "line": 98,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\migrate-users.js",
+    "line": 106,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\migrate-users.js",
+    "line": 107,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\migrate-users.js",
+    "line": 108,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\seed_audit_logs.ts",
+    "line": 17,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\seed_audit_logs.ts",
+    "line": 31,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\seed_audit_logs.ts",
+    "line": 70,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\setup-supabase.js",
+    "line": 45,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\setup-supabase.js",
+    "line": 71,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\setup-supabase.js",
+    "line": 76,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\setup-supabase.js",
+    "line": 102,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\setup-supabase.js",
+    "line": 103,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\setup-supabase.js",
+    "line": 108,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\setup-supabase.js",
+    "line": 111,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\setup-supabase.js",
+    "line": 112,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\setup-supabase.js",
+    "line": 120,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_audit.ts",
+    "line": 28,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_audit.ts",
+    "line": 32,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_audit.ts",
+    "line": 73,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_audit.ts",
+    "line": 103,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_audit.ts",
+    "line": 125,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_audit.ts",
+    "line": 155,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_audit.ts",
+    "line": 159,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 19,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 22,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 31,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 33,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 35,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 40,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 48,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 50,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 51,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 55,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 67,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 74,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\system_verification.ts",
+    "line": 78,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_api_response.ts",
+    "line": 3,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_api_response.ts",
+    "line": 19,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_api_response.ts",
+    "line": 21,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 16,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 22,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 36,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 39,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 57,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 60,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 73,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 77,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 81,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 98,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 109,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 113,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 121,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 125,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\test_user_logic.js",
+    "line": 128,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\types-sync.js",
+    "line": 15,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\types-sync.js",
+    "line": 37,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\types-sync.js",
+    "line": 39,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 19,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 28,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 32,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 44,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 48,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 61,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 65,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 75,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 79,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 81,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 91,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 94,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 97,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 99,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  },
+  {
+    "file": "scripts\\verification_suite.ts",
+    "line": 103,
+    "type": "Console Log",
+    "message": "console.log found. Ensure it's not exposing sensitive info.",
+    "severity": "LOW"
+  }
+]

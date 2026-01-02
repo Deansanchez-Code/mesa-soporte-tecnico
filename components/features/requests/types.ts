@@ -4,6 +4,9 @@ export interface User {
   area: string;
   username: string;
   role: string;
+  perm_manage_assignments?: boolean;
+  employment_type?: string;
+  job_category?: string;
 }
 
 export interface Asset {

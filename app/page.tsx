@@ -9,6 +9,7 @@ import {
   Lock,
   Monitor,
   Calendar,
+  MapPin,
 } from "lucide-react";
 import UserRequestForm from "@/components/features/requests/UserRequestForm";
 import Link from "next/link";
@@ -65,7 +66,7 @@ function HomeContent() {
 
   // Estado para controlar el ancho del contenedor según la vista interna del formulario
   const [requestView, setRequestView] = useState<
-    "SELECTION" | "TICKET" | "RESERVATION"
+    "SELECTION" | "TICKET" | "RESERVATION" | "AVAILABILITY"
   >("SELECTION");
 
   // Sincronización con URL para soporte de botón "Atrás"
@@ -80,6 +81,7 @@ function HomeContent() {
         setViewState("request");
         if (step === "TICKET") setRequestView("TICKET");
         else if (step === "RESERVATION") setRequestView("RESERVATION");
+        else if (step === "AVAILABILITY") setRequestView("AVAILABILITY");
         else setRequestView("SELECTION");
       } else if (view === "contractor") {
         setViewState("contractor");
@@ -136,6 +138,21 @@ function HomeContent() {
       setLoading(false);
 
       if (user) {
+        // --- INICIO SILENT LOGIN ---
+        // Autenticar silenciosamente para habilitar RLS
+        const syntheticEmail = `${user.username}@sistema.local`;
+        const { error: authError } = await supabase.auth.signInWithPassword({
+          email: syntheticEmail,
+          password: "Sena2024*", // Contraseña por defecto para identificación
+        });
+
+        if (authError) {
+          console.error("Silent Login Error:", authError);
+          // Si falla el login silencioso, permitimos continuar pero RLS podría bloquear algunas acciones.
+          // Idealmente mostramos un warning o reintentamos, pero para UX fluida seguimos.
+        }
+        // --- FIN SILENT LOGIN ---
+
         setUserData(user);
         setViewState("request");
       } else {
@@ -166,6 +183,15 @@ function HomeContent() {
         ? contractorLocation
         : "PORTERIA PEATONAL";
 
+    // Validación de correo institucional
+    if (contractorEmail.toLowerCase().endsWith("@sena.edu.co")) {
+      alert(
+        "Los correos @sena.edu.co deben ingresar por el 'Ingreso Corporativo'.",
+      );
+      setLoading(false);
+      return;
+    }
+
     try {
       // 1. Buscar si ya existe
       const checkRes = await fetch("/api/auth/check-user", {
@@ -176,11 +202,34 @@ function HomeContent() {
       const { user: existingUser } = await checkRes.json();
 
       if (existingUser) {
-        // Loguear
+        // --- INICIO SILENT LOGIN ---
+        const syntheticEmail = `${existingUser.username}@sistema.local`;
+        await supabase.auth.signInWithPassword({
+          email: syntheticEmail,
+          password: "Sena2024*",
+        });
+        // ---------------------------
+
         setUserData(existingUser);
         setViewState("request");
       } else {
         // 2. Crear
+        // Mapping UI state to backend fields:
+        // contractorArea state: "Instructor" -> Instructor
+        // contractorArea state: "Contratista" -> Funcionario (per button label)
+
+        // Bloquear @sena.edu.co DE NUEVO por seguridad
+        if (contractorEmail.toLowerCase().endsWith("@sena.edu.co")) {
+          alert(
+            "Los correos @sena.edu.co deben ingresar por el 'Ingreso Corporativo'.",
+          );
+          setLoading(false);
+          return;
+        }
+
+        const isInstructor = contractorArea === "Instructor";
+        const jobCategory = isInstructor ? "instructor" : "funcionario";
+
         const createRes = await fetch("/api/auth/register-contractor", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -188,7 +237,9 @@ function HomeContent() {
             username: derivedUsername,
             full_name: contractorName,
             email: contractorEmail,
-            role: "user",
+            role: "contractor", // Role strictly enforced as contractor
+            job_category: jobCategory,
+            employment_type: "contratista", // ALWAYS contratista from portal
             area: finalArea,
             location: finalArea,
           }),
@@ -197,6 +248,17 @@ function HomeContent() {
         const { user: newUser, error: createError } = await createRes.json();
 
         if (createError) throw new Error(createError);
+
+        // --- INICIO SILENT LOGIN (NUEVO USUARIO) ---
+        if (newUser) {
+          const newSyntheticEmail = `${newUser.username}@sistema.local`;
+          await supabase.auth.signInWithPassword({
+            email: newSyntheticEmail,
+            password: "Sena2024*",
+          });
+        }
+        // -------------------------------------------
+
         setUserData(newUser);
         setViewState("request");
       }
@@ -205,7 +267,7 @@ function HomeContent() {
     } catch (error) {
       console.error("Error en registro de contratista:", error);
       alert(
-        "Error al procesar el ingreso. Verifica tus datos o intenta nuevamente."
+        "Error al procesar el ingreso. Verifica tus datos o intenta nuevamente.",
       );
     } finally {
       setLoading(false);
@@ -257,6 +319,8 @@ function HomeContent() {
                 <Monitor className="w-8 h-8 text-white" />
               ) : requestView === "RESERVATION" ? (
                 <Calendar className="w-8 h-8 text-white" />
+              ) : requestView === "AVAILABILITY" ? (
+                <MapPin className="w-8 h-8 text-white" />
               ) : (
                 <User className="w-8 h-8 text-white" />
               )}

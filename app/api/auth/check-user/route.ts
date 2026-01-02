@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(req: NextRequest) {
+  // AUTH_CHECK_BYPASS: Public username check (Data Restricted)
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const body = await req.json();
@@ -13,7 +14,9 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from("users")
-      .select("*")
+      .select(
+        "id, username, full_name, role, area, employment_type, job_category, auth_id",
+      )
       .eq("username", username)
       .single();
 
@@ -25,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ user: data });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unknown error";
-    console.error("Check user error:", msg);
+    // console.error("Check user error:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

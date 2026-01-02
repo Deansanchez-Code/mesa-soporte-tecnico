@@ -14,9 +14,11 @@ import {
   Search,
   Check,
   X,
+  CalendarRange,
 } from "lucide-react";
 import PanicButtonModal from "./PanicButtonModal";
 import AuditoriumReservationForm from "@/components/features/reservations/AuditoriumReservationForm";
+import AssignmentManager from "@/components/features/assignments/AssignmentManager";
 import { useTicketRequest } from "./hooks/useTicketRequest";
 import { User, Asset } from "./types";
 
@@ -70,8 +72,10 @@ export default function UserRequestForm({
   user: User;
   onCancel: () => void;
   initialLocation?: string;
-  onViewChange?: (view: "SELECTION" | "TICKET" | "RESERVATION") => void;
-  currentView?: "SELECTION" | "TICKET" | "RESERVATION";
+  onViewChange?: (
+    view: "SELECTION" | "TICKET" | "RESERVATION" | "AVAILABILITY",
+  ) => void;
+  currentView?: "SELECTION" | "TICKET" | "RESERVATION" | "AVAILABILITY";
 }) {
   // Use the new custom hook
   const {
@@ -110,10 +114,10 @@ export default function UserRequestForm({
     onSuccess: onCancel,
   });
 
-  // VISTA ACTUAL: 'SELECTION' | 'TICKET' | 'RESERVATION'
-  const [view, setView] = useState<"SELECTION" | "TICKET" | "RESERVATION">(
-    currentView || "SELECTION"
-  );
+  // VISTA ACTUAL: 'SELECTION' | 'TICKET' | 'RESERVATION' | 'AVAILABILITY'
+  const [view, setView] = useState<
+    "SELECTION" | "TICKET" | "RESERVATION" | "AVAILABILITY"
+  >(currentView || "SELECTION");
 
   // Sincronizar con la prop currentView
   useEffect(() => {
@@ -124,7 +128,7 @@ export default function UserRequestForm({
   }, [currentView]);
 
   const handleViewChange = (
-    newView: "SELECTION" | "TICKET" | "RESERVATION"
+    newView: "SELECTION" | "TICKET" | "RESERVATION" | "AVAILABILITY",
   ) => {
     if (onViewChange) {
       onViewChange(newView);
@@ -178,6 +182,25 @@ export default function UserRequestForm({
               </p>
             </div>
           </button>
+
+          {/* CARD 3: CONSULTAR DISPONIBILIDAD */}
+          <button
+            onClick={() => handleViewChange("AVAILABILITY")}
+            className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-purple-500 transition-all duration-300 flex flex-col items-center text-center gap-2"
+          >
+            <div className="bg-purple-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
+              <CalendarRange className="w-8 h-8 text-purple-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 group-hover:text-purple-600 transition-colors">
+                Consultar Disponibilidad
+              </h3>
+              <p className="text-sm text-gray-500 leading-relaxed mt-1">
+                Verifica la ocupación de ambientes y programación de
+                instructores.
+              </p>
+            </div>
+          </button>
         </div>
 
         <div className="mt-12 text-center">
@@ -206,7 +229,9 @@ export default function UserRequestForm({
   return (
     <div
       className={`w-full mx-auto animate-in fade-in slide-in-from-right-8 duration-300 ${
-        view === "RESERVATION" ? "max-w-6xl" : "max-w-4xl"
+        view === "RESERVATION" || view === "AVAILABILITY"
+          ? "max-w-6xl"
+          : "max-w-4xl"
       }`}
     >
       <button
@@ -223,23 +248,33 @@ export default function UserRequestForm({
             className={`p-3 rounded-full ${
               view === "TICKET"
                 ? "bg-green-100 text-sena-green"
-                : "bg-blue-100 text-sena-blue"
+                : view === "RESERVATION"
+                  ? "bg-blue-100 text-sena-blue"
+                  : "bg-purple-100 text-purple-600"
             }`}
           >
             {view === "TICKET" ? (
               <Monitor className="w-6 h-6" />
-            ) : (
+            ) : view === "RESERVATION" ? (
               <Calendar className="w-6 h-6" />
+            ) : (
+              <CalendarRange className="w-6 h-6" />
             )}
           </div>
           <div>
             <h2 className="text-xl font-bold text-gray-800">
-              {view === "TICKET" ? "Servicio Técnico" : "Reservar Auditorio"}
+              {view === "TICKET"
+                ? "Servicio Técnico"
+                : view === "RESERVATION"
+                  ? "Reservar Auditorio"
+                  : "Disponibilidad de Ambientes"}
             </h2>
             <p className="text-sm text-gray-500">
               {view === "TICKET"
                 ? "Completa los detalles para asignar un técnico."
-                : "Verifica disponibilidad y agenda tu evento."}
+                : view === "RESERVATION"
+                  ? "Verifica disponibilidad y agenda tu evento."
+                  : "Consulta y gestión de asignaciones de instructores."}
             </p>
           </div>
         </div>
@@ -251,6 +286,17 @@ export default function UserRequestForm({
               onCancel={() => handleViewChange("SELECTION")}
               onSuccess={onCancel}
             />
+          ) : view === "AVAILABILITY" ? (
+            <div className="min-h-[600px]">
+              <AssignmentManager
+                canManage={
+                  user.role === "admin" ||
+                  user.role === "superadmin" ||
+                  user.role === "coordinator" ||
+                  !!user.perm_manage_assignments
+                }
+              />
+            </div>
           ) : (
             <form onSubmit={handleSubmitTicket} className="space-y-8">
               {/* ALERTA DE FALLA MASIVA */}
@@ -402,8 +448,8 @@ export default function UserRequestForm({
                         isValidSerial
                           ? "border-green-500 focus:ring-green-200 bg-green-50"
                           : manualSerial && !isSearching
-                          ? "border-red-300 focus:ring-red-200"
-                          : "border-gray-300 focus:ring-sena-green"
+                            ? "border-red-300 focus:ring-red-200"
+                            : "border-gray-300 focus:ring-sena-green"
                       }`}
                     />
                     <div className="absolute left-3 top-2.5 text-gray-400">
@@ -453,11 +499,19 @@ export default function UserRequestForm({
                         <X className="w-3 h-3" /> Serial no encontrado en la
                         base de datos.
                       </p>
+                    ) : user.employment_type === "planta" &&
+                      !isValidSerial &&
+                      !selectedAsset ? (
+                      <p className="text-[10px] text-sena-orange font-medium animate-pulse">
+                        * Funcionarios de planta deben seleccionar un equipo
+                        SENA asignado.
+                      </p>
                     ) : (user.role === "contractor" ||
                         user.role === "external") &&
-                      !isValidSerial ? (
-                      <p className="text-[10px] text-sena-orange font-medium">
-                        * Debes seleccionar un serial válido de la lista.
+                      !isValidSerial &&
+                      !selectedAsset ? (
+                      <p className="text-[10px] text-gray-400">
+                        * Opcional: Ingrese el serial si el equipo es SENA.
                       </p>
                     ) : null}
                   </div>
@@ -481,8 +535,8 @@ export default function UserRequestForm({
                       !location && isSubmitting
                         ? "border-red-300"
                         : isLocationLocked
-                        ? "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed"
-                        : "border-gray-200 focus:border-sena-green hover:border-sena-green"
+                          ? "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed"
+                          : "border-gray-200 focus:border-sena-green hover:border-sena-green"
                     }`}
                   >
                     <option value="">Seleccione una ubicación...</option>
@@ -536,12 +590,16 @@ export default function UserRequestForm({
                   disabled={
                     isSubmitting ||
                     !location ||
-                    (!selectedAsset && !isValidSerial)
+                    (user.employment_type === "planta" &&
+                      !selectedAsset &&
+                      !isValidSerial)
                   }
                   className={`w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-white shadow-lg shadow-green-900/20 transition-all flex items-center justify-center gap-2 ${
                     isSubmitting ||
                     !location ||
-                    (!selectedAsset && !isValidSerial)
+                    (user.employment_type === "planta" &&
+                      !selectedAsset &&
+                      !isValidSerial)
                       ? "bg-gray-400 cursor-not-allowed"
                       : "bg-sena-green hover:bg-[#2d8500] hover:scale-105"
                   }`}

@@ -32,24 +32,33 @@ export function useTicketDetails({
         `
             id, created_at, action_type, old_value, new_value, comment,
             actor:actor_id ( full_name )
-        `
+        `,
       )
       .eq("ticket_id", ticket.id)
       .order("created_at", { ascending: false });
 
     if (!eventsError && eventsData) {
       // Flatten actor name
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const formatted: TicketEvent[] = eventsData.map((e: any) => ({
-        id: e.id,
-        created_at: e.created_at,
-        action_type: e.action_type,
-        old_value: e.old_value,
-        new_value: e.new_value,
-        comment: e.comment,
-        actor_id: e.actor?.id, // specific field if needed, mostly used for display
-        actor_name: e.actor?.full_name || "Sistema",
-      }));
+      const formatted: TicketEvent[] = eventsData.map(
+        (e: {
+          id: string;
+          created_at: string;
+          action_type: string;
+          old_value: string;
+          new_value: string;
+          comment: string;
+          actor: { id: string; full_name: string } | null;
+        }) => ({
+          id: e.id,
+          created_at: e.created_at,
+          action_type: e.action_type,
+          old_value: e.old_value,
+          new_value: e.new_value,
+          comment: e.comment,
+          actor_id: e.actor?.id || undefined, // specific field if needed, mostly used for display
+          actor_name: e.actor?.full_name || "Sistema",
+        }),
+      );
       setEvents(formatted);
     }
 
@@ -192,17 +201,21 @@ export function useTicketDetails({
           e.action_type === "STATUS_CHANGE"
             ? "Cambio de Estado"
             : e.action_type === "PAUSED"
-            ? "Ticket Pausado"
-            : e.action_type === "RESUMED"
-            ? "Ticket Reanudado"
-            : e.action_type,
+              ? "Ticket Pausado"
+              : e.action_type === "RESUMED"
+                ? "Ticket Reanudado"
+                : e.action_type,
         actor: e.actor_name,
         rawType: e.action_type,
       })),
       {
         type: "creation" as const,
-        date: new Date(ticket.created_at).getTime(),
-        displayDate: new Date(ticket.created_at).toLocaleString(),
+        date: ticket.created_at
+          ? new Date(ticket.created_at).getTime()
+          : Date.now(),
+        displayDate: ticket.created_at
+          ? new Date(ticket.created_at).toLocaleString()
+          : "Sin fecha",
         title: "Ticket Creado",
         text: undefined,
         actor: undefined,
@@ -211,7 +224,6 @@ export function useTicketDetails({
     ];
 
     return items.sort((a, b) => b.date - a.date);
-    // Filter out invalid dates if necessary, but sort handles them likely
   }, [ticket.description, ticket.created_at, events]);
 
   return {

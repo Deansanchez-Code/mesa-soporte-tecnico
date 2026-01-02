@@ -14,7 +14,7 @@ import {
   Monitor,
   Power,
   PlayCircle,
-  PauseCircle, // Icono para pausar el SLA
+  PauseCircle, // Icono para pausar el SLA,
   Snowflake, // Icono del congelador
   LogOut,
   BarChart2,
@@ -23,8 +23,10 @@ import {
   FileText, // For REQ
   Crown, // For VIP
   History, // Added for History Tab
+  CalendarRange, // For Environments Tab
 } from "lucide-react";
 import TicketHistory from "@/components/features/tickets/TicketHistory";
+import AssignmentManager from "@/components/features/assignments/AssignmentManager";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import TicketDetailsModal from "@/components/features/tickets/TicketDetailsModal";
@@ -89,7 +91,7 @@ const CountdownTimer = ({ targetDate }: { targetDate?: string }) => {
 
 export default function AgentDashboard() {
   const router = useRouter();
-  const { user: currentUser, role } = useUserProfile();
+  const { user: currentUser, role, permissions } = useUserProfile();
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [agents, setAgents] = useState<
@@ -124,7 +126,9 @@ export default function AgentDashboard() {
   );
 
   // VISTA DEL DASHBOARD
-  const [viewMode, setViewMode] = useState<"KANBAN" | "HISTORY">("KANBAN");
+  const [viewMode, setViewMode] = useState<
+    "KANBAN" | "HISTORY" | "ENVIRONMENTS"
+  >("KANBAN");
 
   // --- 1. CARGA DE DATOS ---
   const fetchTickets = async () => {
@@ -785,6 +789,20 @@ export default function AgentDashboard() {
               </span>
             </button>
 
+            {/* TAB: AMBIENTES (Visible si tiene permisos o si es admin, O todos pueden ver disponibilidad) */}
+            {/* Decidimos que todos pueden ver "Disponibilidad", pero solo coord asigna. */}
+            <button
+              onClick={() => setViewMode("ENVIRONMENTS")}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold transition-all ${
+                viewMode === "ENVIRONMENTS"
+                  ? "bg-purple-100 text-purple-700 shadow-sm"
+                  : "text-gray-500 hover:bg-gray-100"
+              }`}
+            >
+              <CalendarRange className="w-5 h-5" />
+              <span className="hidden sm:inline">Ambientes</span>
+            </button>
+
             <button
               onClick={() => setShowProfileModal(true)}
               className="h-9 w-9 rounded-full bg-sena-blue flex items-center justify-center text-white font-bold text-sm shadow-md border-2 border-white ring-2 ring-gray-100 hover:ring-sena-green transition-all cursor-pointer"
@@ -881,7 +899,14 @@ export default function AgentDashboard() {
           </div>
 
           {/* --- VISTA: HISTORIAL --- */}
-          {viewMode === "HISTORY" ? (
+          {/* --- VISTAS --- */}
+          {viewMode === "ENVIRONMENTS" ? (
+            <div className="animate-in fade-in zoom-in-95 duration-300 h-full pb-10">
+              <AssignmentManager
+                canManage={!!permissions?.manage_assignments}
+              />
+            </div>
+          ) : viewMode === "HISTORY" ? (
             <TicketHistory />
           ) : (
             // --- VISTA: KANBAN ---

@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 
 // Admin client to bypass RLS for aggregate stats
 const supabaseAdmin = createClient(
@@ -10,12 +10,22 @@ const supabaseAdmin = createClient(
       autoRefreshToken: false,
       persistSession: false,
     },
-  }
+  },
 );
 
-export async function GET() {
+import {
+  unauthorized,
+  forbidden,
+  getUserFromRequest,
+  verifyUserPermissions,
+} from "@/lib/auth-check";
+
+export async function GET(req: NextRequest) {
   try {
-    // 1. Fetch total tickets
+    const user = await getUserFromRequest(req);
+    if (!user) return unauthorized();
+    if (!(await verifyUserPermissions(user.id, ["admin", "superadmin"])))
+      return forbidden();
     const { count: totalTickets, error: countError } = await supabaseAdmin
       .from("tickets")
       .select("*", { count: "exact", head: true });
@@ -78,7 +88,7 @@ export async function GET() {
     console.error("Error generating metrics:", error);
     return NextResponse.json(
       { error: "Error interno calculando métricas" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

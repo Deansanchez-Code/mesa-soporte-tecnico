@@ -1,19 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
+import {
+  unauthorized,
+  forbidden,
+  getUserFromRequest,
+  verifyUserPermissions,
+} from "@/lib/auth-check";
+
 export async function POST(req: NextRequest) {
   try {
+    const user = await getUserFromRequest(req);
+    if (!user) return unauthorized();
+
     const body = await req.json();
     const { reservation_id } = body;
 
     if (!reservation_id) {
       return NextResponse.json(
         { error: "Missing reservation ID" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const supabaseAdmin = getSupabaseAdmin();
+
+    // OWNERSHIP CHECK
+    const { data: reservation } = await supabaseAdmin
+      .from("reservations")
+      .select("user_id")
+      .eq("id", reservation_id)
+      .single();
+
+    if (reservation && reservation.user_id !== user.id) {
+      if (!(await verifyUserPermissions(user.id, ["admin", "superadmin"]))) {
+        return forbidden("Cannot cancel other users' reservations");
+      }
+    }
 
     const { error } = await supabaseAdmin
       .from("reservations")

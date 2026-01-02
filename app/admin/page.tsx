@@ -259,20 +259,32 @@ export default function AdminDashboard() {
 
     // A. Cargar Todo en Paralelo
     const [
-      { data: agentsData },
-      { data: assetsData },
-      { data: allUsers },
-      { data: areasData },
-      { data: catsData },
+      /* 0 */ { data: apiUsers },
+      /* 1 */ { data: sbAssets },
+      /* 2 */ { data: sbAreas },
+      /* 3 */ { data: sbCats },
     ] = await Promise.all([
-      // 1. Agentes
-      supabase
-        .from("users")
-        .select(
-          "id, full_name, username, email, role, area, created_at, is_active, perm_create_assets, perm_transfer_assets, perm_decommission_assets, is_vip",
-        )
-        .in("role", ["agent", "admin", "superadmin"])
-        .order("created_at", { ascending: false }),
+      // 1. Usuarios API
+      (async () => {
+        try {
+          const session = await supabase.auth.getSession();
+          const token = session.data.session?.access_token;
+          // If no session (admin/page might be protected but token can be stale), handle gracefully
+          const headers: Record<string, string> = {};
+          if (token) headers.Authorization = `Bearer ${token}`;
+
+          const res = await fetch("/api/admin/users?limit=2000", { headers });
+          if (!res.ok) {
+            console.warn("API User fetch failed, trying local DB fallback");
+            return { data: [] };
+          }
+          const json = await res.json();
+          return { data: json.users };
+        } catch (e) {
+          console.error("User fetch error:", e);
+          return { data: [] };
+        }
+      })(),
       // 2. Activos
       supabase
         .from("assets")
@@ -280,32 +292,55 @@ export default function AdminDashboard() {
           "id, serial_number, type, brand, model, assigned_to_user_id, location, created_at, users(full_name)",
         )
         .order("created_at", { ascending: false }),
-      // 3. Usuarios
-      supabase
-        .from("users")
-        .select(
-          "id, full_name, username, email, role, area, is_vip, is_active, employment_type, job_category, auth_id",
-        )
-        .order("full_name"),
-      // 4. Areas
+      // 3. Áreas
       supabase.from("areas").select("id, name").order("name"),
-      // 5. Categorias
+      // 4. Categorías
       supabase.from("categories").select("id, name").order("name"),
     ]);
 
-    // B. Setear Estados
-    if (agentsData) setAgents(agentsData as Agent[]);
-    if (assetsData) setAssets(assetsData as unknown as Asset[]);
-    if (allUsers) setUsersList(allUsers);
+    // B. Mapeo Correcto de Datos
+    const fetchedUsers = (apiUsers as unknown as User[]) || [];
+    const fetchedAssets = (sbAssets as unknown as Asset[]) || [];
+    const fetchedAreas = (sbAreas as unknown as ConfigItem[]) || [];
+    const fetchedCats = (sbCats as unknown as ConfigItem[]) || [];
+
+    // --- LOGS DE DEPURACIÓN ---
+    console.log("Users:", fetchedUsers.length);
+    console.log("Areas:", fetchedAreas);
+    console.log("Cats:", fetchedCats);
+
     setConfigData({
-      areas: areasData || [],
-      categories: catsData || [],
+      areas: fetchedAreas,
+      categories: fetchedCats,
     });
+
+    // B. Setear Estados
+    const allFetchedUsers = fetchedUsers;
+
+    // Filter Agents (Staff)
+    const staffRoles = ["agent", "admin", "superadmin"];
+    const staffUsers = allFetchedUsers.filter((u) =>
+      staffRoles.includes(u.role),
+    );
+    setAgents(
+      staffUsers.sort((a, b) =>
+        (b.created_at || "").localeCompare(a.created_at || ""),
+      ),
+    );
+
+    // All Users List
+    setUsersList(
+      allFetchedUsers.sort((a, b) => a.full_name.localeCompare(b.full_name)),
+    );
+
+    if (fetchedAssets.length > 0) setAssets(fetchedAssets);
+
+    // Config Data already set above using fetchedAreas/fetchedCats
 
     setStats({
       totalTickets: totalTicketsCount,
       pendingTickets: 0, // Pending count was removed from query, setting 0 or relying on tickets query result if needed.
-      totalAssets: assetsData?.length || 0,
+      totalAssets: fetchedAssets.length || 0,
     });
 
     setLoading(false);
@@ -602,8 +637,9 @@ export default function AdminDashboard() {
             asset={{
               id: selectedAssetForAction.id,
               serial_number: selectedAssetForAction.serial_number,
-              model: selectedAssetForAction.model,
-              assigned_to_user_id: selectedAssetForAction.assigned_to_user_id,
+              model: selectedAssetForAction.model || "",
+              assigned_to_user_id:
+                selectedAssetForAction.assigned_to_user_id || "",
             }}
             action={actionType}
             currentUserId={currentUser.id}
@@ -871,7 +907,9 @@ export default function AdminDashboard() {
                             {ticket.assigned_agent?.full_name || "Sin asignar"}
                           </td>
                           <td className="p-4 text-xs text-gray-500">
-                            {new Date(ticket.created_at).toLocaleDateString()}
+                            {new Date(
+                              ticket.created_at || "",
+                            ).toLocaleDateString()}
                           </td>
                         </tr>
                       ))
@@ -1005,7 +1043,7 @@ export default function AdminDashboard() {
                           a.serial_number
                             .toLowerCase()
                             .includes(searchTerm.toLowerCase()) ||
-                          a.model
+                          (a.model || "")
                             .toLowerCase()
                             .includes(searchTerm.toLowerCase()) ||
                           (a.users?.full_name || "")
@@ -1287,7 +1325,7 @@ export default function AdminDashboard() {
                     )
                       .sort()
                       .map((loc, index) => (
-                        <option key={index} value={loc} />
+                        <option key={index} value={loc || ""} />
                       ))}
                   </datalist>
                 </div>
@@ -1377,7 +1415,13 @@ export default function AdminDashboard() {
             }
           >
             <AssetActionModal
-              asset={selectedAssetForAction}
+              asset={{
+                id: selectedAssetForAction.id,
+                serial_number: selectedAssetForAction.serial_number,
+                model: selectedAssetForAction.model || "",
+                assigned_to_user_id:
+                  selectedAssetForAction.assigned_to_user_id || "",
+              }}
               action={actionType}
               currentUserId={currentUser?.id || ""}
               onClose={() => setShowActionModal(false)}
