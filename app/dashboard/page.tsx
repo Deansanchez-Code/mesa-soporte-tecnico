@@ -24,6 +24,7 @@ import {
   Crown, // For VIP
   History, // Added for History Tab
   CalendarRange, // For Environments Tab
+  BookOpen, // For Knowledge Base
 } from "lucide-react";
 import TicketHistory from "@/components/features/tickets/TicketHistory";
 import AssignmentManager from "@/components/features/assignments/AssignmentManager";
@@ -481,7 +482,7 @@ export default function AgentDashboard() {
       // 2. Prioridad Urgencia: Menor fecha fin = Más urgente
       const dateA = a.sla_expected_end_at || a.created_at;
       const dateB = b.sla_expected_end_at || b.created_at;
-      return new Date(dateA).getTime() - new Date(dateB).getTime();
+      return new Date(dateA || "").getTime() - new Date(dateB || "").getTime();
     });
   };
 
@@ -501,7 +502,7 @@ export default function AgentDashboard() {
   const resolvedTickets = tickets.filter((t) => {
     const isResolved = t.status === "RESUELTO" || t.status === "CERRADO";
     if (!isResolved) return false;
-    const dateToCheck = new Date(t.updated_at || t.created_at);
+    const dateToCheck = new Date(t.updated_at || t.created_at || "");
     const diffTime = Math.abs(new Date().getTime() - dateToCheck.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays <= 12;
@@ -541,7 +542,7 @@ export default function AgentDashboard() {
       ],
       ...filteredTickets.map((t) => [
         t.id,
-        new Date(t.created_at).toLocaleDateString(),
+        new Date(t.created_at || "").toLocaleDateString(),
         t.users?.full_name || "N/A",
         t.location,
         t.category,
@@ -566,7 +567,7 @@ export default function AgentDashboard() {
   };
 
   // --- 6. HELPER FECHAS ---
-  const getTimeAgo = (dateString?: string) => {
+  const getTimeAgo = (dateString?: string | null) => {
     if (!dateString) return "Reciente";
     const date = new Date(dateString);
     const now = new Date();
@@ -802,6 +803,14 @@ export default function AgentDashboard() {
               <CalendarRange className="w-5 h-5" />
               <span className="hidden sm:inline">Ambientes</span>
             </button>
+            <Link
+              href="/dashboard/knowledge"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-gray-500 hover:bg-gray-100 transition-all border border-transparent hover:border-gray-100"
+              title="Ver Repositorio de Soporte"
+            >
+              <BookOpen className="w-5 h-5 text-sena-green" />
+              <span className="hidden sm:inline">Repositorio</span>
+            </Link>
 
             <button
               onClick={() => setShowProfileModal(true)}
@@ -963,11 +972,13 @@ export default function AgentDashboard() {
                           <div
                             className="flex items-center gap-1 text-[10px] text-gray-400"
                             title={`Actualizado: ${new Date(
-                              ticket.updated_at || ticket.created_at,
+                              ticket.updated_at || ticket.created_at || "",
                             ).toLocaleString()}`}
                           >
                             <Clock className="w-3 h-3" />
-                            {getTimeAgo(ticket.updated_at || ticket.created_at)}
+                            {getTimeAgo(
+                              ticket.updated_at || ticket.created_at || "",
+                            )}
                           </div>
                         </div>
 
@@ -1090,18 +1101,20 @@ export default function AgentDashboard() {
                             {ticket.ticket_type === "INC" &&
                               ticket.sla_status === "running" && (
                                 <CountdownTimer
-                                  targetDate={ticket.sla_expected_end_at}
+                                  targetDate={
+                                    ticket.sla_expected_end_at || undefined
+                                  }
                                 />
                               )}
                             <div
                               className="flex items-center gap-1 text-[10px] text-gray-400"
-                              title={`Actualizado: ${new Date(
-                                ticket.updated_at || ticket.created_at,
-                              ).toLocaleString()}`}
+                              title={`Actualizado: ${new Date(ticket.updated_at || ticket.created_at || "").toLocaleString()}`}
                             >
                               <Clock className="w-3 h-3" />
                               {getTimeAgo(
-                                ticket.updated_at || ticket.created_at,
+                                ticket.updated_at ||
+                                  ticket.created_at ||
+                                  undefined,
                               )}
                             </div>
                           </div>
@@ -1232,7 +1245,7 @@ export default function AgentDashboard() {
                             {/* SELECTOR DE CATEGORÍA */}
                             <select
                               className="text-[10px] border border-blue-200 rounded px-1 py-0.5 bg-white text-gray-600 outline-none cursor-pointer hover:border-blue-400 w-fit mt-1 shadow-sm"
-                              value={ticket.category}
+                              value={ticket.category || "OTROS"}
                               onChange={(e) =>
                                 handleCategoryChange(ticket.id, e.target.value)
                               }
@@ -1248,18 +1261,20 @@ export default function AgentDashboard() {
                             {ticket.ticket_type === "INC" &&
                               ticket.sla_status === "running" && (
                                 <CountdownTimer
-                                  targetDate={ticket.sla_expected_end_at}
+                                  targetDate={
+                                    ticket.sla_expected_end_at || undefined
+                                  }
                                 />
                               )}
                             <div
                               className="flex items-center gap-1 text-[10px] text-gray-400"
-                              title={`Actualizado: ${new Date(
-                                ticket.updated_at || ticket.created_at,
-                              ).toLocaleString()}`}
+                              title={`Actualizado: ${new Date(ticket.updated_at || ticket.created_at || "").toLocaleString()}`}
                             >
                               <Clock className="w-3 h-3" />
                               {getTimeAgo(
-                                ticket.updated_at || ticket.created_at,
+                                ticket.updated_at ||
+                                  ticket.created_at ||
+                                  undefined,
                               )}
                             </div>
                           </div>
@@ -1440,13 +1455,13 @@ export default function AgentDashboard() {
 
                             <div
                               className="flex items-center gap-1 text-[10px] text-gray-400"
-                              title={`Actualizado: ${new Date(
-                                ticket.updated_at || ticket.created_at,
-                              ).toLocaleString()}`}
+                              title={`Actualizado: ${new Date(ticket.updated_at || ticket.created_at || "").toLocaleString()}`}
                             >
                               <Clock className="w-3 h-3" />
                               {getTimeAgo(
-                                ticket.updated_at || ticket.created_at,
+                                ticket.updated_at ||
+                                  ticket.created_at ||
+                                  undefined,
                               )}
                             </div>
                           </div>
