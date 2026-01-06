@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useEffect, useState, useCallback } from "react";
+import { supabase } from "@/lib/supabase/cliente";
 import { AuditLog } from "@/app/admin/types";
 import { Search, Loader2, Filter } from "lucide-react";
 
@@ -9,7 +9,7 @@ export default function AuditTab() {
   const [searchTerm, setSearchTerm] = useState("");
   const [actionFilter, setActionFilter] = useState("ALL");
 
-  const fetchLogs = React.useCallback(async () => {
+  const fetchLogs = useCallback(async () => {
     setLoading(true);
     let query = supabase
       .from("audit_logs")

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import { Plus, MapPin } from "lucide-react";
 import BulkAssignmentModal from "./BulkAssignmentModal";
 import CalendarView from "@/components/features/assignments/CalendarView";

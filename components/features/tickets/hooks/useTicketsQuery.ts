@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import { Ticket } from "@/app/admin/types";
 
 interface UseTicketsOptions {

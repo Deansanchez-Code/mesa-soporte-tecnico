@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import { Calendar, AlertTriangle, CheckCircle } from "lucide-react";
 
 interface Reservation {
@@ -140,7 +140,7 @@ export default function AuditoriumReservationForm({
           // Assuming the conflict is exactly the one we see
           if (currentUserVip && !conflict.users?.is_vip) {
             const confirmOverride = window.confirm(
-              `Existe una reserva de ${conflict.users?.full_name}. Al ser usuario VIP, puedes tomar este horario. Se cancelará la reserva anterior. ¿Deseas continuar?`
+              `Existe una reserva de ${conflict.users?.full_name}. Al ser usuario VIP, puedes tomar este horario. Se cancelará la reserva anterior. ¿Deseas continuar?`,
             );
             if (!confirmOverride) {
               setLoading(false);
@@ -184,11 +184,11 @@ export default function AuditoriumReservationForm({
 
         // Create Ticket via API
         const description = `Reserva de Auditorio: ${title}\nFecha: ${date}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
-          ", "
+          ", ",
         )}`;
 
         // Non-blocking ticket creation (optional: blocking)
-        await fetch("/api/tickets/create", {
+        await fetch("/api/tickets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -351,7 +351,7 @@ export default function AuditoriumReservationForm({
                     setSelectedResources([...selectedResources, resource]);
                   else
                     setSelectedResources(
-                      selectedResources.filter((r) => r !== resource)
+                      selectedResources.filter((r) => r !== resource),
                     );
                 }}
               />
@@ -388,10 +388,10 @@ export default function AuditoriumReservationForm({
           {timeSlots.map((hour) => {
             const formatHour = (h: number) => h.toString().padStart(2, "0");
             const slotStart = new Date(
-              `${startDate}T${formatHour(hour)}:00:00`
+              `${startDate}T${formatHour(hour)}:00:00`,
             );
             const slotEnd = new Date(
-              `${startDate}T${formatHour(hour + 1)}:00:00`
+              `${startDate}T${formatHour(hour + 1)}:00:00`,
             );
 
             const isOccupied = reservations.some((r) => {
@@ -417,10 +417,10 @@ export default function AuditoriumReservationForm({
                   isOccupied
                     ? "bg-red-50 border-red-200 text-red-400 cursor-not-allowed"
                     : isSelected
-                    ? "bg-blue-50 border-blue-300 text-blue-700 font-bold shadow-sm ring-1 ring-blue-200"
-                    : isAgentHour
-                    ? "bg-white border-green-100 hover:border-green-300 text-gray-600"
-                    : "bg-gray-50 border-gray-100 text-gray-400"
+                      ? "bg-blue-50 border-blue-300 text-blue-700 font-bold shadow-sm ring-1 ring-blue-200"
+                      : isAgentHour
+                        ? "bg-white border-green-100 hover:border-green-300 text-gray-600"
+                        : "bg-gray-50 border-gray-100 text-gray-400"
                 }`}
               >
                 {hour}:00

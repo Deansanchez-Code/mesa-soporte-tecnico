@@ -3,7 +3,7 @@
 import AssetHistoryModal from "@/components/features/assets/AssetHistoryModal";
 import AuthGuard from "@/components/AuthGuard";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import { safeGetItem, safeRemoveItem } from "@/lib/storage";
 import {
   LayoutDashboard,
@@ -25,6 +25,7 @@ import {
   History, // Added for History Tab
   CalendarRange, // For Environments Tab
   BookOpen, // For Knowledge Base
+  ArrowLeft,
 } from "lucide-react";
 import TicketHistory from "@/components/features/tickets/TicketHistory";
 import AssignmentManager from "@/components/features/assignments/AssignmentManager";
@@ -55,7 +56,7 @@ const CountdownTimer = ({ targetDate }: { targetDate?: string }) => {
 
     const calculate = () => {
       const now = new Date().getTime();
-      const end = new Date(targetDate).getTime();
+      const end = new Date(targetDate || "").getTime();
       const diff = end - now;
 
       if (diff <= 0) {
@@ -98,6 +99,9 @@ export default function AgentDashboard() {
   const [agents, setAgents] = useState<
     { id: string; full_name: string; role: string }[]
   >([]);
+  const [resolvingTicketId, setResolvingTicketId] = useState<number | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [isAvailable, setIsAvailable] = useState(true);
 
@@ -481,8 +485,8 @@ export default function AgentDashboard() {
 
       // 2. Prioridad Urgencia: Menor fecha fin = Más urgente
       const dateA = a.sla_expected_end_at || a.created_at;
-      const dateB = b.sla_expected_end_at || b.created_at;
-      return new Date(dateA || "").getTime() - new Date(dateB || "").getTime();
+      const dateB = b.sla_expected_end_at || b.created_at || "";
+      return new Date(dateA || "").getTime() - new Date(dateB).getTime();
     });
   };
 
@@ -522,9 +526,9 @@ export default function AgentDashboard() {
         (t.assigned_agent &&
           t.assigned_agent.full_name === currentUser.user_metadata?.full_name);
 
-      const ticketDate = new Date(t.created_at);
-      const start = new Date(metricsStartDate);
-      const end = new Date(metricsEndDate);
+      const ticketDate = new Date((t.created_at as string) || "");
+      const start = new Date(metricsStartDate as string);
+      const end = new Date(metricsEndDate as string);
       end.setHours(23, 59, 59); // Incluir todo el día final
 
       return isResolved && isMine && ticketDate >= start && ticketDate <= end;
@@ -597,8 +601,27 @@ export default function AgentDashboard() {
         {/* MODAL DE PERFIL DE USUARIO */}
         {showProfileModal && currentUser && (
           <UserProfileModal
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            user={currentUser as any}
+            user={{
+              id: currentUser.id,
+              full_name: currentUser.user_metadata?.full_name || "Usuario",
+              username: currentUser.user_metadata?.username || "user",
+              email: currentUser.email || null,
+              role: role || "agent",
+              area: currentUser.user_metadata?.area || null,
+              created_at: currentUser.created_at,
+              is_active: true,
+              is_vip: !!currentUser.user_metadata?.is_vip,
+              employment_type: currentUser.user_metadata?.employment_type,
+              job_category: currentUser.user_metadata?.job_category,
+              perm_create_assets:
+                !!currentUser.user_metadata?.perm_create_assets,
+              perm_transfer_assets:
+                !!currentUser.user_metadata?.perm_transfer_assets,
+              perm_decommission_assets:
+                !!currentUser.user_metadata?.perm_decommission_assets,
+              perm_manage_assignments:
+                !!currentUser.user_metadata?.perm_manage_assignments,
+            }}
             onClose={() => setShowProfileModal(false)}
           />
         )}
@@ -608,8 +631,15 @@ export default function AgentDashboard() {
           <TicketDetailsModal
             ticket={selectedTicket}
             onClose={() => setSelectedTicket(null)}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            currentUser={(currentUser as any) || undefined}
+            currentUser={
+              currentUser
+                ? {
+                    id: currentUser.id,
+                    full_name:
+                      currentUser.user_metadata?.full_name || "Usuario",
+                  }
+                : undefined
+            }
             onUpdateStatus={updateStatus}
             onAssign={(tId) => updateStatus(tId, "EN_PROGRESO")}
             onAddComment={saveTicketComment}
@@ -671,9 +701,11 @@ export default function AgentDashboard() {
                             t.assigned_agent.full_name ===
                               currentUser.user_metadata?.full_name);
 
-                        const ticketDate = new Date(t.created_at);
-                        const start = new Date(metricsStartDate);
-                        const end = new Date(metricsEndDate);
+                        const ticketDate = new Date(
+                          (t.created_at as string) || "",
+                        );
+                        const start = new Date(metricsStartDate as string);
+                        const end = new Date(metricsEndDate as string);
                         end.setHours(23, 59, 59);
 
                         return (
@@ -1320,51 +1352,13 @@ export default function AgentDashboard() {
                             </select>
                           </div>
 
-                          {/* CAMPO DE SOLUCIÓN */}
-                          <textarea
-                            className="w-full text-xs border border-gray-300 rounded-lg p-2 mb-2 h-20 focus:ring-2 focus:ring-green-100 outline-none resize-none"
-                            placeholder="Detalle la solución (mínimo 20 palabras)..."
-                            value={solutionTexts[ticket.id] || ""}
-                            onChange={(e) =>
-                              setSolutionTexts({
-                                ...solutionTexts,
-                                [ticket.id]: e.target.value,
-                              })
-                            }
-                          />
-
                           <button
-                            onClick={() => updateStatus(ticket.id, "RESUELTO")}
-                            disabled={
-                              !solutionTexts[ticket.id] ||
-                              solutionTexts[ticket.id].trim().split(/\s+/)
-                                .length < 20
-                            }
-                            className={`w-full text-white text-xs py-2 rounded-lg font-bold transition-colors shadow-sm flex items-center justify-center gap-2 ${
-                              !solutionTexts[ticket.id] ||
-                              solutionTexts[ticket.id].trim().split(/\s+/)
-                                .length < 20
-                                ? "bg-gray-300 cursor-not-allowed"
-                                : "bg-green-600 hover:bg-green-700 cursor-pointer"
-                            }`}
-                            title={
-                              !solutionTexts[ticket.id] ||
-                              solutionTexts[ticket.id].trim().split(/\s+/)
-                                .length < 20
-                                ? "Escriba al menos 20 palabras para resolver"
-                                : "Resolver Ticket"
-                            }
+                            onClick={() => setResolvingTicketId(ticket.id)}
+                            className="w-full bg-green-600 hover:bg-green-700 text-white text-xs py-2 rounded-lg font-bold transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                            title="Resolver Ticket"
                           >
-                            Resolver{" "}
-                            {(!solutionTexts[ticket.id] ||
-                              solutionTexts[ticket.id].trim().split(/\s+/)
-                                .length < 20) &&
-                              `(${
-                                solutionTexts[ticket.id]
-                                  ? solutionTexts[ticket.id].trim().split(/\s+/)
-                                      .length
-                                  : 0
-                              }/20)`}
+                            <CheckCircle className="w-4 h-4" />
+                            Resolver Caso
                           </button>
 
                           {/* BOTÓN PARA CONGELAR/PAUSAR */}
@@ -1480,6 +1474,117 @@ export default function AgentDashboard() {
             </>
           )}
         </main>
+
+        {/* MODAL DE RESOLUCIÓN */}
+        {resolvingTicketId && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+              <div className="bg-green-600 p-6 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white/20 p-2 rounded-lg">
+                    <CheckCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">Resolver Ticket</h2>
+                    <p className="text-xs text-green-100">
+                      #{resolvingTicketId} - Detalla la solución definitiva
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setResolvingTicketId(null)}
+                  className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <Power className="w-5 h-5 rotate-90" />
+                </button>
+              </div>
+
+              <div className="p-8 space-y-6">
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Importante:</strong> Debes detallar los pasos
+                    técnicos realizados. Mínimo 20 palabras para asegurar la
+                    calidad del repositorio.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-gray-700">
+                    Solución Técnica
+                  </label>
+                  <textarea
+                    className="w-full border-2 border-gray-100 rounded-xl p-4 min-h-[180px] outline-none focus:border-green-500 transition-all resize-none text-gray-700 placeholder:text-gray-400"
+                    placeholder="Describe qué hiciste para solucionar el problema..."
+                    value={solutionTexts[resolvingTicketId] || ""}
+                    onChange={(e) =>
+                      setSolutionTexts({
+                        ...solutionTexts,
+                        [resolvingTicketId]: e.target.value,
+                      })
+                    }
+                  />
+                  <div className="flex justify-between items-center text-[10px] font-bold">
+                    <span
+                      className={
+                        (solutionTexts[resolvingTicketId]
+                          ?.trim()
+                          .split(/\s+/)
+                          .filter(Boolean).length || 0) < 20
+                          ? "text-red-500"
+                          : "text-green-600"
+                      }
+                    >
+                      Palabras:{" "}
+                      {solutionTexts[resolvingTicketId]
+                        ?.trim()
+                        .split(/\s+/)
+                        .filter(Boolean).length || 0}{" "}
+                      / 20
+                    </span>
+                    <span className="text-gray-400 italic">
+                      Auto-guardado habilitado
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button
+                    onClick={() => setResolvingTicketId(null)}
+                    className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Volver a la bandeja
+                  </button>
+                  <button
+                    disabled={
+                      !solutionTexts[resolvingTicketId] ||
+                      solutionTexts[resolvingTicketId]
+                        .trim()
+                        .split(/\s+/)
+                        .filter(Boolean).length < 20
+                    }
+                    onClick={async () => {
+                      await updateStatus(resolvingTicketId, "RESUELTO");
+                      setResolvingTicketId(null);
+                    }}
+                    className={`flex-1 py-3 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${
+                      !solutionTexts[resolvingTicketId] ||
+                      solutionTexts[resolvingTicketId]
+                        .trim()
+                        .split(/\s+/)
+                        .filter(Boolean).length < 20
+                        ? "bg-gray-300 cursor-not-allowed"
+                        : "bg-green-600 hover:bg-green-700 hover:scale-[1.02]"
+                    }`}
+                  >
+                    Confirmar Solución
+                    <CheckCircle className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AuthGuard>
   );

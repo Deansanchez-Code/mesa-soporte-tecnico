@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import TicketDetailsModal from "./TicketDetailsModal";
 import { Ticket } from "@/app/admin/types";
 import { Search, Filter, FileText, Zap, Download } from "lucide-react";
@@ -11,10 +11,10 @@ export default function TicketHistory() {
   const [startDate, setStartDate] = useState(
     new Date(new Date().setMonth(new Date().getMonth() - 1))
       .toISOString()
-      .split("T")[0]
+      .split("T")[0],
   );
   const [endDate, setEndDate] = useState(
-    new Date().toISOString().split("T")[0]
+    new Date().toISOString().split("T")[0],
   );
   const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, RESOLVED, CLOSED, ACTIVE
   const [searchQuery, setSearchQuery] = useState("");
@@ -36,7 +36,7 @@ export default function TicketHistory() {
             users:users!tickets_user_id_fkey ( full_name, area ),
             assigned_agent:users!tickets_assigned_agent_id_fkey ( full_name ),
             assets ( model, type, serial_number )
-          `
+          `,
         )
         .gte("created_at", `${startDate}T00:00:00`)
         .lte("created_at", `${endDate}T23:59:59`)
@@ -60,7 +60,7 @@ export default function TicketHistory() {
             (t.ticket_code && t.ticket_code.toLowerCase().includes(lowerQ)) ||
             (t.description && t.description.toLowerCase().includes(lowerQ)) ||
             (t.users?.full_name &&
-              t.users.full_name.toLowerCase().includes(lowerQ))
+              t.users.full_name.toLowerCase().includes(lowerQ)),
         );
       }
 
@@ -91,7 +91,7 @@ export default function TicketHistory() {
       ],
       ...tickets.map((t) => [
         t.id,
-        new Date(t.created_at).toLocaleDateString(),
+        t.created_at ? new Date(t.created_at).toLocaleDateString() : "N/A",
         t.ticket_code,
         t.users?.full_name || "N/A",
         t.location,
@@ -110,7 +110,7 @@ export default function TicketHistory() {
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `reporte_historial_${startDate}_${endDate}.csv`
+      `reporte_historial_${startDate}_${endDate}.csv`,
     );
     document.body.appendChild(link);
     link.click();
@@ -269,13 +269,17 @@ export default function TicketHistory() {
                   <td className="px-6 py-4 text-gray-600">
                     <div className="flex flex-col">
                       <span className="font-medium text-gray-700">
-                        {new Date(ticket.created_at).toLocaleDateString()}
+                        {ticket.created_at
+                          ? new Date(ticket.created_at).toLocaleDateString()
+                          : "N/A"}
                       </span>
                       <span className="text-[10px] text-gray-400">
-                        {new Date(ticket.created_at).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {ticket.created_at
+                          ? new Date(ticket.created_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : ""}
                       </span>
                     </div>
                   </td>
@@ -308,10 +312,10 @@ export default function TicketHistory() {
                         ticket.status === "CERRADO"
                           ? "bg-green-50 text-green-700 border-green-200"
                           : ticket.status === "EN_PROGRESO"
-                          ? "bg-blue-50 text-blue-700 border-blue-200"
-                          : ticket.status === "EN_ESPERA"
-                          ? "bg-purple-50 text-purple-700 border-purple-200"
-                          : "bg-red-50 text-red-700 border-red-200"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : ticket.status === "EN_ESPERA"
+                              ? "bg-purple-50 text-purple-700 border-purple-200"
+                              : "bg-red-50 text-red-700 border-red-200"
                       }`}
                     >
                       {ticket.status}

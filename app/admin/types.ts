@@ -923,3 +923,30 @@ export interface StaffUploadRow {
   Ubicación: string;
   VIP?: string;
 }
+
+export type AdminTab =
+  | "assets"
+  | "tickets"
+  | "agents"
+  | "contractors"
+  | "metrics"
+  | "qr"
+  | "settings"
+  | "staff"
+  | "audit"
+  | "shifts";
+
+export type TicketFilterType = "ALL" | "PENDING";
+
+export interface AuditLog {
+  id: string;
+  created_at: string;
+  action: string;
+  resource: string | null;
+  resource_id: string | null;
+  details: Json | null;
+  users: {
+    full_name: string;
+    email: string | null;
+  } | null;
+}

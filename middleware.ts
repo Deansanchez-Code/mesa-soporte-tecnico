@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { updateSession } from "@/utils/supabase/middleware";
+import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
   // Exclude public assets, api routes (handled internally), and static files

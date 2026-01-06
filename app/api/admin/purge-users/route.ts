@@ -5,7 +5,7 @@ import {
   unauthorized,
 } from "@/lib/auth-check";
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function DELETE(req: NextRequest) {
   try {

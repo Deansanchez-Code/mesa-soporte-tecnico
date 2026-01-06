@@ -66,7 +66,10 @@ export function TicketHeader({
         </div>
         <p className="text-gray-400 text-sm flex items-center gap-2">
           <Calendar className="w-3 h-3" />
-          Creado: {new Date(ticket.created_at).toLocaleString()}
+          Creado:{" "}
+          {ticket.created_at
+            ? new Date(ticket.created_at).toLocaleString()
+            : "N/A"}
         </p>
       </div>
 

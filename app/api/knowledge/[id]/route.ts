@@ -20,8 +20,9 @@ const supabaseAdmin = createClient(
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  segmentData: { params: Promise<{ id: string }> },
 ) {
+  const params = await segmentData.params;
   try {
     const user = await getUserFromRequest(req);
     if (!user) return unauthorized();
@@ -65,8 +66,9 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  segmentData: { params: Promise<{ id: string }> },
 ) {
+  const params = await segmentData.params;
   try {
     const user = await getUserFromRequest(req);
     if (!user) return unauthorized();
@@ -111,8 +113,9 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  segmentData: { params: Promise<{ id: string }> },
 ) {
+  const params = await segmentData.params;
   try {
     const user = await getUserFromRequest(req);
     if (!user) return unauthorized();

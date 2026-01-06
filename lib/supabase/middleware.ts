@@ -48,10 +48,17 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If user is logged in and visits login page, redirect to dashboard
+  // If user is logged in and visits login page, redirect according to role
   if (user && request.nextUrl.pathname.startsWith("/login")) {
+    const role = user.user_metadata?.role || "user";
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+
+    if (role === "admin" || role === "superadmin") {
+      url.pathname = "/admin";
+    } else {
+      url.pathname = "/dashboard";
+    }
+
     return NextResponse.redirect(url);
   }
 

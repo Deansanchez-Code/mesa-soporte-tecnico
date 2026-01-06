@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import {
   User,
   ArrowRight,
@@ -58,7 +58,33 @@ function HomeContent() {
         setAvailableAreas(data.map((a) => a.name));
       }
     };
+
+    const checkSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        const role = session.user.user_metadata?.role;
+        if (role === "admin" || role === "superadmin") {
+          // If admin is on home, maybe they want to go to their panel
+          // But we don't redirect automatically here to allow them to "Logout" if they needed to
+        } else if (session.user.user_metadata) {
+          // Si ya hay sesión de un usuario normal, cargar sus datos
+          const user = {
+            id: session.user.id,
+            username: session.user.user_metadata.username,
+            full_name: session.user.user_metadata.full_name,
+            role: session.user.user_metadata.role,
+            area: session.user.user_metadata.area,
+          };
+          setUserData(user as UserData);
+          setViewState("request");
+        }
+      }
+    };
+
     fetchAreas();
+    checkSession();
   }, []);
 
   const searchParams = useSearchParams();
@@ -135,21 +161,26 @@ function HomeContent() {
       });
       const { user } = await res.json();
 
+      if (user && (user.role === "admin" || user.role === "superadmin")) {
+        setLoading(false);
+        alert(
+          "Los administradores deben usar su cuenta de funcionario o instructor para reportar casos.",
+        );
+        return;
+      }
+
       setLoading(false);
 
       if (user) {
         // --- INICIO SILENT LOGIN ---
-        // Autenticar silenciosamente para habilitar RLS
         const syntheticEmail = `${user.username}@sistema.local`;
         const { error: authError } = await supabase.auth.signInWithPassword({
           email: syntheticEmail,
-          password: "Sena2024*", // Contraseña por defecto para identificación
+          password: "Sena2024*",
         });
 
         if (authError) {
           console.error("Silent Login Error:", authError);
-          // Si falla el login silencioso, permitimos continuar pero RLS podría bloquear algunas acciones.
-          // Idealmente mostramos un warning o reintentamos, pero para UX fluida seguimos.
         }
         // --- FIN SILENT LOGIN ---
 
@@ -513,14 +544,14 @@ function HomeContent() {
             <div className="p-6">
               <UserRequestForm
                 user={userData}
-                onCancel={() => {
+                onCancel={async () => {
+                  await supabase.auth.signOut();
                   setViewState("login");
                   setUsername("");
                   setUserData(null);
-                  // Reset contractor form
                   setContractorName("");
                   setContractorEmail("");
-                  setRequestView("SELECTION"); // Reset view state
+                  setRequestView("SELECTION");
                 }}
                 initialLocation={locationParam || undefined}
                 onViewChange={setRequestView}

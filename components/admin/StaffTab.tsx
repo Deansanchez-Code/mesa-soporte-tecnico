@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { UserPlus, FileSpreadsheet, Search, Edit, Trash2 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import { User, ConfigItem, StaffUploadRow } from "@/app/admin/types";
 import { useUserManagement } from "@/hooks/useUserManagement";
 import UserModal from "@/components/admin/UserModal";

@@ -2,7 +2,7 @@
 // Force re-compile
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import {
   format,
   startOfMonth,

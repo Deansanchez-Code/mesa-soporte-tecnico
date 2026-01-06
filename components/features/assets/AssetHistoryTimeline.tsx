@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import {
   History,
   FileText,
@@ -52,7 +52,7 @@ export default function AssetHistoryTimeline({
           previous_user:previous_user_id(full_name),
           new_user:new_user_id(full_name),
           performed_by_user:performed_by_user_id(full_name)
-        `
+        `,
         )
         .eq("asset_id", assetId)
         .order("created_at", { ascending: false });
@@ -180,8 +180,8 @@ export default function AssetHistoryTimeline({
                             log.action_type === "DECOMMISSION"
                               ? "bg-red-50 text-red-700 border border-red-100"
                               : log.action_type === "ENTRY"
-                              ? "bg-green-50 text-green-700 border border-green-100"
-                              : "bg-blue-50 text-blue-700 border border-blue-100"
+                                ? "bg-green-50 text-green-700 border border-green-100"
+                                : "bg-blue-50 text-blue-700 border border-blue-100"
                           }`}
                         >
                           {getActionLabel(log.action_type)}

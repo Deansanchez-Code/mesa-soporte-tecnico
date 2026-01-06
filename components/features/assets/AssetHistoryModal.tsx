@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import { History, X, Calendar, User, Wrench, CheckCircle } from "lucide-react";
 
 interface AssetHistoryModalProps {
@@ -38,7 +38,7 @@ export default function AssetHistoryModal({
           status,
           assigned_agent_id,
           users ( full_name )
-        `
+        `,
         )
         .eq("asset_serial", serialNumber)
         .order("created_at", { ascending: false }); // Los más recientes primero

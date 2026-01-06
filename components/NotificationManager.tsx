@@ -117,7 +117,9 @@ export default function NotificationManager({
           return;
         }
 
-        const createdAt = new Date(ticket.created_at).getTime();
+        const createdAt = ticket.created_at
+          ? new Date(ticket.created_at).getTime()
+          : Date.now();
         const diffMinutes = Math.floor((now - createdAt) / (1000 * 60));
 
         // Umbrales

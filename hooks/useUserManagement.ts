@@ -2,13 +2,18 @@
 
 import { useState } from "react";
 import { Agent, User } from "@/app/admin/types";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
+
+export type AgentFormData = Agent & {
+  password?: string;
+  isEditing?: boolean;
+};
 
 export function useUserManagement(onRefresh: () => void) {
   const [showAgentModal, setShowAgentModal] = useState(false);
-  const [newAgent, setNewAgent] = useState({
+  const [newAgent, setNewAgent] = useState<AgentFormData>({
     id: "", // Para edición (auth_id)
-    fullName: "",
+    full_name: "",
     username: "",
     password: "",
     role: "agent",
@@ -22,12 +27,14 @@ export function useUserManagement(onRefresh: () => void) {
     job_category: "funcionario",
     perm_manage_assignments: false,
     isEditing: false,
+    email: null,
+    created_at: null,
   });
 
   const resetUserForm = () => {
     setNewAgent({
       id: "",
-      fullName: "",
+      full_name: "",
       username: "",
       password: "",
       role: "agent",
@@ -41,6 +48,8 @@ export function useUserManagement(onRefresh: () => void) {
       job_category: "funcionario",
       perm_manage_assignments: false,
       isEditing: false,
+      email: null,
+      created_at: null,
     });
   };
 
@@ -53,7 +62,7 @@ export function useUserManagement(onRefresh: () => void) {
     }
 
     if (
-      !newAgent.fullName ||
+      !newAgent.full_name ||
       !newAgent.username ||
       (!newAgent.isEditing && !passwordToSave)
     )
@@ -70,7 +79,7 @@ export function useUserManagement(onRefresh: () => void) {
         id: newAgent.id, // Needed for update
         email: `${newAgent.username}@sistema.local`, // Construct email from username
         password: passwordToSave,
-        fullName: newAgent.fullName,
+        full_name: newAgent.full_name,
         username: newAgent.username.toLowerCase(),
         role: newAgent.role,
         area: newAgent.area,
@@ -116,8 +125,10 @@ export function useUserManagement(onRefresh: () => void) {
   const handleEditUser = (user: Agent | User) => {
     setNewAgent({
       id: user.auth_id || user.id, // Prefer auth_id if available
-      fullName: user.full_name,
+      full_name: user.full_name,
       username: user.username,
+      email: user.email || null,
+      created_at: user.created_at || null,
 
       password: "", // Don't show existing password
       role: user.role,

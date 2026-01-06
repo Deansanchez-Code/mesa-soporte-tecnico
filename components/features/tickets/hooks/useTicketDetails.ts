@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import { Ticket } from "@/app/admin/types";
 import { TicketEvent, PauseReason, TimelineItem } from "../types";
 
@@ -31,7 +31,7 @@ export function useTicketDetails({
       .select(
         `
             id, created_at, action_type, old_value, new_value, comment,
-            actor:actor_id ( full_name )
+            actor:actor_id ( id, full_name )
         `,
       )
       .eq("ticket_id", ticket.id)
@@ -44,20 +44,24 @@ export function useTicketDetails({
           id: string;
           created_at: string;
           action_type: string;
-          old_value: string;
-          new_value: string;
-          comment: string;
-          actor: { id: string; full_name: string } | null;
-        }) => ({
-          id: e.id,
-          created_at: e.created_at,
-          action_type: e.action_type,
-          old_value: e.old_value,
-          new_value: e.new_value,
-          comment: e.comment,
-          actor_id: e.actor?.id || undefined, // specific field if needed, mostly used for display
-          actor_name: e.actor?.full_name || "Sistema",
-        }),
+          old_value: string | null;
+          new_value: string | null;
+          comment: string | null;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          actor: any; // Supabase might infer array or object, handle flexibly
+        }) => {
+          const actorObj = Array.isArray(e.actor) ? e.actor[0] : e.actor;
+          return {
+            id: e.id,
+            created_at: e.created_at,
+            action_type: e.action_type,
+            old_value: e.old_value || "",
+            new_value: e.new_value || "",
+            comment: e.comment || "",
+            actor_id: actorObj?.id || undefined,
+            actor_name: actorObj?.full_name || "Sistema",
+          };
+        },
       );
       setEvents(formatted);
     }
@@ -178,7 +182,7 @@ export function useTicketDetails({
 
   // Timeline Derivation
   const timelineItems: TimelineItem[] = useMemo(() => {
-    const legacyUpdates = parseDescription(ticket.description);
+    const legacyUpdates = parseDescription(ticket.description || undefined);
 
     const items = [
       ...legacyUpdates.map((u) => ({

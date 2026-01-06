@@ -104,36 +104,41 @@ export default function ArticleDetailPage({
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Navigation & Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <button
           onClick={() => router.push("/dashboard/knowledge")}
-          className="flex items-center gap-2 text-gray-500 hover:text-sena-green font-bold transition-colors group"
+          className="flex items-center gap-3 text-gray-500 hover:text-sena-green font-bold transition-all group"
         >
-          <div className="bg-white p-2 rounded-xl group-hover:bg-sena-green/10 shadow-sm border border-gray-100">
-            <ChevronLeft className="w-5 h-5" />
+          <div className="bg-white p-2.5 rounded-2xl group-hover:bg-sena-green/10 shadow-sm border border-gray-100 transition-colors">
+            <ChevronLeft className="w-6 h-6" />
           </div>
-          Volver al Repositorio
+          <div className="flex flex-col items-start leading-none">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+              Repositorio
+            </span>
+            <span className="text-lg">Volver al listado</span>
+          </div>
         </button>
 
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsEditorOpen(true)}
-            className="p-2.5 bg-white text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-xl border border-gray-100 shadow-sm transition-all"
-            title="Editar solución"
+            className="flex items-center gap-2 px-5 py-2.5 bg-white text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-2xl border border-gray-100 shadow-sm transition-all font-bold text-sm"
           >
             <Edit className="w-5 h-5" />
+            Editar Solución
           </button>
           <button
             onClick={handleDelete}
             disabled={isDeleting}
-            className="p-2.5 bg-white text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl border border-gray-100 shadow-sm transition-all"
-            title="Eliminar solución"
+            className="flex items-center gap-2 px-5 py-2.5 bg-white text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-2xl border border-gray-100 shadow-sm transition-all font-bold text-sm"
           >
             {isDeleting ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <Trash2 className="w-5 h-5" />
             )}
+            Eliminar
           </button>
         </div>
       </div>
@@ -142,73 +147,84 @@ export default function ArticleDetailPage({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Solution Detail */}
         <div className="lg:col-span-2 space-y-8">
-          <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-6">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                    article.category === "Hardware"
-                      ? "bg-amber-100 text-amber-700"
-                      : article.category === "Software"
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-gray-100 text-gray-700"
-                  }`}
-                >
-                  {article.category}
-                </span>
-                <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                  {article.problem_type}
-                </span>
-              </div>
-              <h1 className="text-3xl font-bold text-gray-900 leading-tight">
-                {article.title}
-              </h1>
-            </div>
+          <div className="bg-white rounded-[2.5rem] p-8 md:p-12 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-500 relative overflow-hidden">
+            {/* Background Accent */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-sena-green/5 rounded-bl-[5rem] -mr-8 -mt-8" />
 
-            <div className="border-t border-gray-50 pt-6 prose prose-slate max-w-none">
-              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-sena-green" />
-                Solución Técnica
-              </h2>
-              <div className="bg-gray-50/50 p-6 rounded-2xl whitespace-pre-wrap text-gray-700 leading-relaxed font-medium">
-                {article.solution}
+            <div className="relative space-y-8">
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span
+                    className={`px-4 py-1.5 rounded-xl text-[10px] font-extrabold uppercase tracking-[0.1em] shadow-sm ${
+                      article.category === "Hardware"
+                        ? "bg-amber-100 text-amber-700 ring-1 ring-amber-200"
+                        : article.category === "Software"
+                          ? "bg-blue-100 text-blue-700 ring-1 ring-blue-200"
+                          : "bg-gray-100 text-gray-700 ring-1 ring-gray-200"
+                    }`}
+                  >
+                    {article.category}
+                  </span>
+                  <span className="px-4 py-1.5 bg-gray-50 text-gray-500 rounded-xl text-[10px] font-extrabold uppercase tracking-[0.1em] ring-1 ring-gray-100 shadow-sm">
+                    {article.problem_type}
+                  </span>
+                </div>
+                <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 leading-[1.15] tracking-tight">
+                  {article.title}
+                </h1>
+              </div>
+
+              <div className="pt-10 border-t border-gray-100">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="bg-sena-green/10 p-2 rounded-xl">
+                    <AlertCircle className="w-6 h-6 text-sena-green" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    Solución Técnica
+                  </h2>
+                </div>
+                <div className="bg-gray-50/70 p-8 rounded-[2rem] border border-gray-100/50 text-gray-700 leading-relaxed font-medium text-lg whitespace-pre-wrap shadow-inner">
+                  {article.solution}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Right Column: Metadata & Files */}
-        <div className="space-y-6">
+        <div className="space-y-8">
           {/* Metadata Card */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-5">
-            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">
-              Información
+          <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm space-y-8">
+            <h3 className="text-xs font-extrabold text-gray-400 uppercase tracking-[0.2em] flex items-center gap-3">
+              <div className="h-px bg-gray-100 flex-1" />
+              Detalles
+              <div className="h-px bg-gray-100 flex-1" />
             </h3>
 
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 text-gray-600">
-                <div className="p-2 bg-gray-50 rounded-xl">
-                  <User className="w-4 h-4" />
+            <div className="space-y-6">
+              <div className="flex items-center gap-5 group">
+                <div className="p-3 bg-gray-50 rounded-2xl group-hover:bg-sena-green/10 group-hover:text-sena-green transition-colors duration-300">
+                  <User className="w-5 h-5 text-gray-400 group-hover:text-current" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase">
-                    Autor
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1.5">
+                    Autor de la solución
                   </span>
-                  <span className="text-sm font-bold">
+                  <span className="font-extrabold text-gray-800 group-hover:text-sena-green transition-colors">
                     {article.created_by_user?.full_name || "Soporte Técnico"}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 text-gray-600">
-                <div className="p-2 bg-gray-50 rounded-xl">
-                  <Clock className="w-4 h-4" />
+              <div className="flex items-center gap-5 group">
+                <div className="p-3 bg-gray-50 rounded-2xl group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors duration-300">
+                  <Clock className="w-5 h-5 text-gray-400 group-hover:text-current" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase">
-                    Creado el
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1.5">
+                    Registrado el
                   </span>
-                  <span className="text-sm font-bold">
+                  <span className="font-extrabold text-gray-800 group-hover:text-blue-600 transition-colors line-clamp-1">
                     {format(new Date(article.created_at), "PPP", {
                       locale: es,
                     })}
@@ -217,15 +233,15 @@ export default function ArticleDetailPage({
               </div>
 
               {article.updated_at !== article.created_at && (
-                <div className="flex items-center gap-4 text-gray-600">
-                  <div className="p-2 bg-gray-50 rounded-xl">
-                    <Clock className="w-4 h-4" />
+                <div className="flex items-center gap-5 group">
+                  <div className="p-3 bg-gray-50 rounded-2xl group-hover:bg-amber-50 group-hover:text-amber-600 transition-colors duration-300">
+                    <Clock className="w-5 h-5 text-gray-400 group-hover:text-current" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase">
-                      Actualizado
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1.5">
+                      Última modificación
                     </span>
-                    <span className="text-sm font-bold">
+                    <span className="font-extrabold text-gray-800 group-hover:text-amber-600 transition-colors line-clamp-1">
                       {format(new Date(article.updated_at), "PPP", {
                         locale: es,
                       })}
@@ -237,10 +253,10 @@ export default function ArticleDetailPage({
           </div>
 
           {/* Attachments Card */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-5">
-            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center justify-between">
-              Manuales Adjuntos
-              <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md text-[10px]">
+          <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm space-y-6">
+            <h3 className="text-xs font-extrabold text-gray-400 uppercase tracking-[0.2em] flex items-center justify-between">
+              Material Adjunto
+              <span className="bg-red-50 text-red-500 px-3 py-1 rounded-xl text-[10px] shadow-sm font-black">
                 {article.file_urls?.length || 0}
               </span>
             </h3>
@@ -253,24 +269,26 @@ export default function ArticleDetailPage({
                     href={url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 bg-gray-50 hover:bg-sena-green/5 border border-transparent hover:border-sena-green/20 rounded-2xl transition-all group"
+                    className="flex items-center justify-between p-4 bg-gray-50/50 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-2xl transition-all group active:scale-95 shadow-sm"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-red-50 text-red-500 rounded-lg group-hover:scale-110 transition-transform">
-                        <FileText className="w-4 h-4" />
+                    <div className="flex items-center gap-4">
+                      <div className="p-2.5 bg-white text-red-500 rounded-xl shadow-sm group-hover:scale-110 transition-transform">
+                        <FileText className="w-5 h-5" />
                       </div>
-                      <span className="text-xs font-bold text-gray-700">
-                        Manual_Tecnico_{idx + 1}.pdf
+                      <span className="text-xs font-black text-gray-700 group-hover:text-red-600 transition-colors truncate max-w-[120px]">
+                        MANUAL_TÉCNICO_{idx + 1}
                       </span>
                     </div>
-                    <Download className="w-4 h-4 text-gray-400 group-hover:text-sena-green" />
+                    <Download className="w-5 h-5 text-gray-300 group-hover:text-red-500 transition-all group-hover:translate-y-0.5" />
                   </a>
                 ))
               ) : (
-                <div className="text-center py-6 space-y-2">
-                  <FileText className="w-8 h-8 text-gray-100 mx-auto" />
-                  <p className="text-xs text-gray-400 font-medium">
-                    No hay manuales adjuntos
+                <div className="text-center py-10 space-y-4 bg-gray-50/50 rounded-[1.5rem] border-2 border-dashed border-gray-100">
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                    <FileText className="w-6 h-6 text-gray-200" />
+                  </div>
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">
+                    Sin archivos adjuntos
                   </p>
                 </div>
               )}

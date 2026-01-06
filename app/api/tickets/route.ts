@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
-import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { createClient } from "@/lib/supabase/servidor";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { z } from "zod";
 
 const ticketSchema = z.object({

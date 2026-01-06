@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import { User, Asset, Outage } from "../types";
 
 interface UseTicketRequestProps {
@@ -112,7 +112,7 @@ export function useTicketRequest({
       setIsSearching(true);
       try {
         const response = await fetch(
-          `/api/assets/search?q=${encodeURIComponent(manualSerial)}`
+          `/api/assets/search?q=${encodeURIComponent(manualSerial)}`,
         );
         const { data } = await response.json();
 
@@ -121,7 +121,7 @@ export function useTicketRequest({
           setShowSuggestions(true);
           const exactMatch = data.find(
             (a: Asset) =>
-              a.serial_number.toLowerCase() === manualSerial.toLowerCase()
+              a.serial_number.toLowerCase() === manualSerial.toLowerCase(),
           );
           if (exactMatch) setIsValidSerial(true);
         }

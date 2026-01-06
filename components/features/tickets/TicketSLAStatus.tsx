@@ -3,7 +3,10 @@ import { Clock } from "lucide-react";
 import { Ticket } from "@/app/admin/types";
 import { formatDistanceToNow, isAfter } from "date-fns";
 import { es } from "date-fns/locale";
-import { calculateSLADueDate, getSLAHours } from "@/utils/sla-calculator";
+import {
+  calculateSLADueDate,
+  getSLAHours,
+} from "@/lib/dominio/calculadora-sla";
 
 interface TicketSLAStatusProps {
   ticket: Ticket;
@@ -11,7 +14,8 @@ interface TicketSLAStatusProps {
 
 export function TicketSLAStatus({ ticket }: TicketSLAStatusProps) {
   const slaHours = getSLAHours(ticket);
-  const dueDate = calculateSLADueDate(ticket.created_at, slaHours);
+  const created = ticket.created_at || new Date().toISOString();
+  const dueDate = calculateSLADueDate(created, slaHours);
   const isOverdue = !isAfter(dueDate, new Date());
   const isResolved =
     ticket.status === "RESUELTO" || ticket.status === "CERRADO";

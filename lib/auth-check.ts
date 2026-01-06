@@ -61,7 +61,9 @@ export async function verifyUserPermissions(
     .eq("id", userId)
     .single();
 
-  const { data: userProfile, error } = await query;
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const { data, error } = await query;
+  const userProfile = data as any;
 
   if (error || !userProfile) return false;
 
@@ -72,9 +74,7 @@ export async function verifyUserPermissions(
   // Dynamic access: userProfile['perm_manage_assignments']
   if (
     requiredPermissionColumn &&
-    (userProfile as unknown as Record<string, unknown>)[
-      requiredPermissionColumn
-    ] === true
+    (userProfile as any)[requiredPermissionColumn] === true
   ) {
     return true;
   }

@@ -18,16 +18,15 @@ import {
 } from "@dnd-kit/sortable";
 import { Activity, BarChart3, Monitor } from "lucide-react";
 import { SortableStatsCard } from "./SortableStatsCard";
-import { Stats } from "@/app/admin/types";
+import { Stats, Agent, AdminTab, TicketFilterType } from "@/app/admin/types";
 
 // Import user type if available or define compatible shape
-import { UserAgent } from "../UserModal"; // Reusing checking consistency
 
 interface DraggableDashboardProps {
   stats: Stats;
-  currentUser: UserAgent | null;
-  setActiveTab: (tab: string) => void;
-  setTicketFilter: (filter: string) => void;
+  currentUser: Agent | null;
+  setActiveTab: (tab: AdminTab) => void;
+  setTicketFilter: (filter: TicketFilterType) => void;
 }
 
 export default function DraggableDashboard({

@@ -2,32 +2,16 @@
 
 import { Key } from "lucide-react";
 import { ConfigItem } from "@/app/admin/types";
+import { AgentFormData } from "@/hooks/useUserManagement";
 
-// Define interface locally or import from shared types
-export interface UserAgent {
-  id?: string; // Optional for new users
-  fullName: string;
-  username: string;
-  role: string;
-  password?: string;
-  employment_type?: string;
-  job_category?: string;
-  area?: string;
-  isEditing?: boolean;
-  is_vip?: boolean;
-  // Permissions
-  perm_create_assets?: boolean;
-  perm_transfer_assets?: boolean;
-  perm_decommission_assets?: boolean;
-  perm_manage_assignments?: boolean;
-}
+// UserAgent removed in favor of Agent from types + Form Data intersection
 
 interface UserModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
-  newAgent: UserAgent;
-  setNewAgent: (agent: UserAgent) => void;
+  newAgent: AgentFormData;
+  setNewAgent: (agent: AgentFormData) => void;
   areas: ConfigItem[];
 }
 
@@ -54,9 +38,9 @@ export default function UserModal({
             </label>
             <input
               className="w-full border border-gray-300 rounded-lg p-2"
-              value={newAgent.fullName}
+              value={newAgent.full_name}
               onChange={(e) =>
-                setNewAgent({ ...newAgent, fullName: e.target.value })
+                setNewAgent({ ...newAgent, full_name: e.target.value })
               }
             />
           </div>
@@ -104,9 +88,12 @@ export default function UserModal({
                 <input
                   type="text" // Visible para facilitar gestión
                   className="w-full border border-gray-300 rounded-lg p-2 pl-8 font-mono text-sm"
-                  value={newAgent.password}
+                  value={newAgent.password || ""}
                   onChange={(e) =>
-                    setNewAgent({ ...newAgent, password: e.target.value })
+                    setNewAgent({
+                      ...newAgent,
+                      password: e.target.value,
+                    })
                   }
                   placeholder="Asignar clave..."
                 />
@@ -157,7 +144,7 @@ export default function UserModal({
               Área
             </label>
             <select
-              value={newAgent.area}
+              value={newAgent.area || ""}
               onChange={(e) =>
                 setNewAgent({ ...newAgent, area: e.target.value })
               }
@@ -186,7 +173,7 @@ export default function UserModal({
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={newAgent.perm_create_assets}
+                  checked={newAgent.perm_create_assets || false}
                   onChange={(e) =>
                     setNewAgent({
                       ...newAgent,
@@ -200,7 +187,7 @@ export default function UserModal({
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={newAgent.perm_transfer_assets}
+                  checked={newAgent.perm_transfer_assets || false}
                   onChange={(e) =>
                     setNewAgent({
                       ...newAgent,
@@ -214,7 +201,7 @@ export default function UserModal({
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={newAgent.perm_decommission_assets}
+                  checked={newAgent.perm_decommission_assets || false}
                   onChange={(e) =>
                     setNewAgent({
                       ...newAgent,
@@ -236,7 +223,7 @@ export default function UserModal({
             <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
               <input
                 type="checkbox"
-                checked={newAgent.perm_manage_assignments}
+                checked={newAgent.perm_manage_assignments || false}
                 onChange={(e) =>
                   setNewAgent({
                     ...newAgent,

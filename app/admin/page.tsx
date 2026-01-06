@@ -3,7 +3,7 @@
 import AuthGuard from "@/components/AuthGuard";
 import { useEffect, useState, useMemo } from "react";
 import { lazy } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import { safeRemoveItem } from "@/lib/storage";
 import {
   Shield,
@@ -43,6 +43,8 @@ import {
   Asset,
   Ticket,
   Stats,
+  AdminTab,
+  TicketFilterType,
 } from "@/app/admin/types";
 import AuditTab from "@/components/admin/AuditTab";
 import React from "react";
@@ -92,18 +94,7 @@ export default function AdminDashboard() {
   }, [sbUser, profile]);
 
   // Estados Generales
-  const [activeTab, setActiveTab] = useState<
-    | "agents"
-    | "assets"
-    | "metrics"
-    | "qr"
-    | "settings"
-    | "tickets"
-    | "staff"
-    | "contractors"
-    | "audit"
-    | "shifts"
-  >("agents");
+  const [activeTab, setActiveTab] = useState<AdminTab>("agents");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState(""); // Buscador general
@@ -111,7 +102,7 @@ export default function AdminDashboard() {
     null,
   ); // Modal historial
   const [currentAdminName, setCurrentAdminName] = useState("Super Admin");
-  const [ticketFilter, setTicketFilter] = useState<"ALL" | "PENDING">("ALL"); // Filtro para la pestaña de tickets
+  const [ticketFilter, setTicketFilter] = useState<TicketFilterType>("ALL"); // Filtro para la pestaña de tickets
 
   const [stats, setStats] = useState<Stats>({
     totalTickets: 0,

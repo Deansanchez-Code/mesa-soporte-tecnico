@@ -15,9 +15,9 @@ import {
 } from "lucide-react";
 import { format, startOfWeek, addDays, subDays } from "date-fns";
 import { es } from "date-fns/locale";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import { toast } from "sonner";
-import { isColombianHoliday } from "@/utils/colombiaHolidays";
+import { isColombianHoliday } from "@/lib/dominio/festivos";
 
 import { User } from "@/app/admin/types";
 

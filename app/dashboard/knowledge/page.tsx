@@ -11,7 +11,6 @@ import {
   Filter,
   Loader2,
   ChevronRight,
-  ExternalLink,
   ChevronLeft,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -61,6 +60,7 @@ export default function KnowledgeBasePage() {
 
   useEffect(() => {
     fetchArticles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -70,24 +70,39 @@ export default function KnowledgeBasePage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <BookOpen className="text-sena-green w-8 h-8" />
-            Repositorio de Soporte
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Banco de soluciones técnicas y manuales para el equipo.
-          </p>
-        </div>
+      {/* Navigation & Header */}
+      <div className="space-y-6">
         <button
-          onClick={() => setIsEditorOpen(true)}
-          className="bg-sena-green hover:bg-[#2d8500] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-green-900/20"
+          onClick={() => (window.location.href = "/dashboard")}
+          className="flex items-center gap-2 text-gray-500 hover:text-sena-green font-bold transition-all group"
         >
-          <Plus className="w-5 h-5" />
-          Nueva Solución
+          <div className="bg-white p-2 rounded-xl group-hover:bg-sena-green/10 shadow-sm border border-gray-100 transition-colors">
+            <ChevronLeft className="w-5 h-5" />
+          </div>
+          Volver al Dashboard
         </button>
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight flex items-center gap-4">
+              <div className="bg-sena-green/10 p-3 rounded-2xl">
+                <BookOpen className="text-sena-green w-10 h-10" />
+              </div>
+              Repositorio de <span className="text-sena-green">Soporte</span>
+            </h1>
+            <p className="text-gray-500 mt-2 font-medium max-w-2xl">
+              Banco centralizado de soluciones técnicas, manuales y lecciones
+              aprendidas para optimizar nuestro tiempo de respuesta.
+            </p>
+          </div>
+          <button
+            onClick={() => setIsEditorOpen(true)}
+            className="bg-sena-green hover:bg-[#2d8500] text-white px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95 shadow-xl shadow-green-900/20"
+          >
+            <Plus className="w-6 h-6" />
+            Nueva Solución
+          </button>
+        </div>
       </div>
 
       {/* Editor Modal */}
@@ -161,70 +176,83 @@ export default function KnowledgeBasePage() {
 
 function ArticleCard({ article }: { article: Article }) {
   return (
-    <div className="group bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-xl hover:border-sena-green/20 transition-all duration-300 relative flex flex-col h-full">
-      <div className="flex items-start justify-between mb-4">
+    <div className="group bg-white rounded-[2rem] border border-gray-100 p-6 shadow-sm hover:shadow-2xl hover:border-sena-green/20 transition-all duration-500 relative flex flex-col h-full hover:-translate-y-1">
+      <div className="flex items-start justify-between mb-6">
         <div
-          className={`p-2.5 rounded-xl ${
+          className={`p-3.5 rounded-2xl transition-transform group-hover:scale-110 duration-500 ${
             article.category === "Hardware"
-              ? "bg-amber-50 text-amber-600"
+              ? "bg-amber-50 text-amber-600 ring-1 ring-amber-100"
               : article.category === "Software"
-                ? "bg-blue-50 text-blue-600"
-                : "bg-gray-50 text-gray-600"
+                ? "bg-blue-50 text-blue-600 ring-1 ring-blue-100"
+                : "bg-gray-50 text-gray-600 ring-1 ring-gray-100"
           }`}
         >
           {article.category === "Hardware" ? (
-            <Cpu className="w-5 h-5" />
+            <Cpu className="w-6 h-6" />
           ) : article.category === "Software" ? (
-            <Monitor className="w-5 h-5" />
+            <Monitor className="w-6 h-6" />
           ) : (
-            <FileText className="w-5 h-5" />
+            <FileText className="w-6 h-6" />
           )}
         </div>
-        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-          {format(new Date(article.created_at), "dd MMM yyyy", { locale: es })}
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded-md">
+            {format(new Date(article.created_at), "dd MMM yyyy", {
+              locale: es,
+            })}
+          </span>
+        </div>
       </div>
 
-      <h3 className="text-lg font-bold text-gray-800 line-clamp-2 min-h-[3.5rem] group-hover:text-sena-green transition-colors">
+      <h3 className="text-xl font-bold text-gray-800 line-clamp-2 min-h-[3.5rem] group-hover:text-sena-green transition-colors decoration-sena-green/30 underline-offset-4 mb-2">
         {article.title}
       </h3>
 
-      <div className="mt-2 text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-500 rounded-md inline-block w-fit">
-        {article.problem_type}
+      <div className="flex gap-2 mb-4">
+        <div className="text-[10px] font-extrabold px-2.5 py-1 bg-gray-100 text-gray-500 rounded-lg uppercase tracking-tight">
+          {article.problem_type}
+        </div>
       </div>
 
-      <p className="mt-4 text-sm text-gray-500 line-clamp-3 flex-grow">
+      <p className="text-sm text-gray-500 line-clamp-3 flex-grow leading-relaxed">
         {article.solution.replace(/[#*`]/g, "")}
       </p>
 
-      <div className="mt-6 pt-4 border-t border-gray-50 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-sena-green/10 flex items-center justify-center text-[10px] font-bold text-sena-green">
+      <div className="mt-8 pt-5 border-t border-gray-50 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sena-green to-green-700 flex items-center justify-center text-xs font-bold text-white shadow-sm shadow-green-900/20">
             {article.created_by_user?.full_name?.charAt(0) || "S"}
           </div>
-          <span className="text-xs text-gray-400 font-medium">
-            {article.created_by_user?.full_name || "Soporte Técnico"}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-gray-400 uppercase">
+              Autor
+            </span>
+            <span className="text-xs text-gray-700 font-bold">
+              {article.created_by_user?.full_name || "Soporte Técnico"}
+            </span>
+          </div>
         </div>
 
         <button
           onClick={() =>
             (window.location.href = `/dashboard/knowledge/${article.id}`)
           }
-          className="text-sena-green font-bold text-sm flex items-center gap-1 hover:underline"
+          className="bg-gray-50 hover:bg-sena-green text-gray-400 hover:text-white p-2 rounded-xl transition-all shadow-sm border border-gray-100 hover:border-sena-green"
         >
-          Ver detalles
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="w-5 h-5" />
         </button>
       </div>
 
       {article.file_urls && article.file_urls.length > 0 && (
-        <div className="absolute top-4 right-14 flex items-center gap-1">
+        <div className="absolute top-6 right-16">
           <div
-            className="bg-sena-orange/10 text-sena-orange p-1 rounded-md"
-            title="Contiene manuales"
+            className="bg-red-50 text-red-500 p-1.5 rounded-lg ring-1 ring-red-100 flex items-center gap-1 shadow-sm"
+            title="Contiene manuales PDF"
           >
             <FileText className="w-3.5 h-3.5" />
+            <span className="text-[9px] font-bold uppercase">
+              {article.file_urls.length}
+            </span>
           </div>
         </div>
       )}

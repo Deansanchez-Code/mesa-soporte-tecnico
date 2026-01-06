@@ -1,5 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
-import { safeGetItem, safeSetItem, safeRemoveItem } from "./storage";
+import { safeGetItem, safeSetItem, safeRemoveItem } from "../storage";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;

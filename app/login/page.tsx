@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/cliente";
 import { useRouter } from "next/navigation";
 import { safeSetItem } from "@/lib/storage";
 import {
@@ -37,7 +37,7 @@ export default function LoginPage() {
         {
           email: syntheticEmail,
           password: formData.password,
-        }
+        },
       );
 
       if (authError) {
@@ -47,7 +47,7 @@ export default function LoginPage() {
         } else {
           // Assume blocked/banned if not credentials (or specific banned error)
           throw new Error(
-            "Acceso denegado por temas contractuales o no te has registrado en la plataforma."
+            "Acceso denegado por temas contractuales o no te has registrado en la plataforma.",
           );
         }
       }
