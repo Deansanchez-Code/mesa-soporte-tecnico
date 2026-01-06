@@ -17,7 +17,7 @@ import { format, startOfWeek, addDays, subDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { supabase } from "@/lib/supabase/cliente";
 import { toast } from "sonner";
-import { isColombianHoliday } from "@/lib/dominio/festivos";
+import { isColombianHoliday } from "@/lib/domain/holidays";
 
 import { User } from "@/app/admin/types";
 

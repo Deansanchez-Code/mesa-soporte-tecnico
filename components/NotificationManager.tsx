@@ -58,7 +58,7 @@ export default function NotificationManager({
         try {
           new Notification(title, {
             body: `#${ticket.ticket_code || ticket.id} lleva ${minutes} mins sin resolver.`,
-            icon: "/icon-192x192.png", // Usar el icono de la PWA si existe
+            icon: "/web-app-manifest-192x192.png", // Usar el icono de la PWA si existe
             tag: `ticket-${ticket.id}`, // Reemplaza notificaciones previas del mismo ticket
             requireInteraction: true, // Se queda hasta que el usuario la cierre
           });

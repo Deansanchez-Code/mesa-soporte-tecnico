@@ -47,10 +47,14 @@ export function NotificationProvider({
     // Only Agents/Admins need to know about NEW tickets immediately
     if (role !== "agent" && role !== "admin" && role !== "superadmin") return;
 
+    // Sonido de notificación "Glass" corto en Base64
+    const NOTIFICATION_SOUND =
+      "data:audio/mp3;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA//////////////////////////////////////////////////////////////////8AAABhTEFNRTMuMTAwA78AAAAAAAAAABQJAAAAAACAAAJxkQZESQAAAAAAAAAAAAAAAAAAAAAA//uQxAAAAZ8GwAAAAAAAACcAAAAEAAABJAAAAAAAAAAABAAAAAAAAAAAAAAP//////////////////////////////////////////////////////////////////8LMiaKAAAAABAAAAP//uQxAAAAZ8GwAAAAAAAACcAAAAEAAABJAAAAAAAAAAABAAAAAAAAAAAAAAP//////////////////////////////////////////////////////////////////8LMiaKAAAAABAAAAP//uQxAAAAZ8GwAAAAAAAACcAAAAEAAABJAAAAAAAAAAABAAAAAAAAAAAAAAP//////////////////////////////////////////////////////////////////8LMiaKAAAAABAAAAP";
+
     // Play sound helper
     const playSound = () => {
       try {
-        const audio = new Audio("/notification.mp3");
+        const audio = new Audio(NOTIFICATION_SOUND);
         audio.play().catch((e) => console.log("Audio play failed", e));
       } catch {
         // console.error("Audio error", e);
