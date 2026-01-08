@@ -94,7 +94,6 @@ export default function CalendarView({
     }
 
     if (!assignData || assignData.length === 0) {
-      console.log("[Calendar] No assignments found for this range.");
       setAssignments([]);
       return;
     }

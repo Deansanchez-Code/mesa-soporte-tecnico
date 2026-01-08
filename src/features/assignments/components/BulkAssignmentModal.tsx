@@ -73,10 +73,6 @@ export default function BulkAssignmentModal({
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      console.log("Fetching instructors via API...");
-      const res = await fetch("/api/instructors", { headers });
-      console.log("[Client] API Status:", res.status);
-
       if (!res.ok) {
         let errorMsg = "Failed to fetch";
         try {
@@ -91,7 +87,6 @@ export default function BulkAssignmentModal({
       }
 
       const data = await res.json();
-      console.log("Instructors fetched (API):", data);
 
       if (Array.isArray(data)) {
         setInstructors(data);
@@ -145,14 +140,6 @@ export default function BulkAssignmentModal({
     }
 
     const dateStrings = datesToSave.map(formatDateForDB);
-
-    console.log("[BulkAssignment] Attempting to save:", {
-      instructorId,
-      areaId: environmentId,
-      selectedBlock,
-      datesCount: datesToSave.length,
-      dates: dateStrings,
-    });
 
     try {
       // 2. Insert via API (Bypassing RLS)

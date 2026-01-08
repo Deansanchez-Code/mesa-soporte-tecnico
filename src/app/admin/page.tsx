@@ -296,9 +296,7 @@ export default function AdminDashboard() {
     const fetchedCats = (sbCats as unknown as ConfigItem[]) || [];
 
     // --- LOGS DE DEPURACIÓN ---
-    console.log("Users:", fetchedUsers.length);
-    console.log("Areas:", fetchedAreas);
-    console.log("Cats:", fetchedCats);
+    // --- LOGS DE DEPURACIÓN (REMOVED) ---
 
     setConfigData({
       areas: fetchedAreas,
