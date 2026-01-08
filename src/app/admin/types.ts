@@ -858,4 +858,16 @@ export const Constants = {
     },
   },
 } as const;
-// ... existing types
+
+// Re-export admin types for compatibility
+export type {
+  Agent,
+  User,
+  ConfigItem,
+  Asset,
+  Ticket,
+  Stats,
+  AdminTab,
+  TicketFilterType,
+  AuditLog,
+} from "./admin.types";
