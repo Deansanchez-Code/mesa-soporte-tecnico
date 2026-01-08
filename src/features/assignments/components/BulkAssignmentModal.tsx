@@ -73,6 +73,10 @@ export default function BulkAssignmentModal({
         headers["Authorization"] = `Bearer ${token}`;
       }
 
+      const res = await fetch("/api/instructors", {
+        headers,
+      });
+
       if (!res.ok) {
         let errorMsg = "Failed to fetch";
         try {
