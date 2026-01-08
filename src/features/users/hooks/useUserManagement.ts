@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Agent, User } from "@/app/admin/types";
+import { Agent, User } from "@/app/admin/admin.types";
 import { supabase } from "@/lib/supabase/cliente";
 
 export type AgentFormData = Agent & {

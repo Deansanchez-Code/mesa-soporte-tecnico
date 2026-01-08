@@ -1,6 +1,6 @@
 import React from "react";
 import { Monitor, User, MapPin } from "lucide-react";
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 import { TicketSLAStatus } from "./TicketSLAStatus";
 
 interface TicketInfoSidebarProps {

@@ -28,7 +28,7 @@ import NotificationManager from "@/components/NotificationManager";
 import UserProfileModal from "@/components/shared/UserProfileModal";
 
 // --- DEFINICIÓN DE TIPOS (Incluyendo campos SLA) ---
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 import { useTickets } from "@/features/tickets/hooks/useTickets";

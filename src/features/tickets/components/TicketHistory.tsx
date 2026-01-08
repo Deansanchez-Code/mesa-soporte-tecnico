@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/cliente";
 import TicketDetailsModal from "./TicketDetailsModal";
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 import { Search, Filter, FileText, Zap, Download } from "lucide-react";
 
 export default function TicketHistory() {

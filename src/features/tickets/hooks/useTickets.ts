@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase/cliente";
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 import { User } from "@supabase/supabase-js";
 
 export function useTickets(currentUser: User | null) {

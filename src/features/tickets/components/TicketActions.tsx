@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { MessageSquare, BookOpen } from "lucide-react";
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 import KnowledgeSearchModal from "@/features/knowledge/components/KnowledgeSearchModal";

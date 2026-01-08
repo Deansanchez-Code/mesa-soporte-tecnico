@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { X, Calendar, Clock, PlayCircle, PauseCircle } from "lucide-react";
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 
 interface TicketHeaderProps {
   ticket: Ticket;

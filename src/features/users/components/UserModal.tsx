@@ -1,7 +1,7 @@
 "use client";
 
 import { Key } from "lucide-react";
-import { ConfigItem } from "@/app/admin/types";
+import { ConfigItem } from "@/app/admin/admin.types";
 import { AgentFormData } from "../hooks/useUserManagement";
 
 // UserAgent removed in favor of Agent from types + Form Data intersection

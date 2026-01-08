@@ -18,7 +18,12 @@ import {
 } from "@dnd-kit/sortable";
 import { Activity, BarChart3, Monitor } from "lucide-react";
 import { SortableStatsCard } from "./SortableStatsCard";
-import { Stats, Agent, AdminTab, TicketFilterType } from "@/app/admin/types";
+import {
+  Stats,
+  Agent,
+  AdminTab,
+  TicketFilterType,
+} from "@/app/admin/admin.types";
 
 // Import user type if available or define compatible shape
 

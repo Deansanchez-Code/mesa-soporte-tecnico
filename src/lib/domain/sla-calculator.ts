@@ -6,7 +6,7 @@ import {
   addDays,
   startOfDay,
 } from "date-fns";
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 
 // Configuración por defecto: Lunes a Viernes, 8:00 AM - 6:00 PM
 const BUSINESS_HOURS = {

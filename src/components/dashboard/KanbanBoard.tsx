@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 import { User } from "@supabase/supabase-js";
 import {
   Zap,

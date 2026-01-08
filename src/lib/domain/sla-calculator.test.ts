@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getSLAHours, calculateSLADueDate } from "./sla-calculator";
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 
 describe("SLA Calculator", () => {
   describe("getSLAHours", () => {

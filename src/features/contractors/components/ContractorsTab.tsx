@@ -9,7 +9,7 @@ import {
   Shield,
   ShieldOff,
 } from "lucide-react"; // Added Icons for better visual hierarchy
-import { User } from "@/app/admin/types";
+import { User } from "@/app/admin/admin.types";
 
 interface ContractorsTabProps {
   users: User[];

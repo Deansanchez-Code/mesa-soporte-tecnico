@@ -1,6 +1,6 @@
 import React from "react";
 import { Clock } from "lucide-react";
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 import { formatDistanceToNow, isAfter } from "date-fns";
 import { es } from "date-fns/locale";
 import { calculateSLADueDate, getSLAHours } from "@/lib/domain/sla-calculator";

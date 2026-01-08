@@ -2,7 +2,7 @@
 
 import React from "react";
 import { MessageSquare } from "lucide-react";
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 import { useTicketDetails } from "../hooks/useTicketDetails";
 import { TicketHeader } from "./TicketHeader";
 import { TicketTimeline } from "./TicketTimeline";

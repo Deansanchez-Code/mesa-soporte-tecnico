@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase/cliente";
-import { AuditLog } from "@/app/admin/types";
+import { AuditLog } from "@/app/admin/admin.types";
 import { Search, Loader2, Filter } from "lucide-react";
 
 export default function AuditTab() {

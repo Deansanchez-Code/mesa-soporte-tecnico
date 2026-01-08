@@ -1,6 +1,6 @@
 "use client";
 
-import { User } from "@/app/admin/types";
+import { User } from "@/app/admin/admin.types";
 import {
   X,
   Camera,

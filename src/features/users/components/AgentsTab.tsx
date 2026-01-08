@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { UserPlus, Search, Edit, Trash2 } from "lucide-react";
-import { Agent, ConfigItem } from "@/app/admin/types";
+import { Agent, ConfigItem } from "@/app/admin/admin.types";
 import { useUserManagement } from "../hooks/useUserManagement";
 import UserModal from "./UserModal";
 

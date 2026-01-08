@@ -1,4 +1,4 @@
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 
 export interface TicketEvent {
   id: string;

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { BarChart2, Monitor } from "lucide-react";
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 import { User } from "@supabase/supabase-js";
 
 interface MetricsOverviewProps {

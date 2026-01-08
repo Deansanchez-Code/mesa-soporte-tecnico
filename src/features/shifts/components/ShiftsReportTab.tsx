@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase/cliente";
-import { User } from "@/app/admin/types";
+import { User } from "@/app/admin/admin.types";
 import {
   format,
   differenceInMinutes,

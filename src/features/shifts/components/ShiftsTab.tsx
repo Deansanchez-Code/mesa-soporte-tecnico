@@ -19,7 +19,7 @@ import { supabase } from "@/lib/supabase/cliente";
 import { toast } from "sonner";
 import { isColombianHoliday } from "@/lib/domain/holidays";
 
-import { User } from "@/app/admin/types";
+import { User } from "@/app/admin/admin.types";
 
 // --- Tipos Locales ---
 interface DailySchedule {

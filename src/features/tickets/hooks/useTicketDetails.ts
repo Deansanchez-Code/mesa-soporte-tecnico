@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabase/cliente";
-import { Ticket } from "@/app/admin/types";
+import { Ticket } from "@/app/admin/admin.types";
 import { TicketEvent, PauseReason, TimelineItem } from "../types";
 
 interface UseTicketDetailsProps {
