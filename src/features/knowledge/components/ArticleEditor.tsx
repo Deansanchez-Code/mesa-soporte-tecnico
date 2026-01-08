@@ -5,7 +5,7 @@ import { X, Upload, FileText, Save, Loader2, Trash2 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
 
-interface Article {
+export interface Article {
   id?: string;
   title: string;
   category: "Hardware" | "Software" | "Otro";

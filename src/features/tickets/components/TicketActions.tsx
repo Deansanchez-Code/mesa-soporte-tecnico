@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { MessageSquare, BookOpen, Save } from "lucide-react";
+import { MessageSquare, BookOpen } from "lucide-react";
 import { Ticket } from "@/app/admin/types";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 import KnowledgeSearchModal from "@/features/knowledge/components/KnowledgeSearchModal";
-import ArticleEditor from "@/features/knowledge/components/ArticleEditor";
+import ArticleEditor, {
+  Article,
+} from "@/features/knowledge/components/ArticleEditor";
 
 interface TicketActionsProps {
   ticket: Ticket;
@@ -29,8 +31,10 @@ export function TicketActions({
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showArticleEditor, setShowArticleEditor] = useState(false);
   const [saveToKb, setSaveToKb] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [draftArticle, setDraftArticle] = useState<any>(null);
+
+  const [draftArticle, setDraftArticle] = useState<Article | undefined>(
+    undefined,
+  );
 
   const handleSendComment = async () => {
     if (!newComment.trim() || !onAddComment) return;
