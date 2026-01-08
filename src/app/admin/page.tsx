@@ -47,7 +47,7 @@ import {
   Stats,
   AdminTab,
   TicketFilterType,
-} from "@/app/admin/types";
+} from "@/app/admin/admin.types";
 import { TicketsTableSkeleton } from "@/components/ui/skeletons/TicketsTableSkeleton";
 import DraggableDashboard from "@/features/monitoring/components/Dashboards/DraggableDashboard";
 import AssetHistoryTimeline from "@/features/assets/components/AssetHistoryTimeline";

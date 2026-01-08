@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
-    "prepare": "husky",
+    "prepare": "husky || true",
     "audit": "pnpm audit",
     "db:dump": "node scripts/db-backup.js",
     "types:sync": "node scripts/types-sync.js",
@@ -56,5 +56,13 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.0.15"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "supabase",
+      "husky"
+    ]
   }
 }
