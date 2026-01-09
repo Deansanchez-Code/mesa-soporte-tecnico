@@ -133,70 +133,74 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // 1. Try to Update Password in Supabase Auth
+    // 1. Try to Update Password/Auth in Supabase Auth
     if (password && password.length > 0) {
       let targetAuthId = id;
 
-      // Attempt 1: Update by ID
+      // Attempt 1: Update by ID (Update Password AND Email to keep sync)
       const { error: pwdError } = await supabaseAdmin.auth.admin.updateUserById(
         id,
-        { password: password },
+        {
+          password: password,
+          email: email, // Sync email if username changed
+          email_confirm: true,
+        },
       );
 
       if (pwdError) {
-        if (email) {
-          // Find existing
-          const { data: output } = await supabaseAdmin.auth.admin.listUsers();
-          // Note: Pagination defaults to 50. In large orgs this might miss users, but filtering by email directly is not standard in admin-js
-          const existingUser = output.users.find(
-            (u) => u.email?.toLowerCase() === email.toLowerCase(),
+        console.error("Error updating Auth User:", pwdError);
+
+        // If user not found, try to recover (Re-create)
+        if (pwdError.message.includes("User not found") && email) {
+          console.log(
+            "User not found in Auth, attempting recovery/creation...",
           );
-          if (existingUser) {
-            targetAuthId = existingUser.id;
-            const { error: retryError } =
-              await supabaseAdmin.auth.admin.updateUserById(targetAuthId, {
-                password: password,
-              });
-            if (retryError) throw retryError;
-          } else {
-            const { data: newAuth, error: createError } =
-              await supabaseAdmin.auth.admin.createUser({
-                id: id, // <--- CRITICAL: Force the Auth ID to match the Public ID
-                email: email,
-                password: password || "TempPass123!",
-                email_confirm: true,
-                user_metadata: {
-                  full_name: updates.full_name || "Usuario Recuperado",
-                  role: updates.role || "agent",
-                },
-              });
+          const { data: newAuth, error: createError } =
+            await supabaseAdmin.auth.admin.createUser({
+              id: id, // Force preserve ID
+              email: email,
+              password: password || "TempPass123!",
+              email_confirm: true,
+              user_metadata: {
+                full_name: updates.full_name || "Usuario Recuperado",
+                role: updates.role || "agent",
+                area: updates.area || "Mesa de Ayuda",
+              },
+            });
 
-            if (createError) {
-              console.error("Failed to restore Auth User:", createError);
-              throw createError; // If ID is taken by another auth user, we have a bigger collision problem.
-            }
-
-            if (newAuth.user) {
-              targetAuthId = newAuth.user.id; // Should match id
-            }
+          if (createError) {
+            console.error("Failed to restore Auth User:", createError);
+            throw createError;
           }
 
-          // LINKING: Ensure public table points to this valid Auth ID
-          if (targetAuthId !== id) {
-            // Update auth_id in public table where id matches the passed id
-            const { error: linkError } = await supabaseAdmin
-              .from("users")
-              .update({ auth_id: targetAuthId })
-              .eq("id", id);
-
-            if (linkError) {
-              console.warn("Failed to link auth_id:", linkError);
-            }
+          if (newAuth.user) {
+            targetAuthId = newAuth.user.id;
           }
         } else {
-          throw pwdError; // No email to recover with
+          // Other error (e.g. weak password)
+          throw pwdError;
+        }
+
+        // LINKING: Ensure public table points to this valid Auth ID
+        if (targetAuthId !== id) {
+          // Update auth_id in public table where id matches the passed id
+          const { error: linkError } = await supabaseAdmin
+            .from("users")
+            .update({ auth_id: targetAuthId })
+            .eq("id", id);
+
+          if (linkError) {
+            console.warn("Failed to link auth_id:", linkError);
+          }
         }
       }
+    } else if (email) {
+      // Check if email sync is needed even if password didn't change (e.g. username change)
+      // This handles the case where ONLY username/email changed
+      await supabaseAdmin.auth.admin.updateUserById(id, {
+        email: email,
+        email_confirm: true,
+      });
     }
 
     // SPECIAL CASE: If is_active is toggled to TRUE, must unban in Auth.
