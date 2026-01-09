@@ -19,7 +19,7 @@ interface SessionState {
 }
 
 export function useSessionMonitor() {
-  const { user } = useUserProfile();
+  const { user, role, loading } = useUserProfile();
   const [session, setSession] = useState<SessionState>({
     isActive: false,
     sessionId: null,
@@ -34,6 +34,10 @@ export function useSessionMonitor() {
   // 1. Detectar IP y Network al iniciar
   useEffect(() => {
     const checkNetwork = async () => {
+      // Si está cargando o no es agente, no hacemos nada
+      if (loading) return;
+      if (role !== "agent") return;
+
       try {
         const res = await fetch("https://api.ipify.org?format=json");
         const data = await res.json();
@@ -65,7 +69,7 @@ export function useSessionMonitor() {
     };
 
     checkNetwork();
-  }, []);
+  }, [loading, role]);
 
   // 2. Heartbeat & Session Management
   const sendHeartbeat = useCallback(async () => {
@@ -88,6 +92,8 @@ export function useSessionMonitor() {
 
   // Iniciar Sesión en BD
   const startSession = useCallback(async () => {
+    // Validación de rol estricta
+    if (loading || role !== "agent") return;
     if (!user || session.isActive) return;
 
     // Verificar limite de sesiones (Max 3)
@@ -129,7 +135,7 @@ export function useSessionMonitor() {
         description: "Asistencia registrada correctamente.",
       });
     }
-  }, [user, session.isActive, session.publicIp]);
+  }, [user, session.isActive, session.publicIp, role, loading]);
 
   // Intervalo de Heartbeat
   useEffect(() => {
