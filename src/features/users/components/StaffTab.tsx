@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase/cliente";
 import { User, ConfigItem, StaffUploadRow } from "@/app/admin/admin.types";
 import { useUserManagement } from "../hooks/useUserManagement";
 import UserModal from "./UserModal";
+import { toast } from "sonner";
 
 interface StaffTabProps {
   usersList: User[];
@@ -87,13 +88,15 @@ export default function StaffTab({
           }
         }
 
-        alert(
-          `Carga finalizada.\n✅ Exitosos: ${successCount}\n❌ Fallidos: ${errorCount}`,
-        );
+        toast.success("Carga Finalizada", {
+          description: `Exitosos: ${successCount} | Fallidos: ${errorCount}`,
+        });
         onRefresh();
       } catch (error) {
         console.error("Error procesando archivo:", error);
-        alert("Error al procesar el archivo Excel.");
+        toast.error("Error de Archivo", {
+          description: "No se pudo procesar el archivo Excel.",
+        });
       }
     };
     reader.readAsBinaryString(file);

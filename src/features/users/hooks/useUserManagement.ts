@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Agent, User } from "@/app/admin/admin.types";
 import { supabase } from "@/lib/supabase/cliente";
+import { toast } from "sonner";
 
 export type AgentFormData = Agent & {
   password?: string;
@@ -66,7 +67,9 @@ export function useUserManagement(onRefresh: () => void) {
       !newAgent.username ||
       (!newAgent.isEditing && !passwordToSave)
     )
-      return alert("Faltan datos obligatorios (Nombre, Usuario, Contraseña)");
+      return toast.warning("Faltan datos obligatorios", {
+        description: "Por favor complete Nombre, Usuario y Contraseña",
+      });
 
     try {
       // Get Session Token
@@ -109,8 +112,13 @@ export function useUserManagement(onRefresh: () => void) {
         throw new Error(data.error || "Error en la operación");
       }
 
-      alert(
-        newAgent.isEditing ? "✅ Usuario actualizado" : "✅ Usuario creado",
+      toast.success(
+        newAgent.isEditing ? "Usuario actualizado" : "Usuario creado",
+        {
+          description: newAgent.isEditing
+            ? `Los datos de ${newAgent.username} han sido guardados.`
+            : `El usuario ${newAgent.username} se ha registrado exitosamente.`,
+        },
       );
       setShowAgentModal(false);
       resetUserForm();
@@ -118,7 +126,7 @@ export function useUserManagement(onRefresh: () => void) {
     } catch (error: unknown) {
       const errMsg =
         error instanceof Error ? error.message : "Error desconocido";
-      alert(`Error: ${errMsg}`);
+      toast.error("Error en la operación", { description: errMsg });
     }
   };
 
@@ -173,19 +181,23 @@ export function useUserManagement(onRefresh: () => void) {
 
       if (!response.ok) {
         if (data.error && data.error.includes("foreign key")) {
-          alert("❌ Error: Dependencias encontradas. Contacte a soporte DB.");
+          toast.error("Error de Dependencias", {
+            description: "No se puede eliminar: tiene registros asociados.",
+          });
         } else {
           throw new Error(data.error || "Error al eliminar");
         }
       } else {
-        alert("✅ Usuario desactivado correctamente (Baja Lógica)");
+        toast.success("Usuario Desactivado", {
+          description: "El usuario ha sido dado de baja correctamente.",
+        });
         onRefresh();
       }
     } catch (error: unknown) {
       console.error("Error deleting user:", error);
       const errMsg =
         error instanceof Error ? error.message : "Error desconoodo";
-      alert(`Error al desactivar: ${errMsg}`);
+      toast.error("Error al desactivar", { description: errMsg });
     }
   };
 
