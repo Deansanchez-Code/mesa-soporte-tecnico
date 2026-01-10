@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/cliente";
+// import { createClient } from "@/lib/supabase/cliente"; // Unused
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST(req: NextRequest) {
@@ -39,8 +39,9 @@ export async function POST(req: NextRequest) {
 
       let authUserExists = false;
       if (user.auth_id) {
-        const { data: authUser, error: authCheckError } =
-          await supabaseAdmin.auth.admin.getUserById(user.auth_id);
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(
+          user.auth_id,
+        );
         if (authUser && authUser.user) {
           authUserExists = true;
           // Opcional: Podríamos forzar el reset de contraseña aquí si quisieramos asegurar el login,
