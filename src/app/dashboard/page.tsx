@@ -41,7 +41,7 @@ import { KanbanBoard } from "@/components/dashboard/KanbanBoard";
 
 export default function AgentDashboard() {
   const router = useRouter();
-  const { user: currentUser, role, permissions } = useUserProfile();
+  const { user: currentUser, role, permissions, profile } = useUserProfile();
 
   // --- HOOKS ---
   const {
@@ -273,8 +273,10 @@ export default function AgentDashboard() {
               {currentUser && (
                 <span className="ml-2 text-sm font-normal text-gray-500">
                   |{" "}
-                  {(currentUser.user_metadata as { full_name?: string })
-                    ?.full_name || "Usuario"}
+                  {(profile?.full_name as string) ||
+                    (currentUser.user_metadata as { full_name?: string })
+                      ?.full_name ||
+                    "Usuario"}
                 </span>
               )}
             </h1>
