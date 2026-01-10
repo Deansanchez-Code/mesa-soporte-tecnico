@@ -37,13 +37,27 @@ export function useUserProfile() {
         const user = session.user;
         const role = user.user_metadata?.role || "user"; // Asumimos rol en metadata
 
+        // BUSCAR DATOS REALES EN DB PÚBLICA (Para Nombre y Permisos, que pueden cambiar)
+        const { data: dbUser } = await supabase
+          .from("users")
+          .select(
+            "full_name, perm_manage_assignments, perm_create_assets, perm_transfer_assets, perm_decommission_assets",
+          )
+          .eq("id", user.id)
+          .single();
+
         setState({
           permissions: {
-            manage_assignments:
-              (user.user_metadata?.perm_manage_assignments as boolean) || false,
+            manage_assignments: dbUser?.perm_manage_assignments || false,
           },
           user,
-          profile: user.user_metadata,
+          profile: {
+            ...user.user_metadata,
+            full_name: dbUser?.full_name || user.user_metadata?.full_name, // Prioridad DB
+            perm_create_assets: dbUser?.perm_create_assets,
+            perm_transfer_assets: dbUser?.perm_transfer_assets,
+            perm_decommission_assets: dbUser?.perm_decommission_assets,
+          },
           loading: false,
           role,
         });
