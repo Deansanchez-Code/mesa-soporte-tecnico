@@ -1,0 +1,27 @@
+
+> mesa-soporte-tecnico@0.1.0 build
+> next build
+
+Ôû▓ Next.js 16.1.1 (Turbopack)
+- Environments: .env.local
+
+ÔÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+
+> Build error occurred
+Error: Turbopack build failed with 1 errors:
+./src/app/api/auth/check-user/route.ts:2:1
+Export getSupabaseAdmin doesn't exist in target module
+  1 | import { NextResponse, NextRequest } from "next/server";
+> 2 | import { createClient, getSupabaseAdmin } from "@/lib/supabase/cliente";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 |
+  4 | export async function POST(req: NextRequest) {
+  5 |   // AUTH_CHECK_BYPASS: Public username check (Data Restricted)
+
+The export getSupabaseAdmin was not found in module [project]/src/lib/supabase/cliente.ts [app-route] (ecmascript).
+Did you mean to import supabase?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+
+
+    at <unknown> (./src/app/api/auth/check-user/route.ts:2:1)
