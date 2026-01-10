@@ -26,21 +26,9 @@ export function useUserProfile() {
   });
 
   useEffect(() => {
-    async function getUser() {
+    // Función centralizada para obtener datos de DB
+    async function fetchProfileData(user: User) {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session?.user) {
-          setState((prev) => ({ ...prev, loading: false }));
-          return;
-        }
-
-        const user = session.user;
-        const role = user.user_metadata?.role || "user"; // Asumimos rol en metadata
-
-        // BUSCAR DATOS REALES EN DB PÚBLICA (Para Nombre y Permisos, que pueden cambiar)
         const { data: dbUser } = await supabase
           .from("users")
           .select(
@@ -65,29 +53,43 @@ export function useUserProfile() {
             perm_decommission_assets: dbUser?.perm_decommission_assets,
           },
           loading: false,
-          role,
+          role: user.user_metadata?.role || "user",
         });
       } catch (error) {
         console.error("Error fetching user profile:", error);
-        setState((prev) => ({ ...prev, loading: false }));
+        setState({
+          user,
+          profile: user.user_metadata,
+          loading: false,
+          role: user.user_metadata?.role || "user",
+        });
       }
     }
 
-    getUser();
+    async function initUser() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        setState((prev) => ({ ...prev, loading: false }));
+        return;
+      }
+      // Fetch inicial
+      fetchProfileData(session.user);
+    }
+
+    initUser();
 
     // Listener de cambios de auth
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if (event === "SIGNED_OUT") {
+        if (event === "SIGNED_OUT" || !session?.user) {
           setState({ user: null, profile: null, loading: false, role: null });
         } else if (session?.user) {
-          const user = session.user;
-          setState({
-            user,
-            profile: user.user_metadata,
-            loading: false,
-            role: user.user_metadata?.role || "user",
-          });
+          // Si cambia el usuario o inicia sesión, refrescar datos de DB
+          // IMPORTANTE: Esto asegura que el nombre y permisos estén frescos
+          fetchProfileData(session.user);
         }
       },
     );
