@@ -12,6 +12,7 @@ export async function middleware(request: NextRequest) {
   // PUBLIC API ROUTES WHITELIST
   const publicApiRoutes = [
     "/api/auth/register-contractor",
+    "/api/auth/check-user", // Added to allow login check
     "/api/auth/callback", // If you use OAuth
   ];
 
