@@ -18,6 +18,7 @@ import {
   CalendarRange, // For Environments Tab
   BookOpen, // For Knowledge Base
   ArrowLeft,
+  Monitor, // Added for Asset Management
 } from "lucide-react";
 import TicketHistory from "@/features/tickets/components/TicketHistory";
 import AssignmentManager from "@/features/assignments/components/AssignmentManager";
@@ -26,6 +27,7 @@ import Link from "next/link";
 import TicketDetailsModal from "@/features/tickets/components/TicketDetailsModal";
 import NotificationManager from "@/components/NotificationManager";
 import UserProfileModal from "@/components/shared/UserProfileModal";
+import CreateAssetModal from "@/features/assets/components/CreateAssetModal";
 
 // --- DEFINICIÓN DE TIPOS (Incluyendo campos SLA) ---
 import { Ticket } from "@/app/admin/admin.types";
@@ -77,6 +79,7 @@ export default function AgentDashboard() {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showMetricsModal, setShowMetricsModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showCreateAssetModal, setShowCreateAssetModal] = useState(false);
 
   const [solutionTexts, setSolutionTexts] = useState<Record<number, string>>(
     {},
@@ -236,6 +239,18 @@ export default function AgentDashboard() {
           />
         )}
 
+        {/* MODAL DE CREACIÓN DE ACTIVOS (Para Agentes con Permiso) */}
+        {showCreateAssetModal && currentUser && (
+          <CreateAssetModal
+            onClose={() => setShowCreateAssetModal(false)}
+            onSuccess={() => {
+              setShowCreateAssetModal(false);
+              // Opcional: Refrescar listas si fuera necesario
+            }}
+            currentUserId={currentUser.id}
+          />
+        )}
+
         {/* MODAL DE MÉTRICAS PERSONALES */}
         <MetricsOverview
           isOpen={showMetricsModal}
@@ -257,13 +272,29 @@ export default function AgentDashboard() {
               Mesa de Ayuda <span className="text-sena-green">TIC</span>
               {currentUser && (
                 <span className="ml-2 text-sm font-normal text-gray-500">
-                  | {currentUser.user_metadata?.full_name}
+                  |{" "}
+                  {(currentUser.user_metadata as { full_name?: string })
+                    ?.full_name || "Usuario"}
                 </span>
               )}
             </h1>
           </div>
 
           <div className="flex items-center gap-4">
+            {/* BOTÓN GESTIÓN ACTIVOS (Si tiene permiso) */}
+            {((currentUser?.user_metadata as { perm_create_assets?: boolean })
+              ?.perm_create_assets ||
+              permissions?.create_assets) && (
+              <button
+                onClick={() => setShowCreateAssetModal(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-sena-blue bg-blue-50 hover:bg-blue-100 transition-all border border-blue-200"
+                title="Registrar Nuevo Activo"
+              >
+                <Monitor className="w-5 h-5" />
+                <span className="hidden sm:inline">Nuevo Activo</span>
+              </button>
+            )}
+
             {(role === "admin" || role === "superadmin") && (
               <Link
                 href="/admin"

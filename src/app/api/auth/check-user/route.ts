@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { NextResponse, NextRequest } from "next/server";
+import { createClient, getSupabaseAdmin } from "@/lib/supabase/cliente";
 
 export async function POST(req: NextRequest) {
   // AUTH_CHECK_BYPASS: Public username check (Data Restricted)

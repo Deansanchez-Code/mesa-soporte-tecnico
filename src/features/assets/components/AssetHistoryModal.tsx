@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/cliente";
-import { History, X, Calendar, User, Wrench, CheckCircle } from "lucide-react";
+import {
+  History,
+  X,
+  Calendar,
+  User,
+  Wrench,
+  CheckCircle,
+  ArrowRightLeft,
+} from "lucide-react";
+import AssetActionModal from "./AssetActionModal";
 
 interface AssetHistoryModalProps {
   serialNumber: string;
@@ -23,11 +32,43 @@ export default function AssetHistoryModal({
   onClose,
 }: AssetHistoryModalProps) {
   const [history, setHistory] = useState<TicketHistory[]>([]);
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const [assetDetails, setAssetDetails] = useState<any>(null); // Guardar detalles del activo
+  /* eslint-enable @typescript-eslint/no-explicit-any */
   const [loading, setLoading] = useState(true);
+  const [showTransferModal, setShowTransferModal] = useState(false); // UI State
+
+  // Obtener usuario actual para chequear permisos (o pasarlo por props, pero hooks funcionan bien)
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   useEffect(() => {
-    async function fetchHistory() {
-      // Buscamos tickets donde el serial coincida y NO sea el ticket actual (opcional, aquí traemos todos)
+    async function fetchData() {
+      // 1. Obtener User actual para permisos
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        // Buscar permisos reales en DB
+        const { data: dbUser } = await supabase
+          .from("users")
+          .select("id, full_name, perm_transfer_assets")
+          .eq("id", user.id)
+          .single();
+        setCurrentUser(dbUser);
+      }
+
+      // 2. Buscar detalles del activo
+      const { data: assetData } = await supabase
+        .from("assets")
+        .select("*")
+        .eq("serial_number", serialNumber)
+        .single();
+
+      if (assetData) setAssetDetails(assetData);
+
+      // 3. Buscamos tickets donde el serial coincida
       const { data } = await supabase
         .from("tickets")
         .select(
@@ -47,7 +88,7 @@ export default function AssetHistoryModal({
       setLoading(false);
     }
 
-    fetchHistory();
+    fetchData();
   }, [serialNumber]);
 
   // Función para formatear fecha bonita
@@ -77,6 +118,33 @@ export default function AssetHistoryModal({
             <X className="w-6 h-6" />
           </button>
         </div>
+
+        {/* Action Bar para Agentes con Permiso */}
+        {currentUser?.perm_transfer_assets && assetDetails && (
+          <div className="bg-blue-50 p-2 px-4 border-b border-blue-100 flex justify-end">
+            <button
+              onClick={() => setShowTransferModal(true)}
+              className="text-xs font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1 bg-white border border-blue-200 px-3 py-1.5 rounded-lg shadow-sm hover:shadow active:scale-95 transition"
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5" />
+              Trasladar Activo
+            </button>
+          </div>
+        )}
+
+        {showTransferModal && assetDetails && currentUser && (
+          <AssetActionModal
+            asset={assetDetails}
+            action="TRANSFER"
+            currentUserId={currentUser.id}
+            onClose={() => setShowTransferModal(false)}
+            onSuccess={() => {
+              setShowTransferModal(false);
+              onClose(); // Cerrar todo o refrescar
+              alert("Traslado exitoso. El historial se actualizará.");
+            }}
+          />
+        )}
 
         {/* Body (Scrollable) */}
         <div className="p-4 overflow-y-auto flex-1 bg-gray-50">

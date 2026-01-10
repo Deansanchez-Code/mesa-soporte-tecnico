@@ -58,8 +58,7 @@ export function useSessionMonitor() {
 
         if (!isSena) {
           toast.warning("Conexión Externa Detectada", {
-            description:
-              "Para registrar asistencia válida, conéctese a la red SENA.",
+            description: `IP: ${ip}. Para registrar asistencia válida, conéctese a la red SENA.`,
             duration: 10000,
           });
         }
@@ -95,6 +94,26 @@ export function useSessionMonitor() {
     // Validación de rol estricta
     if (loading || role !== "agent") return;
     if (!user || session.isActive) return;
+
+    // 1. Verificar si YA existe una sesión abierta para este usuario
+    const { data: existingSession } = await supabase
+      .from("work_sessions")
+      .select("*")
+      .eq("user_id", user.id)
+      .is("session_end", null)
+      .maybeSingle();
+
+    if (existingSession) {
+      // REANUDAR SESIÓN EXISTENTE
+      console.log("Reanudando sesión existente:", existingSession.id);
+      setSession((prev) => ({
+        ...prev,
+        isActive: true,
+        sessionId: existingSession.id,
+      }));
+      // No mostramos toast de "Turno Iniciado" para no molestar en navegación
+      return;
+    }
 
     // Verificar limite de sesiones (Max 3)
     // NOTE: Deshabilitado temporalmente para pruebas. En producción debe habilitarse.
