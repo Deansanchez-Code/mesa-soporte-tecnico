@@ -284,9 +284,8 @@ export default function AgentDashboard() {
 
           <div className="flex items-center gap-4">
             {/* BOTÓN GESTIÓN ACTIVOS (Si tiene permiso) */}
-            {((currentUser?.user_metadata as { perm_create_assets?: boolean })
-              ?.perm_create_assets ||
-              permissions?.create_assets) && (
+            {(currentUser?.user_metadata as { perm_create_assets?: boolean })
+              ?.perm_create_assets && (
               <button
                 onClick={() => setShowCreateAssetModal(true)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-sena-blue bg-blue-50 hover:bg-blue-100 transition-all border border-blue-200"
