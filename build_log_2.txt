@@ -1,0 +1,24 @@
+
+> mesa-soporte-tecnico@0.1.0 build
+> next build
+
+Ôû▓ Next.js 16.1.1 (Turbopack)
+- Environments: .env.local
+
+ÔÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+Ô£ô Compiled successfully in 4.4s
+  Running TypeScript ...
+Failed to compile.
+
+./src/app/dashboard/page.tsx:287:28
+Type error: Property 'create_assets' does not exist on type '{ manage_assignments: boolean; }'.
+
+  285 |             {((currentUser?.user_metadata as { perm_create_assets?: boolean })
+  286 |               ?.perm_create_assets ||
+> 287 |               permissions?.create_assets) && (
+      |                            ^
+  288 |               <button
+  289 |                 onClick={() => setShowCreateAssetModal(true)}
+  290 |                 className="flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-sena-blue bg-blue-50 hover:bg-blue-100 transition-all border border-blue-200"
+Next.js build worker exited with code: 1 and signal: null

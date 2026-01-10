@@ -11,6 +11,9 @@ export interface UserProfile {
   role: string | null;
   permissions?: {
     manage_assignments: boolean;
+    create_assets?: boolean;
+    transfer_assets?: boolean;
+    decommission_assets?: boolean;
   };
 }
 
@@ -49,6 +52,9 @@ export function useUserProfile() {
         setState({
           permissions: {
             manage_assignments: dbUser?.perm_manage_assignments || false,
+            create_assets: dbUser?.perm_create_assets || false,
+            transfer_assets: dbUser?.perm_transfer_assets || false,
+            decommission_assets: dbUser?.perm_decommission_assets || false,
           },
           user,
           profile: {
