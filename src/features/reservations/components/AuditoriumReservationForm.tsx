@@ -213,8 +213,16 @@ export default function AuditoriumReservationForm({
           ", ",
         )}`;
 
-        // Non-blocking ticket creation (optional: blocking)
-        await fetch("/api/tickets", {
+        console.log(
+          "[AuditoriumForm] Attempting to create ticket for reservation:",
+          {
+            category: "Reserva Auditorio",
+            date,
+            user_id: user.id,
+          },
+        );
+
+        const ticketRes = await fetch("/api/tickets", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -226,12 +234,22 @@ export default function AuditoriumReservationForm({
             description,
             user_id: user.id,
             location: "Auditorio",
-            asset_serial: null, // Not tied to asset
+            asset_serial: null,
           }),
         });
+
+        if (!ticketRes.ok) {
+          const ticketErr = await ticketRes.json();
+          console.error("[AuditoriumForm] Failed to create ticket:", ticketErr);
+          // We don't throw here to not break the reservation loop, but log it
+        } else {
+          console.log("[AuditoriumForm] Ticket created successfully.");
+        }
       }
 
-      alert("✅ Reserva(s) confirmada(s) con éxito.");
+      alert(
+        "✅ Reserva(s) confirmada(s) con éxito. Se ha generado un caso en la bandeja.",
+      );
       onSuccess();
     } catch (error: unknown) {
       console.error(error);

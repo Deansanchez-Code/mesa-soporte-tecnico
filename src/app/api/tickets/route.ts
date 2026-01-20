@@ -58,12 +58,14 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      console.error("Ticket Creation Error:", error);
+      console.error("Ticket Creation Error (Supabase):", error);
       return NextResponse.json(
-        { error: "Failed to create ticket" },
+        { error: "Failed to create ticket", detail: error.message },
         { status: 500 },
       );
     }
+
+    console.log("Ticket created successfully in DB:", data.id);
 
     return NextResponse.json({ data }, { status: 200 });
   } catch (error: unknown) {
