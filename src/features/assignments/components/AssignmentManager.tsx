@@ -28,11 +28,11 @@ export default function AssignmentManager({
 
   const fetchEnvironments = async () => {
     setLoading(true);
-    // Fetch ONLY AUDITORIO and EXCLUDE KIOSKO
+    // Fetch AMBIENTE and AUDITORIO, excluding KIOSKO
     const { data } = await supabase
       .from("areas")
       .select("id, name")
-      .ilike("name", "%AUDITORIO%")
+      .or("name.ilike.%AMBIENTE%,name.ilike.%AUDITORIO%")
       .not("name", "ilike", "%KIOSKO%")
       .order("name");
 

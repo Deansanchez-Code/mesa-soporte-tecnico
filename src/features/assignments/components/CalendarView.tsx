@@ -147,6 +147,11 @@ export default function CalendarView({
         .gte("start_time", startStr + "T00:00:00")
         .lte("start_time", endStr + "T23:59:59");
 
+      console.log(`[Calendar] Reservation Result:`, {
+        count: resData?.length,
+        error: resError,
+      });
+
       if (resError)
         console.error("[Calendar] Reservation Fetch Error:", resError);
 
