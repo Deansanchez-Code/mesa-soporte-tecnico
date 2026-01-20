@@ -131,16 +131,10 @@ export default function CalendarView({
 
     let finalCombined = [...mergedAssignments];
 
-    // Check if this area is the auditorium (Optimized name check)
-    const { data: areaData } = await supabase
-      .from("areas")
-      .select("name")
-      .eq("id", areaId)
-      .single();
-
-    if (areaData?.name.toUpperCase().includes("AUDITORIO")) {
+    // 3. Fetch Reservations if it's the Auditorium
+    if (areaName.toUpperCase().includes("AUDITORIO")) {
       console.log(
-        `[Calendar] Area ${areaId} is Auditorium (${areaData.name}). Fetching reservations...`,
+        `[Calendar] ${areaName} is Auditorium. Fetching reservations...`,
       );
       const { data: resData, error: resError } = await supabase
         .from("reservations")
@@ -162,17 +156,7 @@ export default function CalendarView({
           `[Calendar] Found ${resData.length} reservations for the range.`,
         );
         const reservationAssignments: Assignment[] = resData.map((r: any) => {
-          // Obtener la fecha local real separando la parte T
-          // Si el formato es ISO: 2026-01-29T..., el primer split nos da la fecha correcta
           const rawDate = r.start_time.split("T")[0];
-
-          // Debugging log for specific dates if needed
-          if (rawDate === "2026-01-29") {
-            console.log(
-              `[Calendar] Found reservation for Jan 29: ${r.title} at ${r.start_time}`,
-            );
-          }
-
           const startHour = new Date(r.start_time).getHours();
           let block: TimeBlock = "MANANA";
           if (startHour >= 12 && startHour < 18) block = "TARDE";
