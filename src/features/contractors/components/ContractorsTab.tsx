@@ -271,7 +271,7 @@ function ContractorGroup({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           {/* TITLE SECTION */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="bg-white p-2 rounded-lg border border-gray-100 shadow-sm flex-shrink-0">
+            <div className="bg-white p-2 rounded-lg border border-gray-100 shadow-sm shrink-0">
               {isOpen ? (
                 <ChevronUp className="w-5 h-5 text-sena-blue" />
               ) : (
@@ -395,7 +395,7 @@ function UserCard({
         onClick={onToggle}
         disabled={currentUserRole === "admin"}
         className={`
-               relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sena-green focus:ring-offset-2
+               relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sena-green focus:ring-offset-2
                ${user.is_active ? "bg-sena-green" : "bg-gray-200"}
                ${
                  currentUserRole === "admin"

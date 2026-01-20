@@ -127,7 +127,7 @@ export default function UserProfileModal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 relative">
         {/* Header Decorativo */}
-        <div className="h-24 bg-gradient-to-r from-sena-green to-green-600 relative">
+        <div className="h-24 bg-linear-to-r from-sena-green to-green-600 relative">
           <button
             onClick={onClose}
             className="absolute top-3 right-3 text-white/80 hover:text-white bg-black/20 hover:bg-black/40 rounded-full p-1 transition-all"

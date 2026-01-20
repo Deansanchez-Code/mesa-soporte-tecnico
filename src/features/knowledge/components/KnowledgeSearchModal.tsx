@@ -65,7 +65,7 @@ export default function KnowledgeSearchModal({
   }, [searchTerm, selectedCategory]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-4xl h-[80vh] rounded-2xl shadow-2xl flex overflow-hidden border border-gray-200">
         {/* LEFT PANE: Search & Results */}
         <div

@@ -303,7 +303,7 @@ export default function UserRequestForm({
               {activeOutage && (
                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg shadow-sm animate-in slide-in-from-top-2">
                   <div className="flex items-start">
-                    <AlertTriangle className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                    <AlertTriangle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
                     <div className="ml-3">
                       <h3 className="text-sm font-bold text-yellow-800">
                         {activeOutage.title}
@@ -493,7 +493,7 @@ export default function UserRequestForm({
                     )}
                   </div>
 
-                  <div className="mt-1 min-h-[20px]">
+                  <div className="mt-1 min-h-5">
                     {manualSerial && !isValidSerial && !isSearching ? (
                       <p className="text-[10px] text-red-500 font-bold flex items-center gap-1">
                         <X className="w-3 h-3" /> Serial no encontrado en la
