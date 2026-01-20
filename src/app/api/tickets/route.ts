@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/servidor";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { z } from "zod";
+import { getUserFromRequest } from "@/lib/auth-check";
 
 const ticketSchema = z.object({
   category: z.string().min(1, "Category is required"),
@@ -13,13 +13,9 @@ const ticketSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const user = await getUserFromRequest(req);
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
