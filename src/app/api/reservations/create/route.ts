@@ -36,15 +36,26 @@ export async function POST(req: NextRequest) {
       parseResult.data;
 
     // Ownership Check
-    if (user.id !== user_id) {
-      const isAdmin = await verifyUserPermissions(user.id, [
-        "admin",
-        "superadmin",
-      ]);
-      if (!isAdmin) return forbidden("Cannot create reservation for others");
-    }
-
     const supabaseAdmin = getSupabaseAdmin();
+
+    // Si los IDs no coinciden directamente (AuthUserID vs PublicUserID), verificamos enlace en DB
+    if (user.id !== user_id) {
+      // Verificar si el 'user_id' (public) pertenece al 'user.id' (auth)
+      const { data: publicUser } = await supabaseAdmin
+        .from("users")
+        .select("auth_id")
+        .eq("id", user_id)
+        .single();
+
+      if (!publicUser || publicUser.auth_id !== user.id) {
+        // Si no coinciden ni directa ni indirectamente, verificar privilegios de admin
+        const isAdmin = await verifyUserPermissions(user.id, [
+          "admin",
+          "superadmin",
+        ]);
+        if (!isAdmin) return forbidden("Cannot create reservation for others");
+      }
+    }
 
     // 1. Check Conflicts (Server-side validation)
     // We double check here to ensure data integrity even if frontend checked

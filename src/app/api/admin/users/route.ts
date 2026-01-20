@@ -68,7 +68,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { email, password, fullName, role, area, ...otherData } = body;
+    const { email, password, full_name, role, area, ...otherData } = body;
+    // Note: If full_name is missing, try fullName (legacy/consistency)
+    const finalFullName = full_name || body.fullName;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -84,11 +86,12 @@ export async function POST(request: NextRequest) {
         password,
         email_confirm: true,
         user_metadata: {
-          full_name: fullName,
+          full_name: finalFullName,
           role: role || "user",
           area: area,
           employment_type: otherData.employment_type || "planta",
           job_category: otherData.job_category || "funcionario",
+          username: otherData.username || email.split("@")[0],
         },
       });
 
@@ -228,8 +231,8 @@ export async function PUT(request: NextRequest) {
     // 2. Prepare DB Updates (Protect against extra fields and map keys)
     const dbUpdates: Record<string, unknown> = {};
 
-    // MAPPING: Frontend (camelCase) -> DB (snake_case)
-    if (updates.fullName) dbUpdates.full_name = updates.fullName;
+    // MAPPING: Frontend -> DB (Synchronized with useUserManagement.ts)
+    if (updates.full_name) dbUpdates.full_name = updates.full_name;
     // Direct matches
     if (updates.username) dbUpdates.username = updates.username;
     if (updates.role) dbUpdates.role = updates.role;
@@ -280,15 +283,17 @@ export async function PUT(request: NextRequest) {
       updates.role ||
       updates.area ||
       updates.employment_type ||
-      updates.employment_type ||
       updates.job_category ||
-      typeof updates.perm_manage_assignments === "boolean"
+      updates.username ||
+      typeof updates.perm_manage_assignments === "boolean" ||
+      typeof updates.is_vip === "boolean"
     ) {
       const metadataUpdates: Record<string, unknown> = {};
 
       if (updates.full_name) metadataUpdates.full_name = updates.full_name;
       if (updates.role) metadataUpdates.role = updates.role;
       if (updates.area) metadataUpdates.area = updates.area;
+      if (updates.username) metadataUpdates.username = updates.username;
       if (updates.employment_type)
         metadataUpdates.employment_type = updates.employment_type;
       if (updates.job_category)
@@ -296,6 +301,8 @@ export async function PUT(request: NextRequest) {
       if (typeof updates.perm_manage_assignments === "boolean")
         metadataUpdates.perm_manage_assignments =
           updates.perm_manage_assignments;
+      if (typeof updates.is_vip === "boolean")
+        metadataUpdates.is_vip = updates.is_vip;
 
       try {
         await supabaseAdmin.auth.admin.updateUserById(id, {

@@ -66,16 +66,22 @@ function HomeContent() {
       if (session?.user) {
         const role = session.user.user_metadata?.role;
         if (role === "admin" || role === "superadmin") {
-          // If admin is on home, maybe they want to go to their panel
-          // But we don't redirect automatically here to allow them to "Logout" if they needed to
+          // Admin logic remains same
         } else if (session.user.user_metadata) {
-          // Si ya hay sesión de un usuario normal, cargar sus datos
+          // Consultar datos frescos de la base de datos para asegurar nombre correcto
+          const { data: dbUser } = await supabase
+            .from("users")
+            .select("id, full_name, area")
+            .eq("id", session.user.id)
+            .maybeSingle();
+
           const user = {
-            id: session.user.id,
+            id: dbUser?.id || session.user.id, // Preferir ID de DB pública si existe (para FKs)
             username: session.user.user_metadata.username,
-            full_name: session.user.user_metadata.full_name,
+            full_name:
+              dbUser?.full_name || session.user.user_metadata.full_name, // Prioridad DB
             role: session.user.user_metadata.role,
-            area: session.user.user_metadata.area,
+            area: dbUser?.area || session.user.user_metadata.area,
           };
           setUserData(user as UserData);
           setViewState("request");
@@ -173,14 +179,26 @@ function HomeContent() {
 
       if (user) {
         // --- INICIO SILENT LOGIN ---
-        const syntheticEmail = `${user.username}@sistema.local`;
+        const cleanUsername = user.username.toLowerCase().trim();
+        const syntheticEmail = `${cleanUsername}@sistema.local`.toLowerCase();
+
         const { error: authError } = await supabase.auth.signInWithPassword({
           email: syntheticEmail,
           password: "Sena2024*",
         });
 
         if (authError) {
-          console.error("Silent Login Error:", authError);
+          console.error("Silent Login Error:", authError.message);
+          // Si es un error de credenciales, avisar que se está sincronizando
+          if (authError.message.includes("Invalid login credentials")) {
+            alert(
+              "Sincronizando acceso... Por favor presiona CONTINUAR una vez más.",
+            );
+          } else {
+            alert(`Error de acceso: ${authError.message}`);
+          }
+          setLoading(false);
+          return;
         }
         // --- FIN SILENT LOGIN ---
 
@@ -234,11 +252,19 @@ function HomeContent() {
 
       if (existingUser) {
         // --- INICIO SILENT LOGIN ---
-        const syntheticEmail = `${existingUser.username}@sistema.local`;
-        await supabase.auth.signInWithPassword({
+        const cleanUsername = existingUser.username.toLowerCase().trim();
+        const syntheticEmail = `${cleanUsername}@sistema.local`;
+        const { error: authError } = await supabase.auth.signInWithPassword({
           email: syntheticEmail,
           password: "Sena2024*",
         });
+
+        if (authError) {
+          console.error("Silent Login Error (Existing Contractor):", authError);
+          alert("Error de autenticación como contratista. Intenta nuevamente.");
+          setLoading(false);
+          return;
+        }
         // ---------------------------
 
         setUserData(existingUser);
@@ -282,11 +308,21 @@ function HomeContent() {
 
         // --- INICIO SILENT LOGIN (NUEVO USUARIO) ---
         if (newUser) {
-          const newSyntheticEmail = `${newUser.username}@sistema.local`;
-          await supabase.auth.signInWithPassword({
+          const cleanUsername = newUser.username.toLowerCase().trim();
+          const newSyntheticEmail = `${cleanUsername}@sistema.local`;
+          const { error: authError } = await supabase.auth.signInWithPassword({
             email: newSyntheticEmail,
             password: "Sena2024*",
           });
+
+          if (authError) {
+            console.error("Silent Login Error (New Contractor):", authError);
+            alert(
+              "Usuario creado pero no se pudo iniciar sesión automáticamente. Por favor recarga e intenta de nuevo.",
+            );
+            setLoading(false);
+            return;
+          }
         }
         // -------------------------------------------
 

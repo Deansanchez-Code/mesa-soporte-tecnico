@@ -125,6 +125,14 @@ export default function AuditoriumReservationForm({
     setLoading(true);
 
     try {
+      // OBTENER TOKEN FRESCO
+      const { data: sessionData } = await supabase.auth.getSession();
+      const currentToken = sessionData.session?.access_token; // || token (fallback)
+
+      if (!currentToken) {
+        throw new Error("No hay sesión activa. Por favor recarga la página.");
+      }
+
       const datesToReserve: string[] = [];
       if (isMultiDay) {
         const current = new Date(startDate);
@@ -141,8 +149,12 @@ export default function AuditoriumReservationForm({
 
       // Proceso de Reserva por fecha
       for (const date of datesToReserve) {
-        const startIso = `${date}T${startTime}:00`;
-        const endIso = `${date}T${endTime}:00`;
+        // Crear fechas completas y convertirlas a ISO string (UTC) para pasar validación Zod
+        const startDateObj = new Date(`${date}T${startTime}:00`);
+        const endDateObj = new Date(`${date}T${endTime}:00`);
+
+        const startIso = startDateObj.toISOString();
+        const endIso = endDateObj.toISOString();
 
         // Check conflicts again (robustness)
         // (Simplified logic: trusting UI conflict state for single day, or skipped for multiday)
@@ -166,7 +178,7 @@ export default function AuditoriumReservationForm({
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                ...(token && { Authorization: `Bearer ${token}` }),
+                Authorization: `Bearer ${currentToken}`,
               },
               body: JSON.stringify({ reservation_id: conflict.id }),
             });
@@ -185,7 +197,7 @@ export default function AuditoriumReservationForm({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(token && { Authorization: `Bearer ${token}` }),
+            Authorization: `Bearer ${currentToken}`,
           },
           body: JSON.stringify({
             title,
@@ -212,10 +224,11 @@ export default function AuditoriumReservationForm({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(token && { Authorization: `Bearer ${token}` }),
+            Authorization: `Bearer ${currentToken}`,
           },
           body: JSON.stringify({
             category: "Reserva Auditorio",
+            ticket_type: "REQ",
             description,
             user_id: user.id,
             location: "Auditorio",

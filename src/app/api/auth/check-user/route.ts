@@ -29,26 +29,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ user: null });
     }
 
-    // --- AUTO-FIX / SYNC LOGIC FOR 'USER' ROLE ---
+    // --- AUTO-FIX / SYNC LOGIC FOR ALL NON-ADMIN ROLES ---
     // Soluciona el problema de "usuarios guardados" que no loguean (Silent Login falla)
-    if (user.role === "user") {
-      const syntheticEmail = `${user.username}@sistema.local`;
+    if (user.role !== "admin" && user.role !== "superadmin") {
+      const cleanUsername = user.username.toLowerCase().trim();
+      const syntheticEmail = `${cleanUsername}@sistema.local`.toLowerCase();
       const defaultPassword = "Sena2024*";
       let shouldUpdateAuthId = false;
       let newAuthId = user.auth_id;
 
       let authUserExists = false;
+
+      // 1. Intentar por ID almacenado
       if (user.auth_id) {
         const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(
           user.auth_id,
         );
         if (authUser && authUser.user) {
           authUserExists = true;
-          // Opcional: Podríamos forzar el reset de contraseña aquí si quisieramos asegurar el login,
-          // pero podría ser intrusivo. Sin embargo, dado que el frontend HARCODEA la contraseña,
-          // si la contraseña en Auth es diferente, el login FALLARÁ.
-          // Por seguridad/estabilidad del sistema Kiosko, vamos a actualizar la contraseña.
+          // Sincronizar email y password
           await supabaseAdmin.auth.admin.updateUserById(user.auth_id, {
+            email: syntheticEmail,
+            password: defaultPassword,
+            email_confirm: true,
+          });
+        }
+      }
+
+      // 2. Si no existe por ID, buscar por email sintético en toda la lista (Paginación simple)
+      if (!authUserExists) {
+        const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
+        const existingAuthUser = listData?.users.find(
+          (u) => u.email?.toLowerCase() === syntheticEmail,
+        );
+
+        if (existingAuthUser) {
+          authUserExists = true;
+          newAuthId = existingAuthUser.id;
+          shouldUpdateAuthId = true;
+          await supabaseAdmin.auth.admin.updateUserById(newAuthId, {
             password: defaultPassword,
             email_confirm: true,
           });
@@ -56,7 +75,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (!authUserExists) {
-        console.log(`Usuario ${user.username} sin Auth válido. Recreando...`);
+        console.log(`Usuario ${cleanUsername} sin Auth válido. Recreando...`);
         // Crear usuario en Auth
         const { data: newAuth, error: createError } =
           await supabaseAdmin.auth.admin.createUser({
@@ -72,14 +91,26 @@ export async function POST(req: NextRequest) {
           });
 
         if (createError) {
-          // Si falla porque ya existe el email, intentamos buscarlo por email
-          if (createError.message.includes("already registered")) {
-            console.log("Email ya registrado, buscando usuario...");
-            // Esto es raro si authUserExists dio false por ID, significa que el auth_id en DB estaba mal
-            // pero el email sí existe en Auth.
-            // Tendríamos que buscar el usuario por email (no hay API directa de admin getUser por email?
-            // admin.listUsers() puede filtrar?)
-            // Simplificación: asumiendo que create user devuelve error.
+          // Si falla porque ya existe el email, intentamos buscarlo por email o listarlos
+          if (
+            createError.message.toLowerCase().includes("already registered")
+          ) {
+            console.log("Email ya registrado, vinculando...");
+            const { data: listData } =
+              await supabaseAdmin.auth.admin.listUsers();
+            const existingAuthUser = listData?.users.find(
+              (u) => u.email?.toLowerCase() === syntheticEmail,
+            );
+
+            if (existingAuthUser) {
+              newAuthId = existingAuthUser.id;
+              shouldUpdateAuthId = true;
+              // Aseguramos la contraseña de todos modos
+              await supabaseAdmin.auth.admin.updateUserById(newAuthId, {
+                password: defaultPassword,
+                email_confirm: true,
+              });
+            }
           } else {
             console.error("Error recreando Auth:", createError);
           }

@@ -51,19 +51,23 @@ export async function POST(req: NextRequest) {
       (safeRole === "instructor" ? "instructor" : "funcionario");
     const final_employment_type = "contratista"; // Enforced rule
 
-    // 1. Create Auth User (Dummy password)
+    // 1. Create Auth User (Using synthetic email for portal access)
+    const cleanUsername = username.toLowerCase().trim();
+    const syntheticEmail = `${cleanUsername}@sistema.local`;
+
     const { data: authUser, error: authError } =
       await supabaseAdmin.auth.admin.createUser({
-        email: email,
-        password: "TempPassword123!", // Should be generated or random
+        email: syntheticEmail,
+        password: "Sena2024*", // Contraseña estándar del Portal Kiosko
         email_confirm: true,
         user_metadata: {
           full_name,
-          username,
-          role,
+          username: cleanUsername,
+          role: safeRole,
           area,
           job_category: final_job_category,
           employment_type: final_employment_type,
+          real_email: email, // Store the actual email in metadata
         },
       });
 
@@ -81,13 +85,31 @@ export async function POST(req: NextRequest) {
         if (listError) throw listError;
 
         const existingUser = listData.users.find(
-          (u) => u.email?.toLowerCase() === email.toLowerCase(),
+          (u) => u.email?.toLowerCase() === syntheticEmail.toLowerCase(),
         );
 
         if (!existingUser) {
-          throw new Error("User reported as existing but not found in list.");
+          // If not found by synthetic, maybe it exists by real email? (Legacy)
+          const legacyUser = listData.users.find(
+            (u) => u.email?.toLowerCase() === email.toLowerCase(),
+          );
+          if (legacyUser) {
+            userId = legacyUser.id;
+            // Update legacy user to synthetic pattern
+            await supabaseAdmin.auth.admin.updateUserById(userId, {
+              email: syntheticEmail,
+              password: "Sena2024*",
+            });
+          } else {
+            throw new Error("User reported as existing but not found in list.");
+          }
+        } else {
+          userId = existingUser.id;
+          // Ensure password is correct
+          await supabaseAdmin.auth.admin.updateUserById(userId, {
+            password: "Sena2024*",
+          });
         }
-        userId = existingUser.id;
       } else {
         throw authError; // Rethrow other errors
       }

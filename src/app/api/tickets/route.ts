@@ -5,6 +5,7 @@ import { z } from "zod";
 
 const ticketSchema = z.object({
   category: z.string().min(1, "Category is required"),
+  ticket_type: z.enum(["INC", "REQ"]).default("REQ"),
   asset_serial: z.string().optional().nullable(),
   location: z.string().min(1, "Location is required"),
   description: z.string().optional(),
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { category, asset_serial, location, description } =
+    const { category, ticket_type, asset_serial, location, description } =
       validationResult.data;
 
     const supabaseAdmin = getSupabaseAdmin();
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
       .insert([
         {
           category,
+          ticket_type,
           asset_serial,
           location,
           description,
