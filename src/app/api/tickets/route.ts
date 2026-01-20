@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ... rest of the code
+
     const { category, ticket_type, asset_serial, location, description } =
       validationResult.data;
 
