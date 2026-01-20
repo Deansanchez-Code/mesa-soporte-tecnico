@@ -241,15 +241,17 @@ export default function AuditoriumReservationForm({
         if (!ticketRes.ok) {
           const ticketErr = await ticketRes.json();
           console.error("[AuditoriumForm] Failed to create ticket:", ticketErr);
-          // We don't throw here to not break the reservation loop, but log it
+          alert(
+            "⚠️ La reserva se creó correctamente, pero HUBO UN ERROR generando el caso de soporte.\n\nPor favor, contacta a Mesa de Ayuda manualmente.",
+          );
         } else {
           console.log("[AuditoriumForm] Ticket created successfully.");
+          alert(
+            "✅ Reserva(s) confirmada(s) con éxito. Se ha generado un caso en la bandeja.",
+          );
         }
       }
 
-      alert(
-        "✅ Reserva(s) confirmada(s) con éxito. Se ha generado un caso en la bandeja.",
-      );
       onSuccess();
     } catch (error: unknown) {
       console.error(error);
