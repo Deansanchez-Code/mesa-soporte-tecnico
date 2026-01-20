@@ -51,6 +51,12 @@ export async function POST(req: NextRequest) {
           await supabaseAdmin.auth.admin.updateUserById(user.auth_id, {
             password: defaultPassword,
             email_confirm: true,
+            user_metadata: {
+              full_name: user.full_name,
+              role: user.role,
+              area: user.area,
+              username: user.username,
+            },
           });
         }
       }

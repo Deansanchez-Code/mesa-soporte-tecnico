@@ -68,17 +68,29 @@ function HomeContent() {
         if (role === "admin" || role === "superadmin") {
           // If admin is on home, maybe they want to go to their panel
           // But we don't redirect automatically here to allow them to "Logout" if they needed to
-        } else if (session.user.user_metadata) {
-          // Si ya hay sesión de un usuario normal, cargar sus datos
-          const user = {
-            id: session.user.id,
-            username: session.user.user_metadata.username,
-            full_name: session.user.user_metadata.full_name,
-            role: session.user.user_metadata.role,
-            area: session.user.user_metadata.area,
-          };
-          setUserData(user as UserData);
-          setViewState("request");
+        } else {
+          // Fetch real data from DB to avoid stale metadata
+          const { data: dbUser } = await supabase
+            .from("users")
+            .select("id, username, full_name, role, area")
+            .eq("id", session.user.id)
+            .single();
+
+          if (dbUser) {
+            setUserData(dbUser as UserData);
+            setViewState("request");
+          } else if (session.user.user_metadata) {
+            // Fallback (si ya hay sesión de un usuario normal, cargar sus datos)
+            const user = {
+              id: session.user.id,
+              username: session.user.user_metadata.username,
+              full_name: session.user.user_metadata.full_name,
+              role: session.user.user_metadata.role,
+              area: session.user.user_metadata.area,
+            };
+            setUserData(user as UserData);
+            setViewState("request");
+          }
         }
       }
     };
