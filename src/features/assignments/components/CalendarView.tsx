@@ -41,9 +41,9 @@ interface Assignment {
   };
   is_reservation?: boolean;
   title?: string;
-  start_time?: string;
-  end_time?: string;
-  resources?: string[];
+  start_time?: string | null;
+  end_time?: string | null;
+  resources?: string[] | null;
 }
 
 export default function CalendarView({
@@ -151,7 +151,7 @@ export default function CalendarView({
           id: number;
           title: string;
           start_time: string;
-          end_time: string;
+          end_time: string | null;
           resources: string[] | null;
           users: { full_name: string } | null;
         }
