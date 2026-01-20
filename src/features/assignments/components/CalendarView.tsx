@@ -41,6 +41,9 @@ interface Assignment {
   };
   is_reservation?: boolean;
   title?: string;
+  start_time?: string;
+  end_time?: string;
+  resources?: string[];
 }
 
 export default function CalendarView({
@@ -130,7 +133,7 @@ export default function CalendarView({
       );
       const { data: resData, error: resError } = await supabase
         .from("reservations")
-        .select("id, title, start_time, end_time, users(full_name)")
+        .select("id, title, start_time, end_time, resources, users(full_name)")
         .eq("status", "APPROVED")
         .gte("start_time", startStr + "T00:00:00")
         .lte("start_time", endStr + "T23:59:59");
@@ -144,7 +147,18 @@ export default function CalendarView({
         console.error("[Calendar] Reservation Fetch Error:", resError);
 
       if (resData && resData.length > 0) {
-        const reservationAssignments: Assignment[] = resData.map((r: any) => {
+        interface ReservationData {
+          id: number;
+          title: string;
+          start_time: string;
+          end_time: string;
+          resources: string[] | null;
+          users: { full_name: string } | null;
+        }
+
+        const reservationAssignments: Assignment[] = (
+          resData as unknown as ReservationData[]
+        ).map((r) => {
           // Robust local time conversion
           const localDateObj = new Date(r.start_time);
           const rawDate = formatDateForDB(localDateObj);
@@ -164,6 +178,9 @@ export default function CalendarView({
             },
             is_reservation: true,
             title: r.title,
+            start_time: r.start_time,
+            end_time: r.end_time,
+            resources: r.resources,
           };
         });
         combinedAssignments = [
@@ -423,31 +440,106 @@ export default function CalendarView({
                       </span>
                     </div>
                     {assign ? (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-green-200 rounded-lg flex items-center justify-center text-green-700 font-bold text-xs shadow-inner">
-                            {assign.instructor.full_name[0]}
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-inner ${
+                                assign.is_reservation
+                                  ? "bg-blue-200 text-blue-700"
+                                  : "bg-green-200 text-green-700"
+                              }`}
+                            >
+                              {assign.instructor.full_name[0]}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-gray-800 leading-tight">
+                                {assign.instructor.full_name}
+                              </p>
+                              <p
+                                className={`text-[10px] font-bold uppercase mt-0.5 ${
+                                  assign.is_reservation
+                                    ? "text-blue-600"
+                                    : "text-sena-green"
+                                }`}
+                              >
+                                {assign.is_reservation
+                                  ? "Responsable"
+                                  : "Instructor Asignado"}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-800 leading-tight">
-                              {assign.instructor.full_name}
-                            </p>
-                            <p className="text-[10px] text-sena-green font-bold uppercase mt-0.5">
-                              Asignado
-                            </p>
-                          </div>
+                          {canManage && (
+                            <button
+                              onClick={() => {
+                                handleDelete(assign.id, assign.is_reservation);
+                                setSelectedDay(null);
+                              }}
+                              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
-                        {canManage && (
-                          <button
-                            onClick={() => {
-                              handleDelete(assign.id, assign.is_reservation);
-                              setSelectedDay(null);
-                            }}
-                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
-                            title="Eliminar"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+
+                        {assign.is_reservation && (
+                          <div className="mt-1 bg-blue-50/50 rounded-lg p-3 border border-blue-100 space-y-3">
+                            <div>
+                              <h5 className="text-[10px] text-blue-400 font-bold uppercase tracking-wider mb-1">
+                                Evento / Actividad
+                              </h5>
+                              <p className="text-sm font-bold text-blue-900 leading-tight">
+                                {assign.title}
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 border-t border-blue-100 pt-3">
+                              <div>
+                                <p className="text-[10px] text-blue-400 font-bold uppercase">
+                                  Inicio
+                                </p>
+                                <p className="text-sm text-gray-700 font-medium">
+                                  {assign.start_time
+                                    ? format(new Date(assign.start_time), "p", {
+                                        locale: es,
+                                      })
+                                    : "N/A"}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-blue-400 font-bold uppercase">
+                                  Fin
+                                </p>
+                                <p className="text-sm text-gray-700 font-medium">
+                                  {assign.end_time
+                                    ? format(new Date(assign.end_time), "p", {
+                                        locale: es,
+                                      })
+                                    : "N/A"}
+                                </p>
+                              </div>
+                            </div>
+
+                            {assign.resources &&
+                              assign.resources.length > 0 && (
+                                <div className="border-t border-blue-100 pt-3">
+                                  <p className="text-[10px] text-blue-400 font-bold uppercase mb-1.5">
+                                    Recursos Solicitados
+                                  </p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {assign.resources.map((res, i) => (
+                                      <span
+                                        key={i}
+                                        className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[9px] font-bold border border-blue-200"
+                                      >
+                                        {res}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                          </div>
                         )}
                       </div>
                     ) : (
