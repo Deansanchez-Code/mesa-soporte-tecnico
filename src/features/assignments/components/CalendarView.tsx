@@ -97,39 +97,31 @@ export default function CalendarView({
       return;
     }
 
-    if (!assignData || assignData.length === 0) {
-      setAssignments([]);
-      return;
-    }
-
-    // 2. Fetch Instructor Names (Batch)
     const instructorIds = Array.from(
-      new Set(assignData.map((a) => a.instructor_id)),
+      new Set(assignData?.map((a) => a.instructor_id) || []),
     );
-    const { data: userData, error: userError } = await supabase
-      .from("users")
-      .select("id, full_name")
-      .in("id", instructorIds);
 
-    if (userError) {
-      console.error("[Calendar] Error fetching instructors:", userError);
+    let combinedAssignments: Assignment[] = [];
+
+    if (instructorIds.length > 0) {
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("id, full_name")
+        .in("id", instructorIds);
+
+      if (userError) {
+        console.error("[Calendar] Error fetching instructors:", userError);
+      }
+
+      const userMap = new Map(userData?.map((u) => [u.id, u.full_name]) || []);
+
+      combinedAssignments = (assignData || []).map((a) => ({
+        ...a,
+        instructor: {
+          full_name: userMap.get(a.instructor_id) || "Desconocido",
+        },
+      }));
     }
-
-    const userMap = new Map(userData?.map((u) => [u.id, u.full_name]) || []);
-
-    const mergedAssignments: Assignment[] = assignData.map((a) => ({
-      ...a,
-      instructor: {
-        full_name: userMap.get(a.instructor_id) || "Desconocido",
-      },
-    }));
-
-    // 3. Fetch Reservations if it's the Auditorium
-    // Assuming areaId 1 or name contains AUDITORIO
-    // Better check name via a prop or fetch it. For now, check if we have any reservations for this area.
-    // In AuditoriumReservationForm we use auditorium_id: "1". Let's verify areaId.
-
-    let finalCombined = [...mergedAssignments];
 
     // 3. Fetch Reservations if it's the Auditorium
     if (areaName.toUpperCase().includes("AUDITORIO")) {
@@ -152,12 +144,12 @@ export default function CalendarView({
         console.error("[Calendar] Reservation Fetch Error:", resError);
 
       if (resData && resData.length > 0) {
-        console.log(
-          `[Calendar] Found ${resData.length} reservations for the range.`,
-        );
         const reservationAssignments: Assignment[] = resData.map((r: any) => {
-          const rawDate = r.start_time.split("T")[0];
-          const startHour = new Date(r.start_time).getHours();
+          // Robust local time conversion
+          const localDateObj = new Date(r.start_time);
+          const rawDate = formatDateForDB(localDateObj);
+
+          const startHour = localDateObj.getHours();
           let block: TimeBlock = "MANANA";
           if (startHour >= 12 && startHour < 18) block = "TARDE";
           if (startHour >= 18) block = "NOCHE";
@@ -174,14 +166,17 @@ export default function CalendarView({
             title: r.title,
           };
         });
-        finalCombined = [...finalCombined, ...reservationAssignments];
-      } else {
-        console.log("[Calendar] No reservations found for this range.");
+        combinedAssignments = [
+          ...combinedAssignments,
+          ...reservationAssignments,
+        ];
       }
     }
 
-    console.log(`[Calendar] Loaded ${finalCombined.length} total events.`);
-    setAssignments(finalCombined);
+    console.log(
+      `[Calendar] Loaded ${combinedAssignments.length} total events.`,
+    );
+    setAssignments(combinedAssignments);
   };
 
   const handleDelete = async (id: number, isReservation?: boolean) => {
