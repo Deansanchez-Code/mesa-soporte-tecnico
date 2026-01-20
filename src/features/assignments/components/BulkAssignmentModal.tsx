@@ -322,7 +322,7 @@ export default function BulkAssignmentModal({
             // CONFIRMATION STEP
             <div className="space-y-4 animate-in fade-in">
               <div className="bg-blue-50 p-4 rounded-lg flex gap-3">
-                <CalendarIcon className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                <CalendarIcon className="w-5 h-5 text-blue-600 shrink-0" />
                 <div>
                   <h4 className="font-bold text-blue-800 text-sm">
                     Resumen de Asignación
@@ -338,7 +338,7 @@ export default function BulkAssignmentModal({
               {holidayConflict.length > 0 && (
                 <div className="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-r-lg">
                   <div className="flex items-start">
-                    <AlertTriangle className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
                     <div className="ml-3">
                       <h3 className="text-sm font-bold text-orange-800">
                         ¡Atención! Hay {holidayConflict.length} días festivos

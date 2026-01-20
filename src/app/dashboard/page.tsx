@@ -284,9 +284,8 @@ export default function AgentDashboard() {
 
           <div className="flex items-center gap-4">
             {/* BOTÓN GESTIÓN ACTIVOS (Si tiene permiso) */}
-            {((currentUser?.user_metadata as { perm_create_assets?: boolean })
-              ?.perm_create_assets ||
-              permissions?.create_assets) && (
+            {(currentUser?.user_metadata as { perm_create_assets?: boolean })
+              ?.perm_create_assets && (
               <button
                 onClick={() => setShowCreateAssetModal(true)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-sena-blue bg-blue-50 hover:bg-blue-100 transition-all border border-blue-200"
@@ -473,7 +472,7 @@ export default function AgentDashboard() {
 
         {/* MODAL DE RESOLUCIÓN */}
         {resolvingTicketId && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
             <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="bg-green-600 p-6 text-white flex items-center justify-between">
                 <div className="flex items-center gap-3">

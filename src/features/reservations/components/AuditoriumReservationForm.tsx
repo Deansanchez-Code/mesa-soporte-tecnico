@@ -44,7 +44,6 @@ export default function AuditoriumReservationForm({
   const [conflict, setConflict] = useState<Reservation | null>(null);
   const [currentUserVip, setCurrentUserVip] = useState(false);
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
-  const [token, setToken] = useState<string | null>(null);
 
   // Use local date to avoid UTC shifts
   const [startDate, setStartDate] = useState(getLocalDateString());
@@ -54,18 +53,13 @@ export default function AuditoriumReservationForm({
   const [loading, setLoading] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
 
-  // 0. Obtener token de sesión
-  useEffect(() => {
-    const getToken = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        setToken(session.access_token);
-      }
-    };
-    getToken();
-  }, []);
+  // Helper function to get token
+  const getAuthToken = async (): Promise<string | null> => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  };
 
   // 1. Cargar reservas (SELECT funciona porque RLS permite lectura anonima o authenticated para disponibilidad)
   useEffect(() => {
@@ -125,12 +119,12 @@ export default function AuditoriumReservationForm({
     setLoading(true);
 
     try {
-      // OBTENER TOKEN FRESCO
-      const { data: sessionData } = await supabase.auth.getSession();
-      const currentToken = sessionData.session?.access_token; // || token (fallback)
-
-      if (!currentToken) {
-        throw new Error("No hay sesión activa. Por favor recarga la página.");
+      // Obtener token una sola vez al inicio
+      const authToken = await getAuthToken();
+      if (!authToken) {
+        throw new Error(
+          "No se pudo obtener el token de autenticación. Por favor, inicia sesión nuevamente.",
+        );
       }
 
       const datesToReserve: string[] = [];
@@ -178,7 +172,7 @@ export default function AuditoriumReservationForm({
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${currentToken}`,
+                Authorization: `Bearer ${authToken}`,
               },
               body: JSON.stringify({ reservation_id: conflict.id }),
             });
@@ -197,7 +191,7 @@ export default function AuditoriumReservationForm({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${currentToken}`,
+            Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify({
             title,
@@ -224,7 +218,7 @@ export default function AuditoriumReservationForm({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${currentToken}`,
+            Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify({
             category: "Reserva Auditorio",
