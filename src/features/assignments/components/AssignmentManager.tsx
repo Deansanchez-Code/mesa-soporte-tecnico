@@ -28,21 +28,29 @@ export default function AssignmentManager({
 
   const fetchEnvironments = async () => {
     setLoading(true);
+    // Fetch ONLY AUDITORIO and EXCLUDE KIOSKO
     const { data } = await supabase
       .from("areas")
       .select("id, name")
-      .ilike("name", "%AMBIENTE%")
+      .ilike("name", "%AUDITORIO%")
+      .not("name", "ilike", "%KIOSKO%")
       .order("name");
 
-    // Adapt layout - areas usually have names like "Sala 1", we can default type/capacity or fetch if available
-    // For now we map to the interface
     if (data) {
-      const mapped = data.map((d: { id: number; name: string }) => ({
-        id: d.id,
-        name: d.name,
-        type: "AREA", // Default type as we don't have it in areas table yet or simple schema
-        capacity: 0,
-      }));
+      // Prioritize AUDITORIO to be the first option
+      const mapped = data
+        .map((d: { id: number; name: string }) => ({
+          id: d.id,
+          name: d.name,
+          type: "AREA",
+          capacity: 0,
+        }))
+        .sort((a, b) => {
+          if (a.name.toUpperCase().includes("AUDITORIO")) return -1;
+          if (b.name.toUpperCase().includes("AUDITORIO")) return 1;
+          return a.name.localeCompare(b.name);
+        });
+
       setEnvironments(mapped);
       if (mapped.length > 0 && !selectedEnvId) {
         setSelectedEnvId(mapped[0].id);

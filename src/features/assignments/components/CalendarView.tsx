@@ -39,6 +39,8 @@ interface Assignment {
   instructor: {
     full_name: string;
   };
+  is_reservation?: boolean;
+  title?: string;
 }
 
 export default function CalendarView({
@@ -113,18 +115,89 @@ export default function CalendarView({
 
     const userMap = new Map(userData?.map((u) => [u.id, u.full_name]) || []);
 
-    const merged = assignData.map((a) => ({
+    const mergedAssignments: Assignment[] = assignData.map((a) => ({
       ...a,
       instructor: {
         full_name: userMap.get(a.instructor_id) || "Desconocido",
       },
     }));
 
-    console.log(`[Calendar] Loaded ${merged.length} assignments.`);
-    setAssignments(merged as unknown as Assignment[]);
+    // 3. Fetch Reservations if it's the Auditorium
+    // Assuming areaId 1 or name contains AUDITORIO
+    // Better check name via a prop or fetch it. For now, check if we have any reservations for this area.
+    // In AuditoriumReservationForm we use auditorium_id: "1". Let's verify areaId.
+
+    let finalCombined = [...mergedAssignments];
+
+    // Check if this area is the auditorium (Optimized name check)
+    const { data: areaData } = await supabase
+      .from("areas")
+      .select("name")
+      .eq("id", areaId)
+      .single();
+
+    if (areaData?.name.toUpperCase().includes("AUDITORIO")) {
+      console.log(
+        `[Calendar] Area ${areaId} is Auditorium (${areaData.name}). Fetching reservations...`,
+      );
+      const { data: resData, error: resError } = await supabase
+        .from("reservations")
+        .select("id, title, start_time, end_time, users(full_name)")
+        .eq("status", "APPROVED")
+        .gte("start_time", startStr + "T00:00:00")
+        .lte("start_time", endStr + "T23:59:59");
+
+      if (resError)
+        console.error("[Calendar] Reservation Fetch Error:", resError);
+
+      if (resData && resData.length > 0) {
+        console.log(
+          `[Calendar] Found ${resData.length} reservations for the range.`,
+        );
+        const reservationAssignments: Assignment[] = resData.map((r: any) => {
+          // Obtener la fecha local real separando la parte T
+          // Si el formato es ISO: 2026-01-29T..., el primer split nos da la fecha correcta
+          const rawDate = r.start_time.split("T")[0];
+
+          // Debugging log for specific dates if needed
+          if (rawDate === "2026-01-29") {
+            console.log(
+              `[Calendar] Found reservation for Jan 29: ${r.title} at ${r.start_time}`,
+            );
+          }
+
+          const startHour = new Date(r.start_time).getHours();
+          let block: TimeBlock = "MANANA";
+          if (startHour >= 12 && startHour < 18) block = "TARDE";
+          if (startHour >= 18) block = "NOCHE";
+
+          return {
+            id: r.id,
+            instructor_id: "RESERVA",
+            assignment_date: rawDate,
+            time_block: block,
+            instructor: {
+              full_name: r.users?.full_name || "RESERVA",
+            },
+            is_reservation: true,
+            title: r.title,
+          };
+        });
+        finalCombined = [...finalCombined, ...reservationAssignments];
+      } else {
+        console.log("[Calendar] No reservations found for this range.");
+      }
+    }
+
+    console.log(`[Calendar] Loaded ${finalCombined.length} total events.`);
+    setAssignments(finalCombined);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: number, isReservation?: boolean) => {
+    if (isReservation) {
+      toast.error("Las reservas deben gestionarse desde el módulo de reservas");
+      return;
+    }
     if (!confirm("¿Eliminar esta asignación?")) return;
     const { error } = await supabase
       .from("instructor_assignments")
@@ -271,19 +344,21 @@ export default function CalendarView({
                     >
                       <div className="flex justify-between items-center w-full">
                         <span
-                          className={`font-bold truncate ${assign ? "text-gray-800" : "text-gray-400 italic"}`}
+                          className={`font-bold truncate ${assign ? "text-gray-800" : "text-gray-400 italic"} ${assign?.is_reservation ? "text-blue-700" : ""}`}
                         >
                           {assign
-                            ? viewMode === "week"
-                              ? assign.instructor?.full_name
-                              : assign.instructor?.full_name?.split(" ")[0]
+                            ? assign.is_reservation
+                              ? `R: ${assign.title}`
+                              : viewMode === "week"
+                                ? assign.instructor?.full_name
+                                : assign.instructor?.full_name?.split(" ")[0]
                             : `Libre (${TIME_BLOCKS[blockKey].label})`}
                         </span>
                         {assign && canManage && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDelete(assign.id);
+                              handleDelete(assign.id, assign.is_reservation);
                             }}
                             className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
                           >
@@ -348,11 +423,14 @@ export default function CalendarView({
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           assign
-                            ? "bg-sena-green text-white"
+                            ? assign.is_reservation
+                              ? "bg-blue-600 text-white"
+                              : "bg-sena-green text-white"
                             : "bg-gray-100 text-gray-400"
                         }`}
                       >
-                        {TIME_BLOCKS[block as TimeBlock].label}
+                        {TIME_BLOCKS[block as TimeBlock].label}{" "}
+                        {assign?.is_reservation ? "(RESERVA)" : ""}
                       </span>
                       <span className="text-[10px] font-mono text-gray-400">
                         {TIME_BLOCKS[block as TimeBlock].range}
@@ -376,7 +454,7 @@ export default function CalendarView({
                         {canManage && (
                           <button
                             onClick={() => {
-                              handleDelete(assign.id);
+                              handleDelete(assign.id, assign.is_reservation);
                               setSelectedDay(null);
                             }}
                             className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
