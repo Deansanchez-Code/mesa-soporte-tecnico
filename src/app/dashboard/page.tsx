@@ -274,8 +274,8 @@ export default function AgentDashboard() {
                 <span className="ml-2 text-sm font-normal text-gray-500">
                   |{" "}
                   {(profile?.full_name as string) ||
-                    (currentUser.user_metadata as { full_name?: string })
-                      ?.full_name ||
+                    currentUser.user_metadata?.full_name ||
+                    currentUser.email ||
                     "Usuario"}
                 </span>
               )}

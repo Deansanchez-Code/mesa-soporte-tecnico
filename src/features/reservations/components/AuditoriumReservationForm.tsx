@@ -44,6 +44,7 @@ export default function AuditoriumReservationForm({
   const [conflict, setConflict] = useState<Reservation | null>(null);
   const [currentUserVip, setCurrentUserVip] = useState(false);
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
+  const [token, setToken] = useState<string | null>(null);
 
   // Use local date to avoid UTC shifts
   const [startDate, setStartDate] = useState(getLocalDateString());
@@ -52,6 +53,19 @@ export default function AuditoriumReservationForm({
   const [isMultiDay, setIsMultiDay] = useState(false);
   const [loading, setLoading] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+
+  // 0. Obtener token de sesión
+  useEffect(() => {
+    const getToken = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        setToken(session.access_token);
+      }
+    };
+    getToken();
+  }, []);
 
   // 1. Cargar reservas (SELECT funciona porque RLS permite lectura anonima o authenticated para disponibilidad)
   useEffect(() => {
@@ -150,7 +164,10 @@ export default function AuditoriumReservationForm({
             // Cancel via API
             const cancelRes = await fetch("/api/reservations/cancel", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                ...(token && { Authorization: `Bearer ${token}` }),
+              },
               body: JSON.stringify({ reservation_id: conflict.id }),
             });
 
@@ -166,7 +183,10 @@ export default function AuditoriumReservationForm({
         // Create Reservation via API
         const createRes = await fetch("/api/reservations/create", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
           body: JSON.stringify({
             title,
             start_time: startIso,
@@ -190,7 +210,10 @@ export default function AuditoriumReservationForm({
         // Non-blocking ticket creation (optional: blocking)
         await fetch("/api/tickets", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
           body: JSON.stringify({
             category: "Reserva Auditorio",
             description,
