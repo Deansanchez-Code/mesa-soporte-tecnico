@@ -114,6 +114,7 @@ export default function AssignmentManager({
         {selectedEnvId ? (
           <CalendarView
             areaId={selectedEnvId}
+            areaName={selectedEnv?.name || ""}
             key={selectedEnvId + "-" + refreshTrigger} // Force re-render on switch
             canManage={canManage}
           />

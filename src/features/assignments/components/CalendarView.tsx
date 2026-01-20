@@ -45,9 +45,11 @@ interface Assignment {
 
 export default function CalendarView({
   areaId,
+  areaName,
   canManage,
 }: {
   areaId: number;
+  areaName: string;
   canManage: boolean;
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
