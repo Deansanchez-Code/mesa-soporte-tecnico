@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/servidor";
 
 import {
   unauthorized,
   forbidden,
+  getUserFromRequest,
   verifyUserPermissions,
 } from "@/lib/auth-check";
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
+    const user = await getUserFromRequest(req);
     if (!user) return unauthorized();
 
     const body = await req.json();

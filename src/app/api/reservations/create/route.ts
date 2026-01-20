@@ -4,9 +4,9 @@ import { z } from "zod";
 import {
   unauthorized,
   forbidden,
+  getUserFromRequest,
   verifyUserPermissions,
 } from "@/lib/auth-check";
-import { createClient } from "@/lib/supabase/servidor";
 
 const ReservationSchema = z.object({
   title: z.string().min(3),
@@ -19,11 +19,7 @@ const ReservationSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
+    const user = await getUserFromRequest(req);
     if (!user) return unauthorized();
 
     const body = await req.json();
