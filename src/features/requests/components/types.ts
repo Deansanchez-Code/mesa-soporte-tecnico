@@ -7,6 +7,7 @@ export interface User {
   perm_manage_assignments?: boolean;
   employment_type?: string;
   job_category?: string;
+  is_vip?: boolean;
 }
 
 export interface Asset {
