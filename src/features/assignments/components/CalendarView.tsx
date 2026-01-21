@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
+  Pencil,
   X as CloseIcon,
 } from "lucide-react";
 import {
@@ -31,7 +32,7 @@ import {
 } from "@/lib/scheduling";
 import { toast } from "sonner";
 
-interface Assignment {
+export interface Assignment {
   id: number;
   instructor_id: string;
   assignment_date: string; // YYYY-MM-DD
@@ -40,6 +41,7 @@ interface Assignment {
     full_name: string;
   };
   is_reservation?: boolean;
+  user_id?: string;
   title?: string;
   start_time?: string | null;
   end_time?: string | null;
@@ -51,11 +53,15 @@ export default function CalendarView({
   areaName,
   canManage,
   canDeleteAuditorium,
+  user,
+  onEdit,
 }: {
   areaId: number;
   areaName: string;
   canManage: boolean;
   canDeleteAuditorium: boolean;
+  user?: { id: string; full_name: string };
+  onEdit?: (assign: Assignment) => void;
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"week" | "month">("week"); // Default to week
@@ -135,7 +141,9 @@ export default function CalendarView({
       );
       const { data: resData, error: resError } = await supabase
         .from("reservations")
-        .select("id, title, start_time, end_time, resources, users(full_name)")
+        .select(
+          "id, title, start_time, end_time, resources, user_id, users(full_name)",
+        )
         .eq("status", "APPROVED")
         .gte("start_time", startStr + "T00:00:00")
         .lte("start_time", endStr + "T23:59:59");
@@ -200,10 +208,11 @@ export default function CalendarView({
 
   const handleDelete = async (id: number, isReservation?: boolean) => {
     if (isReservation) {
-      if (!canDeleteAuditorium) {
-        toast.error(
-          "Las reservas deben gestionarse desde el módulo de reservas",
-        );
+      const res = assignments.find((a) => a.id === id);
+      const isOwner = res?.user_id === user?.id;
+
+      if (!canManage && !isOwner) {
+        toast.error("No tienes permisos para eliminar esta reserva");
         return;
       }
       if (
@@ -437,20 +446,23 @@ export default function CalendarView({
                                         )[0]
                                   : `Libre (${TIME_BLOCKS[blockKey].label})`}
                               </span>
-                              {assign && canManage && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDelete(
-                                      assign.id,
-                                      assign.is_reservation,
-                                    );
-                                  }}
-                                  className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              )}
+                              {assign &&
+                                (canManage ||
+                                  (assign.is_reservation &&
+                                    user?.id === assign.user_id)) && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDelete(
+                                        assign.id,
+                                        assign.is_reservation,
+                                      );
+                                    }}
+                                    className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
                             </div>
                             {viewMode === "week" && (
                               <div className="text-[9px] text-gray-500">
@@ -554,17 +566,35 @@ export default function CalendarView({
                             </div>
                           </div>
                           {(canManage ||
-                            (assign.is_reservation && canDeleteAuditorium)) && (
-                            <button
-                              onClick={() => {
-                                handleDelete(assign.id, assign.is_reservation);
-                                setSelectedDay(null);
-                              }}
-                              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
-                              title="Eliminar"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            (assign.is_reservation &&
+                              user?.id === assign.user_id)) && (
+                            <div className="flex gap-1">
+                              {assign.is_reservation && onEdit && (
+                                <button
+                                  onClick={() => {
+                                    onEdit(assign);
+                                    setSelectedDay(null);
+                                  }}
+                                  className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all"
+                                  title="Editar"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  handleDelete(
+                                    assign.id,
+                                    assign.is_reservation,
+                                  );
+                                  setSelectedDay(null);
+                                }}
+                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
+                                title="Eliminar"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           )}
                         </div>
 

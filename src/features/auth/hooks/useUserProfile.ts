@@ -32,7 +32,7 @@ export function useUserProfile() {
         const { data: dbUser } = await supabase
           .from("users")
           .select(
-            "full_name, perm_manage_assignments, perm_create_assets, perm_transfer_assets, perm_decommission_assets",
+            "id, full_name, perm_manage_assignments, perm_create_assets, perm_transfer_assets, perm_decommission_assets",
           )
           .eq("id", user.id)
           .single();
@@ -47,6 +47,7 @@ export function useUserProfile() {
           user,
           profile: {
             ...user.user_metadata,
+            id: dbUser?.id, // Public ID
             full_name: dbUser?.full_name || user.user_metadata?.full_name, // Prioridad DB
             perm_create_assets: dbUser?.perm_create_assets,
             perm_transfer_assets: dbUser?.perm_transfer_assets,

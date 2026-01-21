@@ -300,6 +300,7 @@ export default function UserRequestForm({
                   user.role === "admin" ||
                   !!user.is_vip
                 }
+                user={user}
               />
             </div>
           ) : (

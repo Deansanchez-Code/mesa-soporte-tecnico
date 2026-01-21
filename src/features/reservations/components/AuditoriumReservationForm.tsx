@@ -23,6 +23,7 @@ interface AuditoriumReservationFormProps {
   user: { id: string; full_name: string };
   onCancel: () => void;
   onSuccess: () => void;
+  reservationToEdit?: Reservation;
 }
 
 // Helper to get local date string YYYY-MM-DD
@@ -37,6 +38,7 @@ export default function AuditoriumReservationForm({
   user,
   onCancel,
   onSuccess,
+  reservationToEdit,
 }: AuditoriumReservationFormProps) {
   const [startTime, setStartTime] = useState("07:00");
   const [endTime, setEndTime] = useState("08:00");
@@ -52,6 +54,33 @@ export default function AuditoriumReservationForm({
   const [isMultiDay, setIsMultiDay] = useState(false);
   const [loading, setLoading] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+
+  // Initialize form if editing
+  useEffect(() => {
+    if (reservationToEdit) {
+      try {
+        const start = new Date(reservationToEdit.start_time);
+        const end = new Date(reservationToEdit.end_time);
+
+        const sDate = reservationToEdit.start_time.split("T")[0];
+        const eDate = reservationToEdit.end_time.split("T")[0];
+        const sTime = reservationToEdit.start_time
+          .split("T")[1]
+          .substring(0, 5);
+        const eTime = reservationToEdit.end_time.split("T")[1].substring(0, 5);
+
+        setStartDate(sDate);
+        setFinalDate(eDate);
+        setStartTime(sTime);
+        setEndTime(eTime);
+        setTitle(reservationToEdit.title || "");
+        setSelectedResources(reservationToEdit.resources || []);
+        setIsMultiDay(sDate !== eDate);
+      } catch (e) {
+        console.error("Error parsing reservation dates:", e);
+      }
+    }
+  }, [reservationToEdit]);
 
   // Helper function to get token
   const getAuthToken = async (): Promise<string | null> => {
@@ -105,6 +134,7 @@ export default function AuditoriumReservationForm({
     const end = new Date(`${startDate}T${endTime}`);
 
     const found = reservations.find((r) => {
+      if (reservationToEdit && r.id === reservationToEdit.id) return false;
       const rStart = new Date(r.start_time);
       const rEnd = new Date(r.end_time);
       return start < rEnd && end > rStart;
@@ -186,14 +216,20 @@ export default function AuditoriumReservationForm({
           }
         }
 
-        // Create Reservation via API
-        const createRes = await fetch("/api/reservations/create", {
-          method: "POST",
+        // Create or Update Reservation via API
+        const apiUrl = reservationToEdit
+          ? "/api/reservations/update"
+          : "/api/reservations/create";
+        const method = reservationToEdit ? "PUT" : "POST";
+
+        const createRes = await fetch(apiUrl, {
+          method,
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify({
+            id: reservationToEdit?.id,
             title,
             start_time: startIso,
             end_time: endIso,
@@ -205,50 +241,60 @@ export default function AuditoriumReservationForm({
 
         if (!createRes.ok) {
           const errData = await createRes.json();
-          throw new Error(errData.error || "Falló la creación de la reserva");
+          throw new Error(
+            errData.error ||
+              `Falló la ${reservationToEdit ? "actualización" : "creación"} de la reserva`,
+          );
         }
 
-        // Create Ticket via API
-        const description = `Reserva de Auditorio: ${title}\nFecha: ${date}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
-          ", ",
-        )}`;
-
-        console.log(
-          "[AuditoriumForm] Attempting to create ticket for reservation:",
-          {
-            category: "Reserva Auditorio",
-            date,
-            user_id: user.id,
-          },
-        );
-
-        const ticketRes = await fetch("/api/tickets", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authToken}`,
-          },
-          body: JSON.stringify({
-            category: "Reserva Auditorio",
-            ticket_type: "REQ",
-            description,
-            user_id: user.id,
-            location: "Auditorio",
-            asset_serial: null,
-          }),
-        });
-
-        if (!ticketRes.ok) {
-          const ticketErr = await ticketRes.json();
-          console.error("[AuditoriumForm] Failed to create ticket:", ticketErr);
-          alert(
-            "⚠️ La reserva se creó correctamente, pero HUBO UN ERROR generando el caso de soporte.\n\nPor favor, contacta a Mesa de Ayuda manualmente.",
-          );
+        if (reservationToEdit) {
+          alert("✅ Reserva actualizada con éxito.");
         } else {
-          console.log("[AuditoriumForm] Ticket created successfully.");
-          alert(
-            "✅ Reserva(s) confirmada(s) con éxito. Se ha generado un caso en la bandeja.",
+          // Create Ticket via API
+          const description = `Reserva de Auditorio: ${title}\nFecha: ${date}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
+            ", ",
+          )}`;
+
+          console.log(
+            "[AuditoriumForm] Attempting to create ticket for reservation:",
+            {
+              category: "Reserva Auditorio",
+              date,
+              user_id: user.id,
+            },
           );
+
+          const ticketRes = await fetch("/api/tickets", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({
+              category: "Reserva Auditorio",
+              ticket_type: "REQ",
+              description,
+              user_id: user.id,
+              location: "Auditorio",
+              asset_serial: null,
+            }),
+          });
+
+          if (!ticketRes.ok) {
+            const ticketErr = await ticketRes.json();
+            console.error(
+              "[AuditoriumForm] Failed to create ticket:",
+              ticketErr,
+            );
+            alert(
+              "⚠️ La reserva se creó correctamente, pero HUBO UN ERROR generando el caso de soporte.\n\nPor favor, contacta a Mesa de Ayuda manualmente.",
+            );
+          } else {
+            console.log("[AuditoriumForm] Ticket created successfully.");
+            alert(
+              "✅ Reserva(s) confirmada(s) con éxito. Se ha generado un caso en la bandeja.",
+            );
+          }
         }
       }
 

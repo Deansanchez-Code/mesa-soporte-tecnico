@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/cliente";
 import { Plus, MapPin } from "lucide-react";
 import BulkAssignmentModal from "./BulkAssignmentModal";
-import CalendarView from "./CalendarView";
+import CalendarView, { Assignment } from "./CalendarView";
+import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
 
 interface Environment {
   id: number;
@@ -19,11 +20,13 @@ export default function AssignmentManager({
 }: {
   canManage: boolean;
   canDeleteAuditorium: boolean;
+  user?: { id: string; full_name: string };
 }) {
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [selectedEnvId, setSelectedEnvId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [editingRes, setEditingRes] = useState<Assignment | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -125,6 +128,8 @@ export default function AssignmentManager({
             key={selectedEnvId + "-" + refreshTrigger} // Force re-render on switch
             canManage={canManage}
             canDeleteAuditorium={canDeleteAuditorium}
+            user={user}
+            onEdit={(res) => setEditingRes(res)}
           />
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-gray-400">
@@ -143,6 +148,23 @@ export default function AssignmentManager({
           environmentName={selectedEnv.name}
           onSuccess={() => setRefreshTrigger((prev) => prev + 1)}
         />
+      )}
+
+      {/* EDIT MODAL FOR RESERVATIONS */}
+      {editingRes && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in">
+          <div className="bg-white w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95">
+            <AuditoriumReservationForm
+              user={user}
+              reservationToEdit={editingRes}
+              onCancel={() => setEditingRes(null)}
+              onSuccess={() => {
+                setEditingRes(null);
+                setRefreshTrigger((prev) => prev + 1);
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

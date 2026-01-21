@@ -448,6 +448,7 @@ export default function AgentDashboard() {
                   role === "superadmin" ||
                   role === "admin"
                 }
+                user={profile}
               />
             </div>
           ) : viewMode === "HISTORY" ? (
