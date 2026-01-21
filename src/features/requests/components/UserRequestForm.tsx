@@ -295,6 +295,11 @@ export default function UserRequestForm({
                   user.role === "coordinator" ||
                   !!user.perm_manage_assignments
                 }
+                canDeleteAuditorium={
+                  user.role === "superadmin" ||
+                  user.role === "admin" ||
+                  !!user.is_vip
+                }
               />
             </div>
           ) : (
