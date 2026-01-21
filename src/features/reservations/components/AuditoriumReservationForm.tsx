@@ -59,8 +59,8 @@ export default function AuditoriumReservationForm({
   useEffect(() => {
     if (reservationToEdit) {
       try {
-        const start = new Date(reservationToEdit.start_time);
-        const end = new Date(reservationToEdit.end_time);
+        if (!reservationToEdit.start_time || !reservationToEdit.end_time)
+          return;
 
         const sDate = reservationToEdit.start_time.split("T")[0];
         const eDate = reservationToEdit.end_time.split("T")[0];
@@ -140,7 +140,7 @@ export default function AuditoriumReservationForm({
       return start < rEnd && end > rStart;
     });
     setConflict(found || null);
-  }, [startTime, endTime, startDate, reservations]);
+  }, [startTime, endTime, startDate, reservations, reservationToEdit]);
 
   // 3. Handle Submit via API Routes (Bypassing RLS Write Restrictions)
   const handleSubmit = async (e: React.FormEvent) => {
