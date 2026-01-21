@@ -553,7 +553,8 @@ export default function CalendarView({
                               </p>
                             </div>
                           </div>
-                          {canManage && (
+                          {(canManage ||
+                            (assign.is_reservation && canDeleteAuditorium)) && (
                             <button
                               onClick={() => {
                                 handleDelete(assign.id, assign.is_reservation);
