@@ -13,51 +13,60 @@ interface Environment {
   capacity: number;
 }
 
-export default function AssignmentManager({
-  canManage, // permission check passed from parent
-}: {
-  canManage: boolean;
-}) {
-  const [environments, setEnvironments] = useState<Environment[]>([]);
-  const [selectedEnvId, setSelectedEnvId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  const fetchEnvironments = async () => {
-    setLoading(true);
-    // Fetch AMBIENTE and AUDITORIO, excluding KIOSKO
-    const { data } = await supabase
-      .from("areas")
-      .select("id, name")
-      .or("name.ilike.%AMBIENTE%,name.ilike.%AUDITORIO%")
-      .not("name", "ilike", "%KIOSKO%")
-      .order("name");
-
-    if (data) {
-      // Prioritize AUDITORIO to be the first option
-      const mapped = data
-        .map((d: { id: number; name: string }) => ({
-          id: d.id,
-          name: d.name,
-          type: "AREA",
-          capacity: 0,
-        }))
-        .sort((a, b) => {
-          if (a.name.toUpperCase().includes("AUDITORIO")) return -1;
-          if (b.name.toUpperCase().includes("AUDITORIO")) return 1;
-          return a.name.localeCompare(b.name);
-        });
-
-      setEnvironments(mapped);
-      if (mapped.length > 0 && !selectedEnvId) {
-        setSelectedEnvId(mapped[0].id);
-      }
-    }
-    setLoading(false);
   };
+
+  export default function AssignmentManager({
+    canManage, // permission check passed from parent
+    canDeleteAuditorium,
+  }: {
+    canManage: boolean;
+    canDeleteAuditorium: boolean;
+  }) {
+    const [environments, setEnvironments] = useState<Environment[]>([]);
+    const [selectedEnvId, setSelectedEnvId] = useState<number | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+    // Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+  
+    const fetchEnvironments = async () => {
+      setLoading(true);
+      // Fetch AMBIENTE and AUDITORIO, excluding KIOSKO
+      const { data } = await supabase
+        .from("areas")
+        .select("id, name")
+        .or("name.ilike.%AMBIENTE%,name.ilike.%AUDITORIO%")
+        .not("name", "ilike", "%KIOSKO%")
+        .order("name");
+  
+      if (data) {
+        // Prioritize AUDITORIO to be the first option
+        // Filter out "AMBIENTE DE INSTRUCTORES"
+        const filtered = data.filter(
+          (d) => !d.name.toUpperCase().includes("AMBIENTE DE INSTRUCTORES"),
+        );
+
+        const mapped = filtered
+          .map((d: { id: number; name: string }) => ({
+            id: d.id,
+            name: d.name,
+            type: "AREA",
+            capacity: 0,
+          }))
+          .sort((a, b) => {
+            if (a.name.toUpperCase().includes("AUDITORIO")) return -1;
+            if (b.name.toUpperCase().includes("AUDITORIO")) return 1;
+            return a.name.localeCompare(b.name);
+          });
+  
+        setEnvironments(mapped);
+        if (mapped.length > 0 && !selectedEnvId) {
+          setSelectedEnvId(mapped[0].id);
+        }
+      }
+      setLoading(false);
+    };
 
   useEffect(() => {
     fetchEnvironments();
@@ -117,6 +126,7 @@ export default function AssignmentManager({
             areaName={selectedEnv?.name || ""}
             key={selectedEnvId + "-" + refreshTrigger} // Force re-render on switch
             canManage={canManage}
+            canDeleteAuditorium={canDeleteAuditorium}
           />
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-gray-400">

@@ -443,6 +443,11 @@ export default function AgentDashboard() {
             <div className="animate-in fade-in zoom-in-95 duration-300 h-full pb-10">
               <AssignmentManager
                 canManage={!!permissions?.manage_assignments}
+                canDeleteAuditorium={
+                  !!currentUser?.user_metadata?.is_vip ||
+                  role === "superadmin" ||
+                  role === "admin"
+                }
               />
             </div>
           ) : viewMode === "HISTORY" ? (

@@ -50,10 +50,12 @@ export default function CalendarView({
   areaId,
   areaName,
   canManage,
+  canDeleteAuditorium,
 }: {
   areaId: number;
   areaName: string;
   canManage: boolean;
+  canDeleteAuditorium: boolean;
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"week" | "month">("week"); // Default to week
@@ -198,7 +200,30 @@ export default function CalendarView({
 
   const handleDelete = async (id: number, isReservation?: boolean) => {
     if (isReservation) {
-      toast.error("Las reservas deben gestionarse desde el módulo de reservas");
+      if (!canDeleteAuditorium) {
+        toast.error(
+          "Las reservas deben gestionarse desde el módulo de reservas",
+        );
+        return;
+      }
+      if (
+        !confirm(
+          "¿Estás seguro de eliminar esta RESERVA de Auditorio? Esta acción no se puede deshacer.",
+        )
+      )
+        return;
+
+      const { error } = await supabase
+        .from("reservations")
+        .delete()
+        .eq("id", id);
+      if (error) {
+        console.error("Error deleting reservation:", error);
+        toast.error("Error eliminando reserva");
+      } else {
+        toast.success("Reserva eliminada");
+        fetchAssignments();
+      }
       return;
     }
     if (!confirm("¿Eliminar esta asignación?")) return;
@@ -309,74 +334,133 @@ export default function CalendarView({
                   </span>
                 </div>
 
-                {/* Visual Indicators (The "3 dots" user mentioned) */}
+                {/* Visual Indicators (The "3 dots" user mentioned) Or Single Bar for Auditorium */}
                 <div className="flex gap-0.5 mt-1">
-                  {["MANANA", "TARDE", "NOCHE"].map((block) => {
-                    const isOccupied = dayAssignments.some(
-                      (a) => a.time_block === block,
-                    );
-                    return (
-                      <div
-                        key={block}
-                        className={`w-1.5 h-1.5 rounded-full ${isOccupied ? "bg-sena-green" : "bg-gray-200"}`}
-                      />
-                    );
-                  })}
+                  {areaName.toUpperCase().includes("AUDITORIO") ? (
+                    // Single indicator for Auditorium
+                    <div
+                      className={`w-full h-1.5 rounded-full ${
+                        dayAssignments.length > 0
+                          ? "bg-blue-500"
+                          : "bg-gray-200"
+                      }`}
+                    />
+                  ) : (
+                    // Standard 3 dots for environments
+                    ["MANANA", "TARDE", "NOCHE"].map((block) => {
+                      const isOccupied = dayAssignments.some(
+                        (a) => a.time_block === block,
+                      );
+                      return (
+                        <div
+                          key={block}
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            isOccupied ? "bg-sena-green" : "bg-gray-200"
+                          }`}
+                        />
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
               {/* ASSIGNMENTS LIST */}
               <div className="flex-1 flex flex-col gap-1 mt-1">
-                {(Object.keys(TIME_BLOCKS) as TimeBlock[]).map((blockKey) => {
-                  const assign = dayAssignments.find(
-                    (a) => a.time_block === blockKey,
-                  );
+                {areaName.toUpperCase().includes("AUDITORIO")
+                  ? // AUDITORIUM: Simple list of events
+                    dayAssignments.map((assign) => (
+                      <div
+                        key={assign.id}
+                        className="group relative text-[10px] p-1.5 rounded border border-l-4 shadow-sm bg-blue-50/50 border-l-blue-600 border-blue-100 flex flex-col justify-center min-h-[36px]"
+                      >
+                        <div className="flex justify-between items-center w-full">
+                          <span className="font-bold truncate text-blue-900">
+                            {assign.title || assign.instructor.full_name}
+                          </span>
+                          {/* Only show delete if authorized */}
+                          {canDeleteAuditorium && assign.is_reservation && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(assign.id, true);
+                              }}
+                              className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-[9px] text-blue-600">
+                          {assign.start_time
+                            ? format(new Date(assign.start_time), "p", {
+                                locale: es,
+                              })
+                            : ""}
+                        </div>
+                      </div>
+                    ))
+                  : // STANDARD ENVIRONMENTS: Time Blocks
+                    (Object.keys(TIME_BLOCKS) as TimeBlock[]).map(
+                      (blockKey) => {
+                        const assign = dayAssignments.find(
+                          (a) => a.time_block === blockKey,
+                        );
 
-                  // In month view, hide empty blocks to save space
-                  if (viewMode === "month" && !assign) return null;
+                        // In month view, hide empty blocks to save space
+                        if (viewMode === "month" && !assign) return null;
 
-                  return (
-                    <div
-                      key={blockKey}
-                      className={`group relative text-[10px] p-1.5 rounded border border-l-4 shadow-sm transition-all overflow-hidden flex flex-col justify-center min-h-[36px]
+                        return (
+                          <div
+                            key={blockKey}
+                            className={`group relative text-[10px] p-1.5 rounded border border-l-4 shadow-sm transition-all overflow-hidden flex flex-col justify-center min-h-[36px]
                         ${
                           assign
                             ? "bg-green-50/50 border-l-sena-green border-green-100"
                             : "bg-gray-50/30 border-l-gray-300 border-gray-100"
                         }`}
-                    >
-                      <div className="flex justify-between items-center w-full">
-                        <span
-                          className={`font-bold truncate ${assign ? "text-gray-800" : "text-gray-400 italic"} ${assign?.is_reservation ? "text-blue-700" : ""}`}
-                        >
-                          {assign
-                            ? assign.is_reservation
-                              ? `R: ${assign.title}`
-                              : viewMode === "week"
-                                ? assign.instructor?.full_name
-                                : assign.instructor?.full_name?.split(" ")[0]
-                            : `Libre (${TIME_BLOCKS[blockKey].label})`}
-                        </span>
-                        {assign && canManage && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDelete(assign.id, assign.is_reservation);
-                            }}
-                            className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
                           >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                      {viewMode === "week" && (
-                        <div className="text-[9px] text-gray-500">
-                          {TIME_BLOCKS[blockKey].label}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                            <div className="flex justify-between items-center w-full">
+                              <span
+                                className={`font-bold truncate ${
+                                  assign
+                                    ? "text-gray-800"
+                                    : "text-gray-400 italic"
+                                } ${assign?.is_reservation ? "text-blue-700" : ""}`}
+                              >
+                                {assign
+                                  ? assign.is_reservation
+                                    ? `R: ${assign.title}`
+                                    : viewMode === "week"
+                                      ? assign.instructor?.full_name
+                                      : assign.instructor?.full_name?.split(
+                                          " ",
+                                        )[0]
+                                  : `Libre (${TIME_BLOCKS[blockKey].label})`}
+                              </span>
+                              {assign && canManage && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(
+                                      assign.id,
+                                      assign.is_reservation,
+                                    );
+                                  }}
+                                  className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                            {viewMode === "week" && (
+                              <div className="text-[9px] text-gray-500">
+                                {TIME_BLOCKS[blockKey].label}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      },
+                    )}
               </div>
             </div>
           );
