@@ -85,15 +85,22 @@ export default function AuthGuard({
   }
 
   const currentRole = userRole || "";
-  if (
-    !user ||
-    (allowedRoles.length > 0 && !allowedRoles.includes(currentRole))
-  ) {
+
+  // CASE 1: Unauthenticated - Show loader while redirecting (handled by useEffect)
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <Loader2 className="w-10 h-10 text-sena-blue animate-spin mb-4" />
+        <p className="text-gray-500 font-medium">Redirigiendo al inicio...</p>
+      </div>
+    );
+  }
+
+  // CASE 2: Authenticated but Forbidden
+  if (allowedRoles.length > 0 && !allowedRoles.includes(currentRole)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-red-50 text-red-700">
         <ShieldAlert className="w-16 h-16 mb-4" />
-        <h1 className="text-2xl font-bold">Acceso Restringido</h1>
-
         <h1 className="text-2xl font-bold">Acceso Restringido</h1>
 
         <div className="mt-4 text-sm text-red-600 text-center max-w-md">
