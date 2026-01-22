@@ -21,6 +21,7 @@ interface UserData {
   full_name: string;
   area: string;
   role: string;
+  [key: string]: unknown;
 }
 
 function HomeContent() {

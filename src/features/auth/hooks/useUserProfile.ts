@@ -6,7 +6,16 @@ import { User } from "@supabase/supabase-js";
 
 export interface UserProfile {
   user: User | null;
-  profile: Record<string, unknown> | null;
+  profile: {
+    id?: string;
+    full_name?: string;
+    is_vip?: boolean;
+    role?: string;
+    perm_create_assets?: boolean;
+    perm_transfer_assets?: boolean;
+    perm_decommission_assets?: boolean;
+    [key: string]: unknown;
+  } | null;
   loading: boolean;
   role: string | null;
   permissions?: {
@@ -32,10 +41,15 @@ export function useUserProfile() {
         const { data: dbUser } = await supabase
           .from("users")
           .select(
-            "id, full_name, perm_manage_assignments, perm_create_assets, perm_transfer_assets, perm_decommission_assets",
+            "id, full_name, is_vip, perm_manage_assignments, perm_create_assets, perm_transfer_assets, perm_decommission_assets",
           )
-          .eq("id", user.id)
+          .eq("auth_id", user.id)
           .single();
+
+        const metadataRole = user.user_metadata?.role?.toLowerCase();
+        const isVipMetadata = !!(
+          user.user_metadata?.is_vip || metadataRole === "vip"
+        );
 
         setState({
           permissions: {
@@ -47,8 +61,9 @@ export function useUserProfile() {
           user,
           profile: {
             ...user.user_metadata,
-            id: dbUser?.id, // Public ID
+            id: dbUser?.id || user.id, // Ensure we always have an ID for ownership checks
             full_name: dbUser?.full_name || user.user_metadata?.full_name, // Prioridad DB
+            is_vip: !!(dbUser?.is_vip || isVipMetadata),
             perm_create_assets: dbUser?.perm_create_assets,
             perm_transfer_assets: dbUser?.perm_transfer_assets,
             perm_decommission_assets: dbUser?.perm_decommission_assets,
@@ -58,11 +73,17 @@ export function useUserProfile() {
         });
       } catch (error) {
         console.error("Error fetching user profile:", error);
+        const metadataRole = user.user_metadata?.role?.toLowerCase();
         setState({
           user,
-          profile: user.user_metadata,
+          profile: {
+            ...user.user_metadata,
+            id: user.id,
+            is_vip: !!(user.user_metadata?.is_vip || metadataRole === "vip"),
+            full_name: user.user_metadata?.full_name,
+          },
           loading: false,
-          role: user.user_metadata?.role || "user",
+          role: metadataRole || "user",
         });
       }
     }

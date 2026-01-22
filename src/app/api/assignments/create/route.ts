@@ -1,12 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, NextRequest } from "next/server";
 import { z } from "zod";
-import {
-  unauthorized,
-  forbidden,
-  getUserFromRequest,
-  verifyUserPermissions,
-} from "@/lib/auth-check";
+import { forbidden, verifyUserPermissions } from "@/lib/auth-check";
+import { withAuth, AuthenticatedContext } from "@/lib/api-middleware";
 
 // Initialize Supabase Admin Client
 const supabaseAdmin = createClient(
@@ -28,34 +24,28 @@ const AssignmentSchema = z.object({
       z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format YYYY-MM-DD"),
     )
     .min(1),
-  time_block: z.enum(["MANANA", "TARDE", "NOCHE"]).or(z.string()), // Allow string fallback if enum expands
+  time_block: z.enum(["MANANA", "TARDE", "NOCHE"]).or(z.string()),
 });
 
-export async function POST(request: NextRequest) {
+async function createAssignmentsHandler(
+  request: NextRequest,
+  ctx: AuthenticatedContext,
+) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) return unauthorized();
-
+    // 1. Authorization check
     const canManage = await verifyUserPermissions(
-      user.id,
+      ctx.user.id,
       ["admin", "superadmin"],
       "perm_manage_assignments",
     );
     if (!canManage) return forbidden("No permission to manage assignments");
 
     const body = await request.json();
+    const validatedData = AssignmentSchema.parse(body);
 
-    const parseResult = AssignmentSchema.safeParse(body);
-    if (!parseResult.success) {
-      return NextResponse.json(
-        { error: "Datos inválidos", details: parseResult.error.format() },
-        { status: 400 },
-      );
-    }
+    const { instructor_id, area_id, dates, time_block } = validatedData;
 
-    const { instructor_id, area_id, dates, time_block } = parseResult.data;
-
-    // 1. Check for conflicts
+    // 2. Check for conflicts
     const { data: existing, error: checkError } = await supabaseAdmin
       .from("instructor_assignments")
       .select("assignment_date")
@@ -63,10 +53,7 @@ export async function POST(request: NextRequest) {
       .eq("time_block", time_block)
       .in("assignment_date", dates);
 
-    if (checkError) {
-      console.error("Error checking conflicts:", checkError);
-      return NextResponse.json({ error: checkError.message }, { status: 500 });
-    }
+    if (checkError) throw checkError;
 
     if (existing && existing.length > 0) {
       console.warn("[API/Assignments] Conflict detected for dates:", existing);
@@ -79,7 +66,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Insert
+    // 3. Insert
     const payload = dates.map((date: string) => ({
       instructor_id,
       area_id,
@@ -91,17 +78,21 @@ export async function POST(request: NextRequest) {
       .from("instructor_assignments")
       .insert(payload);
 
-    if (insertError) {
-      console.error("Error inserting assignments:", insertError);
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
-    }
+    if (insertError) throw insertError;
 
     return NextResponse.json({ success: true, count: payload.length });
   } catch (error: unknown) {
     console.error("Server error:", error);
+    // withAuth handles ZodError automatically.
+    // For other errors, we throw or return 500.
+    if (error instanceof Error && (error as any).issues) {
+      throw error; // Let withAuth handle ZodError
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown Error" },
       { status: 500 },
     );
   }
 }
+
+export const POST = withAuth(createAssignmentsHandler);

@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/cliente";
 import { Plus, MapPin } from "lucide-react";
 import BulkAssignmentModal from "./BulkAssignmentModal";
-import CalendarView, { Assignment } from "./CalendarView";
+import CalendarView from "./CalendarView";
+import { Assignment } from "../types";
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
+import { UserProfile } from "@/features/auth/hooks/useUserProfile";
 
 interface Environment {
   id: number;
@@ -15,12 +17,13 @@ interface Environment {
 }
 
 export default function AssignmentManager({
-  canManage, // permission check passed from parent
+  canManage,
   canDeleteAuditorium,
+  user,
 }: {
   canManage: boolean;
   canDeleteAuditorium: boolean;
-  user?: { id: string; full_name: string };
+  user?: UserProfile["profile"];
 }) {
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [selectedEnvId, setSelectedEnvId] = useState<number | null>(null);
@@ -151,12 +154,12 @@ export default function AssignmentManager({
       )}
 
       {/* EDIT MODAL FOR RESERVATIONS */}
-      {editingRes && (
+      {editingRes && user && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in">
           <div className="bg-white w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95">
             <AuditoriumReservationForm
               user={user}
-              reservationToEdit={editingRes}
+              reservationToEdit={editingRes as any}
               onCancel={() => setEditingRes(null)}
               onSuccess={() => {
                 setEditingRes(null);

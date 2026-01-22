@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { z } from "zod";
-import {
-  unauthorized,
-  forbidden,
-  getUserFromRequest,
-  verifyUserPermissions,
-} from "@/lib/auth-check";
+import { forbidden, verifyUserPermissions } from "@/lib/auth-check";
+import { withAuth, AuthenticatedContext } from "@/lib/api-middleware";
 
 const ReservationSchema = z.object({
   title: z.string().min(3),
@@ -17,86 +13,83 @@ const ReservationSchema = z.object({
   resources: z.array(z.string()).optional().nullable(),
 });
 
-export async function POST(req: NextRequest) {
-  try {
-    const user = await getUserFromRequest(req);
-    if (!user) return unauthorized();
+async function createReservation(req: NextRequest, ctx: AuthenticatedContext) {
+  const body = await req.json();
+  const parseResult = ReservationSchema.safeParse(body);
 
-    const body = await req.json();
-    const parseResult = ReservationSchema.safeParse(body);
-
-    if (!parseResult.success) {
-      return NextResponse.json(
-        { error: "Invalid data", details: parseResult.error.format() },
-        { status: 400 },
-      );
-    }
-
-    const { title, start_time, end_time, user_id, auditorium_id, resources } =
-      parseResult.data;
-
-    // Ownership Check
-    const supabaseAdmin = getSupabaseAdmin();
-
-    // Si los IDs no coinciden directamente (AuthUserID vs PublicUserID), verificamos enlace en DB
-    if (user.id !== user_id) {
-      // Verificar si el 'user_id' (public) pertenece al 'user.id' (auth)
-      const { data: publicUser } = await supabaseAdmin
-        .from("users")
-        .select("auth_id")
-        .eq("id", user_id)
-        .single();
-
-      if (!publicUser || publicUser.auth_id !== user.id) {
-        // Si no coinciden ni directa ni indirectamente, verificar privilegios de admin
-        const isAdmin = await verifyUserPermissions(user.id, [
-          "admin",
-          "superadmin",
-        ]);
-        if (!isAdmin) return forbidden("Cannot create reservation for others");
-      }
-    }
-
-    // 1. Check Conflicts (Server-side validation)
-    // We double check here to ensure data integrity even if frontend checked
-    const { data: conflicts } = await supabaseAdmin
-      .from("reservations")
-      .select("id, status, user_id, users(is_vip)")
-      .eq("status", "APPROVED")
-      .lt("start_time", end_time)
-      .gt("end_time", start_time);
-
-    if (conflicts && conflicts.length > 0) {
-      // Logic for conflicts (omitted for now as per original code comment)
-    }
-
-    // 2. Create Reservation
-    const { data, error } = await supabaseAdmin
-      .from("reservations")
-      .insert([
-        {
-          title,
-          start_time,
-          end_time,
-          user_id,
-          auditorium_id: auditorium_id || "1",
-          resources,
-          status: "APPROVED",
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Reservation Error:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ data }, { status: 200 });
-  } catch (error: unknown) {
+  if (!parseResult.success) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 },
+      { error: "Invalid data", details: parseResult.error.format() },
+      { status: 400 },
     );
   }
+
+  const { title, start_time, end_time, user_id, auditorium_id, resources } =
+    parseResult.data;
+
+  // Ownership Check
+  const supabaseAdmin = getSupabaseAdmin();
+  const user = ctx.user; // Auth User
+
+  // Note: user.id is Auth ID. user_id from body is Public ID (UUID from users table).
+  // We check if the target public user (user_id) belongs to the authenticated user (user.id).
+
+  // 1. Fetch target user to check link
+  const { data: publicUser } = await supabaseAdmin
+    .from("users")
+    .select("auth_id")
+    .eq("id", user_id)
+    .single();
+
+  // If the target user doesn't exist OR their auth_id doesn't match the current session user
+  if (!publicUser || publicUser.auth_id !== user.id) {
+    // Then checks if admin
+    const isAdmin = await verifyUserPermissions(user.id, [
+      "admin",
+      "superadmin",
+    ]);
+    if (!isAdmin) return forbidden("Cannot create reservation for others");
+  }
+
+  // 1. Check Conflicts (Server-side validation)
+  const { data: conflicts } = await supabaseAdmin
+    .from("reservations")
+    .select("id, status, user_id, users(is_vip)")
+    .eq("status", "APPROVED")
+    .lt("start_time", end_time)
+    .gt("end_time", start_time);
+
+  if (conflicts && conflicts.length > 0) {
+    // Logic for conflicts (omitted for now as per original code comment)
+    return NextResponse.json(
+      { error: "Horario no disponible (conflicto detectado)" },
+      { status: 409 },
+    );
+  }
+
+  // 2. Create Reservation
+  const { data, error } = await supabaseAdmin
+    .from("reservations")
+    .insert([
+      {
+        title,
+        start_time,
+        end_time,
+        user_id,
+        auditorium_id: auditorium_id || "1",
+        resources,
+        status: "APPROVED",
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Reservation Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ data }, { status: 200 });
 }
+
+export const POST = withAuth(createReservation);

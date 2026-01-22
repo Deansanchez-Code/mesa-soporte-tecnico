@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const { data: user, error } = await supabaseAdmin
       .from("users")
       .select(
-        "id, username, full_name, role, area, employment_type, job_category, auth_id, email",
+        "id, username, full_name, role, area, employment_type, job_category, auth_id, email, is_vip",
       )
       .eq("username", username)
       .single();
@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
               role: user.role,
               area: user.area,
               username: user.username,
+              is_vip: user.is_vip,
             },
           });
         }
@@ -93,6 +94,7 @@ export async function POST(req: NextRequest) {
               role: user.role,
               area: user.area,
               username: user.username,
+              is_vip: user.is_vip,
             },
           });
 

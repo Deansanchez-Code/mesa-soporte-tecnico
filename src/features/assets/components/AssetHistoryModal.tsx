@@ -54,7 +54,7 @@ export default function AssetHistoryModal({
         const { data: dbUser } = await supabase
           .from("users")
           .select("id, full_name, perm_transfer_assets")
-          .eq("id", user.id)
+          .eq("auth_id", user.id)
           .single();
         setCurrentUser(dbUser);
       }

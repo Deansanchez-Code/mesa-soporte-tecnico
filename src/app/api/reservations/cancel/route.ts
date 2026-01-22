@@ -25,16 +25,53 @@ export async function POST(req: NextRequest) {
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // OWNERSHIP CHECK
+    // 1. Fetch reservation to check ownership
     const { data: reservation } = await supabaseAdmin
       .from("reservations")
-      .select("user_id")
+      .select("user_id, start_time")
       .eq("id", reservation_id)
       .single();
 
-    if (reservation && reservation.user_id !== user.id) {
-      if (!(await verifyUserPermissions(user.id, ["admin", "superadmin"]))) {
+    if (!reservation) {
+      return NextResponse.json(
+        { error: "Reservation not found" },
+        { status: 404 },
+      );
+    }
+
+    // 2. We get the public ID of the current Auth user
+    const { data: publicUser } = await supabaseAdmin
+      .from("users")
+      .select("id, is_vip, role")
+      .eq("auth_id", user.id)
+      .single();
+
+    const isOwner = publicUser?.id === reservation.user_id;
+    const isVip =
+      !!publicUser?.is_vip || publicUser?.role?.toLowerCase() === "vip";
+
+    if (!isOwner && !isVip) {
+      const isAdmin = await verifyUserPermissions(user.id, [
+        "admin",
+        "superadmin",
+      ]);
+      if (!isAdmin) {
         return forbidden("Cannot cancel other users' reservations");
+      }
+    }
+
+    // 3. Past/Current Event Check
+    const startTime = new Date(reservation.start_time);
+    const now = new Date();
+    if (now >= startTime) {
+      const isAdmin = await verifyUserPermissions(user.id, [
+        "admin",
+        "superadmin",
+      ]);
+      if (!isAdmin) {
+        return forbidden(
+          "No se pueden cancelar eventos en curso o finalizados.",
+        );
       }
     }
 

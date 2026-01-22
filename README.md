@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mesa de Soporte Técnico
 
-## Getting Started
+Plataforma integral para la gestión de tickets de soporte, asignación de ambientes y reservas de auditorio.
 
-First, run the development server:
+## Arquitectura del Proyecto
+
+El proyecto sigue una estructura modular basada en características (Features) dentro de `src/features` y una capa de aplicación centrada en Next.js App Router en `src/app`.
+
+### Tecnologías Principales
+
+- **Framework**: Next.js 15+ (App Router)
+- **Lenguaje**: TypeScript
+- **Base de Datos & Auth**: Supabase
+- **Estilos**: Tailwind CSS & Lucide Icons
+- **Notificaciones**: Sonner
+- **Testing**: Vitest (Unit/Integration) & Playwright (E2E)
+- **Documentación**: TypeDoc
+
+### Estructura de Directorios
+
+- `src/app`: Rutas del servidor, APIs y Layouts.
+- `src/features`: Lógica de negocio organizada por dominios (tickets, assignments, reservations).
+- `src/lib`: Utilidades globales, configuración de clientes (Supabase) y middlewares.
+- `src/components`: Componentes UI genéricos y elementos de diseño compartidos.
+
+## Guía de Desarrollo
+
+### Requisitos Previos
+
+- Node.js 20+
+- pnpm 9+
+
+### Instalación
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Ejecución en Desarrollo
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Calidad y Mantenimiento
 
-## Learn More
+- **Linting**: `pnpm lint`
+- **Chequeo de Tipos**: `npx tsc --noEmit`
+- **Tests Unitarios**: `pnpm test:all`
+- **Tests E2E**: `npx playwright test`
+- **Generar Documentación**: `pnpm docs:generate` (Salida en `docs/api`)
 
-To learn more about Next.js, take a look at the following resources:
+## CI/CD
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+El proyecto cuenta con un flujo de Integración Contínua en GitHub Actions que ejecuta automáticamente el linting, chequeo de tipos y los tests en cada push a las ramas `main` y `developer`.

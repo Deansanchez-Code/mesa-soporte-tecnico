@@ -8,6 +8,7 @@ export interface User {
   employment_type?: string;
   job_category?: string;
   is_vip?: boolean;
+  [key: string]: unknown;
 }
 
 export interface Asset {

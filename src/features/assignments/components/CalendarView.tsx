@@ -2,7 +2,6 @@
 // Force re-compile
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase/cliente";
 import {
   format,
   startOfMonth,
@@ -31,22 +30,12 @@ import {
   isHoliday,
 } from "@/lib/scheduling";
 import { toast } from "sonner";
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
-export interface Assignment {
-  id: number;
-  instructor_id: string;
-  assignment_date: string; // YYYY-MM-DD
-  time_block: TimeBlock;
-  instructor: {
-    full_name: string;
-  };
-  is_reservation?: boolean;
-  user_id?: string;
-  title?: string;
-  start_time?: string | null;
-  end_time?: string | null;
-  resources?: string[] | null;
-}
+import { useAssignments } from "../hooks/useAssignments";
+import { Assignment } from "../types";
+
+import { UserProfile } from "@/features/auth/hooks/useUserProfile";
 
 export default function CalendarView({
   areaId,
@@ -60,13 +49,11 @@ export default function CalendarView({
   areaName: string;
   canManage: boolean;
   canDeleteAuditorium: boolean;
-  user?: { id: string; full_name: string };
+  user?: UserProfile["profile"];
   onEdit?: (assign: Assignment) => void;
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"week" | "month">("week"); // Default to week
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
   // Calculate calendar grid
   const monthStart = startOfMonth(currentDate);
@@ -83,174 +70,81 @@ export default function CalendarView({
   const startDayOfWeek = getDay(monthStart); // 0 (Sun) to 6 (Sat)
   const emptySlots = Array(startDayOfWeek).fill(null);
 
-  // Wrap in useCallback to fix dependency warning
-  const fetchAssignments = async () => {
-    const fetchStart = viewMode === "month" ? monthStart : weekStartRange;
-    const fetchEnd = viewMode === "month" ? monthEnd : weekEndRange;
-    const startStr = formatDateForDB(fetchStart);
-    const endStr = formatDateForDB(fetchEnd);
+  const fetchStart = viewMode === "month" ? monthStart : weekStartRange;
+  const fetchEnd = viewMode === "month" ? monthEnd : weekEndRange;
 
-    console.log(
-      `[Calendar] Fetching for Area: ${areaId}, Mode: ${viewMode}, Range: ${startStr} to ${endStr}`,
-    );
+  const { assignments, deleteAssignment } = useAssignments({
+    areaId,
+    areaName,
+    fetchStart,
+    fetchEnd,
+  });
 
-    // 1. Fetch Assignments (Flat)
-    const { data: assignData, error: assignError } = await supabase
-      .from("instructor_assignments")
-      .select("id, instructor_id, assignment_date, time_block")
-      .eq("area_id", areaId)
-      .gte("assignment_date", startStr)
-      .lte("assignment_date", endStr);
-
-    if (assignError) {
-      console.error("[Calendar] Fetch Error:", assignError);
-      toast.error("Error al cargar asignaciones");
-      return;
-    }
-
-    const instructorIds = Array.from(
-      new Set(assignData?.map((a) => a.instructor_id) || []),
-    );
-
-    let combinedAssignments: Assignment[] = [];
-
-    if (instructorIds.length > 0) {
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("id, full_name")
-        .in("id", instructorIds);
-
-      if (userError) {
-        console.error("[Calendar] Error fetching instructors:", userError);
-      }
-
-      const userMap = new Map(userData?.map((u) => [u.id, u.full_name]) || []);
-
-      combinedAssignments = (assignData || []).map((a) => ({
-        ...a,
-        instructor: {
-          full_name: userMap.get(a.instructor_id) || "Desconocido",
-        },
-      }));
-    }
-
-    // 3. Fetch Reservations if it's the Auditorium
-    if (areaName.toUpperCase().includes("AUDITORIO")) {
-      console.log(
-        `[Calendar] ${areaName} is Auditorium. Fetching reservations...`,
-      );
-      const { data: resData, error: resError } = await supabase
-        .from("reservations")
-        .select(
-          "id, title, start_time, end_time, resources, user_id, users(full_name)",
-        )
-        .eq("status", "APPROVED")
-        .gte("start_time", startStr + "T00:00:00")
-        .lte("start_time", endStr + "T23:59:59");
-
-      console.log(`[Calendar] Reservation Result:`, {
-        count: resData?.length,
-        error: resError,
-      });
-
-      if (resError)
-        console.error("[Calendar] Reservation Fetch Error:", resError);
-
-      if (resData && resData.length > 0) {
-        interface ReservationData {
-          id: number;
-          title: string;
-          start_time: string;
-          end_time: string | null;
-          resources: string[] | null;
-          users: { full_name: string } | null;
-        }
-
-        const reservationAssignments: Assignment[] = (
-          resData as unknown as ReservationData[]
-        ).map((r) => {
-          // Robust local time conversion
-          const localDateObj = new Date(r.start_time);
-          const rawDate = formatDateForDB(localDateObj);
-
-          const startHour = localDateObj.getHours();
-          let block: TimeBlock = "MANANA";
-          if (startHour >= 12 && startHour < 18) block = "TARDE";
-          if (startHour >= 18) block = "NOCHE";
-
-          return {
-            id: r.id,
-            instructor_id: "RESERVA",
-            assignment_date: rawDate,
-            time_block: block,
-            instructor: {
-              full_name: r.users?.full_name || "RESERVA",
-            },
-            is_reservation: true,
-            title: r.title,
-            start_time: r.start_time,
-            end_time: r.end_time,
-            resources: r.resources,
-          };
-        });
-        combinedAssignments = [
-          ...combinedAssignments,
-          ...reservationAssignments,
-        ];
-      }
-    }
-
-    console.log(
-      `[Calendar] Loaded ${combinedAssignments.length} total events.`,
-    );
-    setAssignments(combinedAssignments);
-  };
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [selectedAssignment, setSelectedAssignment] =
+    useState<Assignment | null>(null);
+  const [assignmentToDelete, setAssignmentToDelete] =
+    useState<Assignment | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeletingLocal, setIsDeletingLocal] = useState(false);
 
   const handleDelete = async (id: number, isReservation?: boolean) => {
-    if (isReservation) {
-      const res = assignments.find((a) => a.id === id);
-      const isOwner = res?.user_id === user?.id;
+    const assignment = assignments.find((a) => a.id === id);
+    if (!assignment) return;
 
-      if (!canManage && !isOwner) {
+    // 1. Restriction: Past/Current events cannot be deleted by non-admins
+    if (isReservation && assignment.start_time) {
+      const startTime = new Date(assignment.start_time);
+      const now = new Date();
+      if (now >= startTime) {
+        if (!canDeleteAuditorium) {
+          // canDeleteAuditorium is true for admin/superadmin
+          toast.error("No se pueden eliminar eventos en curso o finalizados.");
+          return;
+        }
+      }
+    }
+
+    if (isReservation) {
+      const isOwner =
+        user?.id &&
+        assignment.user_id &&
+        user.id.toLowerCase() === assignment.user_id.toLowerCase();
+      if (!canManage && !isOwner && !canDeleteAuditorium && !user?.is_vip) {
         toast.error("No tienes permisos para eliminar esta reserva");
         return;
       }
-      if (
-        !confirm(
-          "¿Estás seguro de eliminar esta RESERVA de Auditorio? Esta acción no se puede deshacer.",
-        )
-      )
+    } else {
+      if (!canManage) {
+        toast.error("No tienes permisos para eliminar esta asignación");
         return;
-
-      const { error } = await supabase
-        .from("reservations")
-        .delete()
-        .eq("id", id);
-      if (error) {
-        console.error("Error deleting reservation:", error);
-        toast.error("Error eliminando reserva");
-      } else {
-        toast.success("Reserva eliminada");
-        fetchAssignments();
       }
-      return;
     }
-    if (!confirm("¿Eliminar esta asignación?")) return;
-    const { error } = await supabase
-      .from("instructor_assignments")
-      .delete()
-      .eq("id", id);
-    if (error) toast.error("Error eliminando");
-    else {
-      toast.success("Eliminado");
-      fetchAssignments();
+
+    setAssignmentToDelete(assignment);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!assignmentToDelete) return;
+    setIsDeletingLocal(true);
+    const { success } = await deleteAssignment(
+      assignmentToDelete.id,
+      !!assignmentToDelete.is_reservation,
+      user?.full_name,
+    );
+    setIsDeletingLocal(false);
+    if (success) {
+      setShowDeleteConfirm(false);
+      setAssignmentToDelete(null);
+      setSelectedAssignment(null);
     }
   };
 
   useEffect(() => {
-    fetchAssignments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentDate, areaId, viewMode]);
+    // Refresh when currentDate or viewMode changes handled by hook dependencies if we pass them
+    // But since we pass dates derived from currentDate, hook already refetches.
+  }, [currentDate, viewMode]);
 
   const nextRange = () => {
     if (viewMode === "month") setCurrentDate(addMonths(currentDate, 1));
@@ -327,7 +221,10 @@ export default function CalendarView({
           return (
             <div
               key={day.toString()}
-              onClick={() => setSelectedDay(day)}
+              onClick={() => {
+                setSelectedDay(day);
+                setSelectedAssignment(null);
+              }}
               className={`bg-white min-h-[120px] p-2 flex flex-col gap-1 transition-colors cursor-pointer 
                 ${isHolidayDay ? "bg-red-50/20 border-red-400 ring-2 ring-inset ring-red-200" : ""}
                 hover:bg-gray-50`}
@@ -376,38 +273,55 @@ export default function CalendarView({
               {/* ASSIGNMENTS LIST */}
               <div className="flex-1 flex flex-col gap-1 mt-1">
                 {areaName.toUpperCase().includes("AUDITORIO")
-                  ? // AUDITORIUM: Simple list of events
-                    dayAssignments.map((assign) => (
-                      <div
-                        key={assign.id}
-                        className="group relative text-[10px] p-1.5 rounded border border-l-4 shadow-sm bg-blue-50/50 border-l-blue-600 border-blue-100 flex flex-col justify-center min-h-[36px]"
-                      >
-                        <div className="flex justify-between items-center w-full">
-                          <span className="font-bold truncate text-blue-900">
-                            {assign.title || assign.instructor.full_name}
-                          </span>
-                          {/* Only show delete if authorized */}
-                          {canDeleteAuditorium && assign.is_reservation && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(assign.id, true);
-                              }}
-                              className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
+                  ? dayAssignments.map((assign) => {
+                      // Calculate duration for sizing
+                      let durationHours = 1;
+                      if (assign.start_time && assign.end_time) {
+                        const start = new Date(assign.start_time).getTime();
+                        const end = new Date(assign.end_time).getTime();
+                        durationHours = (end - start) / (1000 * 60 * 60);
+                      }
+
+                      // Base height per hour (e.g., 30px per hour)
+                      // Min height 40px to fit text
+                      const heightPx = Math.max(40, durationHours * 30);
+
+                      return (
+                        <div
+                          key={assign.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDay(day);
+                            setSelectedAssignment(assign);
+                          }}
+                          style={{ height: `${heightPx}px` }}
+                          className="group relative text-[10px] p-1 rounded border border-l-2 shadow-sm bg-blue-50/50 border-l-blue-600 border-blue-100 flex flex-col justify-start min-h-[36px] overflow-hidden"
+                        >
+                          <div className="flex justify-between items-center w-full leading-tight">
+                            <span className="font-bold truncate text-blue-900 w-full pr-1">
+                              {assign.title || assign.instructor.full_name}
+                            </span>
+                            {/* Only show delete if authorized AND not started (unless admin) */}
+                            {canDeleteAuditorium && assign.is_reservation && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(assign.id, true);
+                                }}
+                                className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity absolute right-0.5 top-0.5 bg-white/90 rounded-full p-0.5 shadow-sm"
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="text-[8px] tracking-tighter text-blue-600 leading-none mt-auto">
+                            {assign.start_time
+                              ? `${format(new Date(assign.start_time), "HH:mm")} - ${format(new Date(assign.end_time || ""), "HH:mm")}`
+                              : ""}
+                          </div>
                         </div>
-                        <div className="text-[9px] text-blue-600">
-                          {assign.start_time
-                            ? format(new Date(assign.start_time), "p", {
-                                locale: es,
-                              })
-                            : ""}
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   : // STANDARD ENVIRONMENTS: Time Blocks
                     (Object.keys(TIME_BLOCKS) as TimeBlock[]).map(
                       (blockKey) => {
@@ -421,6 +335,13 @@ export default function CalendarView({
                         return (
                           <div
                             key={blockKey}
+                            onClick={(e) => {
+                              if (assign) {
+                                e.stopPropagation();
+                                setSelectedDay(day);
+                                setSelectedAssignment(assign);
+                              }
+                            }}
                             className={`group relative text-[10px] p-1.5 rounded border border-l-4 shadow-sm transition-all overflow-hidden flex flex-col justify-center min-h-[36px]
                         ${
                           assign
@@ -482,7 +403,7 @@ export default function CalendarView({
       {/* DAY DETAILS MODAL */}
       {selectedDay && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-y-auto max-h-[90vh] animate-in zoom-in-95 scrollbar-thin scrollbar-thumb-gray-200">
             <div className="bg-sena-blue p-4 flex justify-between items-center text-white">
               <div>
                 <h4 className="font-bold capitalize flex items-center gap-2">
@@ -494,7 +415,10 @@ export default function CalendarView({
                 </p>
               </div>
               <button
-                onClick={() => setSelectedDay(null)}
+                onClick={() => {
+                  setSelectedDay(null);
+                  setSelectedAssignment(null);
+                }}
                 className="p-2 hover:bg-white/10 rounded-full transition-colors"
                 title="Cerrar"
               >
@@ -502,173 +426,342 @@ export default function CalendarView({
               </button>
             </div>
             <div className="p-4 space-y-3">
-              {["MANANA", "TARDE", "NOCHE"].map((block) => {
-                const dayStr = formatDateForDB(selectedDay);
-                const dayAssigns = assignments.filter(
-                  (a) => a.assignment_date === dayStr,
-                );
-                const assign = dayAssigns.find((a) => a.time_block === block);
+              {areaName.toUpperCase().includes("AUDITORIO")
+                ? // AUDITORIUM: Render by Assignment directly (sorted by time)
+                  assignments
+                    .filter(
+                      (a) => a.assignment_date === formatDateForDB(selectedDay),
+                    )
+                    .sort(
+                      (a, b) =>
+                        new Date(a.start_time || 0).getTime() -
+                        new Date(b.start_time || 0).getTime(),
+                    )
+                    .map((assign) => {
+                      if (
+                        selectedAssignment &&
+                        assign.id !== selectedAssignment.id
+                      )
+                        return null;
 
-                return (
-                  <div
-                    key={block}
-                    className={`p-4 rounded-xl border-2 transition-all ${
-                      assign
-                        ? "border-sena-green bg-green-50"
-                        : "border-gray-100 bg-white"
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          assign
-                            ? assign.is_reservation
-                              ? "bg-blue-600 text-white"
-                              : "bg-sena-green text-white"
-                            : "bg-gray-100 text-gray-400"
-                        }`}
-                      >
-                        {TIME_BLOCKS[block as TimeBlock].label}{" "}
-                        {assign?.is_reservation ? "(RESERVA)" : ""}
-                      </span>
-                      <span className="text-[10px] font-mono text-gray-400">
-                        {TIME_BLOCKS[block as TimeBlock].range}
-                      </span>
-                    </div>
-                    {assign ? (
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-inner ${
-                                assign.is_reservation
-                                  ? "bg-blue-200 text-blue-700"
-                                  : "bg-green-200 text-green-700"
-                              }`}
-                            >
-                              {assign.instructor.full_name[0]}
-                            </div>
-                            <div>
-                              <p className="text-sm font-bold text-gray-800 leading-tight">
-                                {assign.instructor.full_name}
-                              </p>
-                              <p
-                                className={`text-[10px] font-bold uppercase mt-0.5 ${
-                                  assign.is_reservation
-                                    ? "text-blue-600"
-                                    : "text-sena-green"
-                                }`}
-                              >
-                                {assign.is_reservation
-                                  ? "Responsable"
-                                  : "Instructor Asignado"}
-                              </p>
-                            </div>
-                          </div>
-                          {(canManage ||
-                            (assign.is_reservation &&
-                              user?.id === assign.user_id)) && (
-                            <div className="flex gap-1">
-                              {assign.is_reservation && onEdit && (
-                                <button
-                                  onClick={() => {
-                                    onEdit(assign);
-                                    setSelectedDay(null);
-                                  }}
-                                  className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all"
-                                  title="Editar"
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => {
-                                  handleDelete(
-                                    assign.id,
-                                    assign.is_reservation,
-                                  );
-                                  setSelectedDay(null);
-                                }}
-                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
-                                title="Eliminar"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        {assign.is_reservation && (
-                          <div className="mt-1 bg-blue-50/50 rounded-lg p-3 border border-blue-100 space-y-3">
-                            <div>
-                              <h5 className="text-[10px] text-blue-400 font-bold uppercase tracking-wider mb-1">
-                                Evento / Actividad
-                              </h5>
-                              <p className="text-sm font-bold text-blue-900 leading-tight">
-                                {assign.title}
-                              </p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 border-t border-blue-100 pt-3">
-                              <div>
-                                <p className="text-[10px] text-blue-400 font-bold uppercase">
-                                  Inicio
-                                </p>
-                                <p className="text-sm text-gray-700 font-medium">
-                                  {assign.start_time
-                                    ? format(new Date(assign.start_time), "p", {
-                                        locale: es,
-                                      })
-                                    : "N/A"}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-[10px] text-blue-400 font-bold uppercase">
-                                  Fin
-                                </p>
-                                <p className="text-sm text-gray-700 font-medium">
-                                  {assign.end_time
-                                    ? format(new Date(assign.end_time), "p", {
-                                        locale: es,
-                                      })
-                                    : "N/A"}
-                                </p>
-                              </div>
-                            </div>
-
-                            {assign.resources &&
-                              assign.resources.length > 0 && (
-                                <div className="border-t border-blue-100 pt-3">
-                                  <p className="text-[10px] text-blue-400 font-bold uppercase mb-1.5">
-                                    Recursos Solicitados
+                      return (
+                        <div
+                          key={assign.id}
+                          className="p-4 rounded-xl border-2 transition-all border-blue-100 bg-blue-50"
+                        >
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-inner bg-blue-200 text-blue-700">
+                                  {assign.instructor.full_name[0]}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-bold text-gray-800 leading-tight">
+                                    {assign.instructor.full_name}
                                   </p>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {assign.resources.map((res, i) => (
-                                      <span
-                                        key={i}
-                                        className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[9px] font-bold border border-blue-200"
-                                      >
-                                        {res}
-                                      </span>
-                                    ))}
-                                  </div>
+                                  <p className="text-[10px] font-bold uppercase mt-0.5 text-blue-600">
+                                    Responsable
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* ACTION BUTTONS */}
+                              {(canManage ||
+                                canDeleteAuditorium ||
+                                !!user?.is_vip ||
+                                (assign.is_reservation &&
+                                  user?.id &&
+                                  assign.user_id &&
+                                  user.id.toLowerCase() ===
+                                    assign.user_id.toLowerCase())) && (
+                                <div className="flex gap-1">
+                                  {assign.is_reservation && onEdit && (
+                                    <button
+                                      onClick={() => {
+                                        onEdit(assign);
+                                        setSelectedDay(null);
+                                      }}
+                                      className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all"
+                                      title="Editar"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      handleDelete(
+                                        assign.id,
+                                        assign.is_reservation,
+                                      );
+                                      setSelectedDay(null);
+                                    }}
+                                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                                 </div>
                               )}
+                            </div>
+
+                            <div className="mt-1 bg-white rounded-lg p-3 border border-blue-100 space-y-3">
+                              <div>
+                                <h5 className="text-[10px] text-blue-400 font-bold uppercase tracking-wider mb-1">
+                                  Evento / Actividad
+                                </h5>
+                                <p className="text-sm font-bold text-blue-900 leading-tight">
+                                  {assign.title}
+                                </p>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4 border-t border-blue-100 pt-3">
+                                <div>
+                                  <p className="text-[10px] text-blue-400 font-bold uppercase">
+                                    Inicio
+                                  </p>
+                                  <p className="text-sm text-gray-700 font-medium">
+                                    {assign.start_time
+                                      ? format(
+                                          new Date(assign.start_time),
+                                          "p",
+                                          {
+                                            locale: es,
+                                          },
+                                        )
+                                      : "N/A"}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-blue-400 font-bold uppercase">
+                                    Fin
+                                  </p>
+                                  <p className="text-sm text-gray-700 font-medium">
+                                    {assign.end_time
+                                      ? format(new Date(assign.end_time), "p", {
+                                          locale: es,
+                                        })
+                                      : "N/A"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {assign.resources &&
+                                assign.resources.length > 0 && (
+                                  <div className="border-t border-blue-100 pt-3">
+                                    <p className="text-[10px] text-blue-400 font-bold uppercase mb-1.5">
+                                      Recursos Solicitados
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {assign.resources.map((res, i) => (
+                                        <span
+                                          key={i}
+                                          className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[9px] font-bold border border-blue-200"
+                                        >
+                                          {res}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                            </div>
                           </div>
+                        </div>
+                      );
+                    })
+                : ["MANANA", "TARDE", "NOCHE"].map((block) => {
+                    const dayStr = formatDateForDB(selectedDay);
+                    const dayAssigns = assignments.filter(
+                      (a) => a.assignment_date === dayStr,
+                    );
+                    const assign = dayAssigns.find(
+                      (a) => a.time_block === block,
+                    );
+
+                    // FOCUS LOGIC: If an assignment is selected, ONLY show that one
+                    if (
+                      selectedAssignment &&
+                      assign &&
+                      assign.id !== selectedAssignment.id
+                    )
+                      return null;
+                    if (selectedAssignment && !assign) return null;
+
+                    return (
+                      <div
+                        key={block}
+                        className={`p-4 rounded-xl border-2 transition-all ${
+                          assign
+                            ? "border-sena-green bg-green-50"
+                            : "border-gray-100 bg-white"
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              assign
+                                ? assign.is_reservation
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-sena-green text-white"
+                                : "bg-gray-100 text-gray-400"
+                            }`}
+                          >
+                            {TIME_BLOCKS[block as TimeBlock].label}{" "}
+                            {assign?.is_reservation ? "(RESERVA)" : ""}
+                          </span>
+                          <span className="text-[10px] font-mono text-gray-400">
+                            {TIME_BLOCKS[block as TimeBlock].range}
+                          </span>
+                        </div>
+                        {assign ? (
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-inner ${
+                                    assign.is_reservation
+                                      ? "bg-blue-200 text-blue-700"
+                                      : "bg-green-200 text-green-700"
+                                  }`}
+                                >
+                                  {assign.instructor.full_name[0]}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-bold text-gray-800 leading-tight">
+                                    {assign.instructor.full_name}
+                                  </p>
+                                  <p
+                                    className={`text-[10px] font-bold uppercase mt-0.5 ${
+                                      assign.is_reservation
+                                        ? "text-blue-600"
+                                        : "text-sena-green"
+                                    }`}
+                                  >
+                                    {assign.is_reservation
+                                      ? "Responsable"
+                                      : "Instructor Asignado"}
+                                  </p>
+                                </div>
+                              </div>
+                              {(canManage ||
+                                canDeleteAuditorium ||
+                                !!user?.is_vip ||
+                                (assign.is_reservation &&
+                                  user?.id &&
+                                  assign.user_id &&
+                                  user.id.toLowerCase() ===
+                                    assign.user_id.toLowerCase())) && (
+                                <div className="flex gap-1">
+                                  {assign.is_reservation && onEdit && (
+                                    <button
+                                      onClick={() => {
+                                        onEdit(assign);
+                                        setSelectedDay(null);
+                                      }}
+                                      className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all"
+                                      title="Editar"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      handleDelete(
+                                        assign.id,
+                                        assign.is_reservation,
+                                      );
+                                      setSelectedDay(null);
+                                    }}
+                                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {assign.is_reservation && (
+                              <div className="mt-1 bg-blue-50/50 rounded-lg p-3 border border-blue-100 space-y-3">
+                                <div>
+                                  <h5 className="text-[10px] text-blue-400 font-bold uppercase tracking-wider mb-1">
+                                    Evento / Actividad
+                                  </h5>
+                                  <p className="text-sm font-bold text-blue-900 leading-tight">
+                                    {assign.title}
+                                  </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 border-t border-blue-100 pt-3">
+                                  <div>
+                                    <p className="text-[10px] text-blue-400 font-bold uppercase">
+                                      Inicio
+                                    </p>
+                                    <p className="text-sm text-gray-700 font-medium">
+                                      {assign.start_time
+                                        ? format(
+                                            new Date(assign.start_time),
+                                            "p",
+                                            {
+                                              locale: es,
+                                            },
+                                          )
+                                        : "N/A"}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] text-blue-400 font-bold uppercase">
+                                      Fin
+                                    </p>
+                                    <p className="text-sm text-gray-700 font-medium">
+                                      {assign.end_time
+                                        ? format(
+                                            new Date(assign.end_time),
+                                            "p",
+                                            {
+                                              locale: es,
+                                            },
+                                          )
+                                        : "N/A"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {assign.resources &&
+                                  assign.resources.length > 0 && (
+                                    <div className="border-t border-blue-100 pt-3">
+                                      <p className="text-[10px] text-blue-400 font-bold uppercase mb-1.5">
+                                        Recursos Solicitados
+                                      </p>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {assign.resources.map((res, i) => (
+                                          <span
+                                            key={i}
+                                            className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[9px] font-bold border border-blue-200"
+                                          >
+                                            {res}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-400 italic">
+                            No hay instructor asignado en este bloque
+                          </p>
                         )}
                       </div>
-                    ) : (
-                      <p className="text-xs text-gray-400 italic">
-                        No hay instructor asignado en este bloque
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
             </div>
             <div className="p-4 bg-gray-50 border-t flex justify-center">
               <button
-                onClick={() => setSelectedDay(null)}
+                onClick={() => {
+                  setSelectedDay(null);
+                  setSelectedAssignment(null);
+                }}
                 className="bg-white px-6 py-2 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors shadow-sm"
               >
                 CERRAR
@@ -677,6 +770,25 @@ export default function CalendarView({
           </div>
         </div>
       )}
+      {/* Confirmation Dialogs */}
+      <ConfirmationDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={confirmDelete}
+        title={
+          assignmentToDelete?.is_reservation
+            ? "Eliminar Reserva"
+            : "Eliminar Asignación"
+        }
+        message={
+          assignmentToDelete?.is_reservation
+            ? `¿Estás seguro de eliminar la reserva: "${assignmentToDelete.title}"?`
+            : `¿Estás seguro de eliminar la asignación de ${assignmentToDelete?.instructor?.full_name}?`
+        }
+        confirmText="Eliminar"
+        variant="danger"
+        isLoading={isDeletingLocal}
+      />
     </div>
   );
 }

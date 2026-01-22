@@ -35,7 +35,7 @@ export function NotificationProvider({
       const { data: profile } = await supabase
         .from("users")
         .select("role")
-        .eq("id", user.id)
+        .eq("auth_id", user.id)
         .single();
 
       if (profile) setRole(profile.role);

@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, NextRequest } from "next/server";
+import { forbidden, verifyUserPermissions } from "@/lib/auth-check";
+import { withAuth, AuthenticatedContext } from "@/lib/api-middleware";
 
 // Admin client to bypass RLS for aggregate stats
 const supabaseAdmin = createClient(
@@ -13,30 +15,21 @@ const supabaseAdmin = createClient(
   },
 );
 
-import {
-  unauthorized,
-  forbidden,
-  getUserFromRequest,
-  verifyUserPermissions,
-} from "@/lib/auth-check";
-
-export async function GET(req: NextRequest) {
+async function metricsHandler(req: NextRequest, ctx: AuthenticatedContext) {
   try {
-    const user = await getUserFromRequest(req);
-    if (!user) return unauthorized();
-    if (!(await verifyUserPermissions(user.id, ["admin", "superadmin"])))
-      return forbidden();
+    // 1. Authorization check
+    if (!(await verifyUserPermissions(ctx.user.id, ["admin", "superadmin"]))) {
+      return forbidden("Only admins can access metrics");
+    }
+
+    // 2. Fetch total count
     const { count: totalTickets, error: countError } = await supabaseAdmin
       .from("tickets")
       .select("*", { count: "exact", head: true });
 
     if (countError) throw countError;
 
-    // 2. Fetch tickets grouped by Status
-    // Supabase JS doesn't support "GROUP BY" natively easily in one call for counts,
-    // but for internal dashboard scale (hundreds/thousands), fetching partial CSV or using RPC is better.
-    // For simplicity/MVP: Fetch all relevant columns and aggregate in memory (Node.js is fast enough for <10k records).
-
+    // 3. Fetch tickets for aggregation
     const { data: tickets, error: dataError } = await supabaseAdmin
       .from("tickets")
       .select("id, status, category, created_at, updated_at, solution");
@@ -92,3 +85,5 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+export const GET = withAuth(metricsHandler);
