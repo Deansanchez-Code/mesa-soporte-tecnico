@@ -218,12 +218,30 @@ export default function AuditoriumReservationForm({
   const timeSlots = Array.from({ length: 16 }, (_, i) => i + 6);
 
   return (
-    <div className="max-h-[85vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-200">
-      <div className="space-y-6 pb-4">
-        {/* Encabezado de Formulario */}
-        <div className="p-3 rounded-xl border flex items-center gap-3 bg-sena-green/10 border-sena-green/20 text-sena-green">
-          <CheckCircle className="w-5 h-5" />
-          <span className="font-bold text-sm">Nueva Reserva de Auditorio</span>
+    <div className="max-h-[85vh] overflow-y-auto px-8 py-8 scrollbar-thin scrollbar-thumb-gray-200">
+      <div className="space-y-8 pb-4">
+        {/* Encabezado de Modo */}
+        <div
+          className={`px-5 py-4 rounded-xl border flex items-center gap-3 ${reservationToEdit ? "bg-amber-50 border-amber-200 text-amber-900" : "bg-sena-green/10 border-sena-green/20 text-sena-green"}`}
+        >
+          {reservationToEdit ? (
+            <>
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+              <div className="flex flex-col">
+                <span className="font-bold text-sm">Modo Edición</span>
+                <span className="text-xs text-amber-700/80">
+                  Estás modificando una reserva existente
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              <CheckCircle className="w-5 h-5" />
+              <span className="font-bold text-sm">
+                Nueva Reserva de Auditorio
+              </span>
+            </>
+          )}
         </div>
 
         {/* Título */}
@@ -241,7 +259,7 @@ export default function AuditoriumReservationForm({
         </div>
 
         {/* Fechas */}
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+        <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
               <Calendar className="w-4 h-4" /> Fechas
@@ -484,7 +502,11 @@ export default function AuditoriumReservationForm({
                 : "bg-sena-green hover:bg-green-700 hover:scale-[1.02]"
             }`}
           >
-            {loading ? "Procesando..." : "Confirmar Reserva"}
+            {loading
+              ? "Procesando..."
+              : reservationToEdit
+                ? "Guardar Cambios"
+                : "Confirmar Reserva"}
           </button>
         </div>
 
