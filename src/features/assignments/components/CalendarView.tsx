@@ -271,57 +271,63 @@ export default function CalendarView({
               </div>
 
               {/* ASSIGNMENTS LIST */}
-              <div className="flex-1 flex flex-col gap-1 mt-1">
+              <div className="flex-1 flex flex-col gap-2 mt-2">
                 {areaName.toUpperCase().includes("AUDITORIO")
-                  ? dayAssignments.map((assign) => {
-                      // Calculate duration for sizing
-                      let durationHours = 1;
-                      if (assign.start_time && assign.end_time) {
-                        const start = new Date(assign.start_time).getTime();
-                        const end = new Date(assign.end_time).getTime();
-                        durationHours = (end - start) / (1000 * 60 * 60);
-                      }
+                  ? dayAssignments
+                      .sort(
+                        (a, b) =>
+                          new Date(a.start_time || 0).getTime() -
+                          new Date(b.start_time || 0).getTime(),
+                      )
+                      .map((assign) => {
+                        // Calculate duration for sizing
+                        let durationHours = 1;
+                        if (assign.start_time && assign.end_time) {
+                          const start = new Date(assign.start_time).getTime();
+                          const end = new Date(assign.end_time).getTime();
+                          durationHours = (end - start) / (1000 * 60 * 60);
+                        }
 
-                      // Base height per hour (e.g., 30px per hour)
-                      // Min height 40px to fit text
-                      const heightPx = Math.max(40, durationHours * 30);
+                        // Base height per hour (e.g., 30px per hour)
+                        // Min height 40px to fit text
+                        const heightPx = Math.max(40, durationHours * 30);
 
-                      return (
-                        <div
-                          key={assign.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedDay(day);
-                            setSelectedAssignment(assign);
-                          }}
-                          style={{ height: `${heightPx}px` }}
-                          className="group relative text-[10px] p-1 rounded border border-l-2 shadow-sm bg-blue-50/50 border-l-blue-600 border-blue-100 flex flex-col justify-start min-h-[36px] overflow-hidden"
-                        >
-                          <div className="flex justify-between items-center w-full leading-tight">
-                            <span className="font-bold truncate text-blue-900 w-full pr-1">
-                              {assign.title || assign.instructor.full_name}
-                            </span>
-                            {/* Only show delete if authorized AND not started (unless admin) */}
-                            {canDeleteAuditorium && assign.is_reservation && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(assign.id, true);
-                                }}
-                                className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity absolute right-0.5 top-0.5 bg-white/90 rounded-full p-0.5 shadow-sm"
-                              >
-                                <Trash2 className="w-2.5 h-2.5" />
-                              </button>
-                            )}
+                        return (
+                          <div
+                            key={assign.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDay(day);
+                              setSelectedAssignment(assign);
+                            }}
+                            style={{ height: `${heightPx}px` }}
+                            className="group relative text-[10px] p-2 rounded-lg border border-l-[3px] shadow-sm bg-blue-50/50 border-l-blue-600 border-blue-100 flex flex-col justify-start min-h-[40px] overflow-hidden mb-1 hover:shadow-md transition-all"
+                          >
+                            <div className="flex justify-between items-center w-full leading-tight">
+                              <span className="font-bold truncate text-blue-900 w-full pr-1">
+                                {assign.title || assign.instructor.full_name}
+                              </span>
+                              {/* Only show delete if authorized AND not started (unless admin) */}
+                              {canDeleteAuditorium && assign.is_reservation && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(assign.id, true);
+                                  }}
+                                  className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity absolute right-0.5 top-0.5 bg-white/90 rounded-full p-0.5 shadow-sm"
+                                >
+                                  <Trash2 className="w-2.5 h-2.5" />
+                                </button>
+                              )}
+                            </div>
+                            <div className="text-[8px] tracking-tighter text-blue-600 leading-none mt-auto">
+                              {assign.start_time
+                                ? `${format(new Date(assign.start_time), "HH:mm")} - ${format(new Date(assign.end_time || ""), "HH:mm")}`
+                                : ""}
+                            </div>
                           </div>
-                          <div className="text-[8px] tracking-tighter text-blue-600 leading-none mt-auto">
-                            {assign.start_time
-                              ? `${format(new Date(assign.start_time), "HH:mm")} - ${format(new Date(assign.end_time || ""), "HH:mm")}`
-                              : ""}
-                          </div>
-                        </div>
-                      );
-                    })
+                        );
+                      })
                   : // STANDARD ENVIRONMENTS: Time Blocks
                     (Object.keys(TIME_BLOCKS) as TimeBlock[]).map(
                       (blockKey) => {
