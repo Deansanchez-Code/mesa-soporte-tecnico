@@ -220,25 +220,10 @@ export default function AuditoriumReservationForm({
   return (
     <div className="max-h-[85vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-200">
       <div className="space-y-6 pb-4">
-        {/* Encabezado de Modo */}
-        <div
-          className={`p-3 rounded-xl border flex items-center gap-3 ${reservationToEdit ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-sena-green/10 border-sena-green/20 text-sena-green"}`}
-        >
-          {reservationToEdit ? (
-            <>
-              <AlertTriangle className="w-5 h-5" />
-              <span className="font-bold text-sm">
-                Estas editando una reserva existente
-              </span>
-            </>
-          ) : (
-            <>
-              <CheckCircle className="w-5 h-5" />
-              <span className="font-bold text-sm">
-                Nueva Reserva de Auditorio
-              </span>
-            </>
-          )}
+        {/* Encabezado de Formulario */}
+        <div className="p-3 rounded-xl border flex items-center gap-3 bg-sena-green/10 border-sena-green/20 text-sena-green">
+          <CheckCircle className="w-5 h-5" />
+          <span className="font-bold text-sm">Nueva Reserva de Auditorio</span>
         </div>
 
         {/* Título */}
@@ -499,11 +484,7 @@ export default function AuditoriumReservationForm({
                 : "bg-sena-green hover:bg-green-700 hover:scale-[1.02]"
             }`}
           >
-            {loading
-              ? "Procesando..."
-              : reservationToEdit
-                ? "Guardar Cambios"
-                : "Confirmar Reserva"}
+            {loading ? "Procesando..." : "Confirmar Reserva"}
           </button>
         </div>
 
