@@ -1,6 +1,13 @@
-"use client";
-
-import { CheckCircle, Power, ArrowLeft } from "lucide-react";
+import { useState } from "react";
+import {
+  CheckCircle,
+  Power,
+  ArrowLeft,
+  Paperclip,
+  Loader2,
+} from "lucide-react";
+import { supabase } from "@/lib/supabase/cliente";
+import { toast } from "sonner";
 
 interface ResolutionModalProps {
   resolvingTicketId: number | null;
@@ -17,12 +24,57 @@ export default function ResolutionModal({
   setSolutionTexts,
   onUpdateStatus,
 }: ResolutionModalProps) {
+  const [isUploading, setIsUploading] = useState(false);
+
   if (!resolvingTicketId) return null;
 
   const currentText = solutionTexts[resolvingTicketId] || "";
   const wordCount = currentText.trim().split(/\s+/).filter(Boolean).length;
   const wordCountColor = wordCount < 20 ? "text-red-500" : "text-green-600";
   const isValid = wordCount >= 20;
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${resolvingTicketId}_evidence_${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("ticket_evidence")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from("ticket_evidence")
+        .getPublicUrl(filePath);
+
+      const publicUrl = data.publicUrl;
+
+      // Concatenar al texto actual
+      const newText = currentText
+        ? `${currentText}\n\n[EVIDENCIA]: ${publicUrl}`
+        : `[EVIDENCIA]: ${publicUrl}`;
+
+      setSolutionTexts({
+        ...solutionTexts,
+        [resolvingTicketId]: newText,
+      });
+
+      toast.success("Soporte adjuntado correctamente");
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      toast.error("Error al subir el archivo");
+    } finally {
+      setIsUploading(false);
+      // Reset input value to allow selecting same file again if needed
+      e.target.value = "";
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
@@ -57,9 +109,35 @@ export default function ResolutionModal({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-bold text-gray-700">
-              Solución Técnica
-            </label>
+            <div className="flex justify-between items-center">
+              <label className="text-sm font-bold text-gray-700">
+                Solución Técnica
+              </label>
+              <div>
+                <input
+                  type="file"
+                  id="evidence-upload"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                />
+                <label
+                  htmlFor="evidence-upload"
+                  className={`text-xs flex items-center gap-1.5 cursor-pointer px-2 py-1 rounded-lg border transition-all ${
+                    isUploading
+                      ? "bg-gray-100 text-gray-400 border-gray-200 cursor-wait"
+                      : "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 font-bold"
+                  }`}
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Paperclip className="w-3.5 h-3.5" />
+                  )}
+                  {isUploading ? "Subiendo..." : "Adjuntar Soporte"}
+                </label>
+              </div>
+            </div>
             <textarea
               className="w-full border-2 border-gray-100 rounded-xl p-4 min-h-[180px] outline-none focus:border-green-500 transition-all resize-none text-gray-700 placeholder:text-gray-400"
               placeholder="Describe qué hiciste para solucionar el problema..."
