@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { MessageSquare, BookOpen } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { MessageSquare, BookOpen, Paperclip, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase/cliente";
 import { Ticket } from "@/app/admin/admin.types";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
@@ -35,6 +36,8 @@ export function TicketActions({
   const [draftArticle, setDraftArticle] = useState<Article | undefined>(
     undefined,
   );
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSendComment = async () => {
     if (!newComment.trim() || !onAddComment) return;
@@ -49,6 +52,39 @@ export function TicketActions({
       toast.error("Error al enviar comentario");
     } finally {
       setSubmittingComment(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onAddComment) return;
+
+    try {
+      setIsUploading(true);
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `evidence/${ticket.id}/${Date.now()}_${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("ticket_evidence")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("ticket_evidence").getPublicUrl(filePath);
+
+      const evidenceComment = `[EVIDENCIA]: ${publicUrl}`;
+      await onAddComment(ticket.id, evidenceComment);
+      toast.success("Evidencia subida y registrada");
+      await onCommentAdded();
+    } catch (e: unknown) {
+      console.error("Error uploading evidence:", e);
+      toast.error(e instanceof Error ? e.message : "Error al subir evidencia");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -68,6 +104,16 @@ export function TicketActions({
       await onAddComment(ticket.id, finalComment);
 
       if (saveToKb) {
+        // Collect evidence URLs from description
+        const evidenceRegex = /\[EVIDENCIA\]: (https?:\/\/[^\s\n]+)/g;
+        const evidenceUrls: string[] = [];
+        let match;
+        while (
+          (match = evidenceRegex.exec(ticket.description || "")) !== null
+        ) {
+          evidenceUrls.push(match[1]);
+        }
+
         // Prepare article draft
         setDraftArticle({
           title: `Solución: Ticket #${ticket.id}`,
@@ -78,7 +124,7 @@ export function TicketActions({
               : "Otro",
           problem_type: "Problema reportado en ticket",
           solution: finalComment,
-          file_urls: [],
+          file_urls: evidenceUrls,
         });
         setShowArticleEditor(true);
         // We do NOT call onSuccess yet, waiting for Article Save or Cancel
@@ -120,25 +166,49 @@ export function TicketActions({
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
         />
-        <div className="flex justify-end mt-2 gap-2">
-          {onUpdateStatus &&
-            ticket.status !== "RESUELTO" &&
-            ticket.status !== "CERRADO" && (
-              <button
-                onClick={handleResolveClick}
-                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-bold"
-                disabled={submittingComment}
-              >
-                Resolver
-              </button>
-            )}
-          <button
-            onClick={handleSendComment}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold disabled:opacity-50"
-            disabled={submittingComment || !newComment.trim()}
-          >
-            {submittingComment ? "Enviando..." : "Enviar Comentario"}
-          </button>
+        <div className="flex justify-between mt-2 gap-2">
+          <div className="flex gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading || submittingComment}
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-bold flex items-center gap-2 transition-colors border border-gray-200 disabled:opacity-50"
+              title="Adjuntar Imagen o Documento"
+            >
+              {isUploading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Paperclip className="w-3.5 h-3.5" />
+              )}
+              {isUploading ? "Subiendo..." : "Adjuntar Evidencia"}
+            </button>
+          </div>
+          <div className="flex gap-2">
+            {onUpdateStatus &&
+              ticket.status !== "RESUELTO" &&
+              ticket.status !== "CERRADO" && (
+                <button
+                  onClick={handleResolveClick}
+                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-bold"
+                  disabled={submittingComment || isUploading}
+                >
+                  Resolver
+                </button>
+              )}
+            <button
+              onClick={handleSendComment}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold disabled:opacity-50"
+              disabled={submittingComment || !newComment.trim() || isUploading}
+            >
+              {submittingComment ? "Enviando..." : "Enviar Comentario"}
+            </button>
+          </div>
         </div>
       </div>
 

@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/servidor";
+import { SupabaseClient } from "@supabase/supabase-js";
+
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
@@ -7,15 +9,15 @@ export type AuthenticatedContext = {
     id: string;
     email?: string;
     role?: string;
-    user_metadata?: any;
+    user_metadata?: Record<string, unknown>;
   };
-  supabase: any; // SupabaseClient type
+  supabase: SupabaseClient;
 };
 
 type ApiHandler = (
   req: NextRequest,
   ctx: AuthenticatedContext,
-  params?: any,
+  params?: Record<string, string>,
 ) => Promise<NextResponse>;
 
 export function withAuth(handler: ApiHandler) {
@@ -37,7 +39,7 @@ export function withAuth(handler: ApiHandler) {
 
       // Execute the handler with user context
       return await handler(req, { user, supabase }, params);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("API Error:", error);
 
       if (error instanceof ZodError) {
@@ -48,7 +50,10 @@ export function withAuth(handler: ApiHandler) {
       }
 
       return NextResponse.json(
-        { error: error.message || "Internal Server Error" },
+        {
+          error:
+            error instanceof Error ? error.message : "Internal Server Error",
+        },
         { status: 500 },
       );
     }

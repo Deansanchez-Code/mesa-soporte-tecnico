@@ -26,11 +26,11 @@ async function createTicket(req: NextRequest, ctx: AuthenticatedContext) {
   // --- AUTO-ASSIGNMENT LOGIC ---
   let assignedAgentId: string | null = null;
   try {
-    // 1. Get all active admins (exclude superadmin)
+    // 1. Get all active admins and agents (mesa de servicio)
     const { data: admins } = await supabaseAdmin
       .from("users")
       .select("id, auth_id, full_name")
-      .eq("role", "admin")
+      .in("role", ["admin", "agent"])
       .eq("is_active", true);
 
     if (admins && admins.length > 0) {

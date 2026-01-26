@@ -162,6 +162,28 @@ export default function AuditoriumReservationForm({
         // If we are expanding to multiple days, the extra days must be NEW reservations
         const targetId = i === 0 ? reservationToEdit?.id : undefined;
 
+        // VIP Override Logic using API
+        if (conflict && !isMultiDay) {
+          // We reuse 'conflict' state from current view
+          // Assuming the conflict is exactly the one we see
+          if (currentUserVip && !conflict.users?.is_vip) {
+            const confirmOverride = window.confirm(
+              `Existe una reserva de ${conflict.users?.full_name}. Al ser usuario VIP, puedes tomar este horario. Se cancelará la reserva anterior. ¿Deseas continuar?`,
+            );
+            if (!confirmOverride) {
+              setLoading(false);
+              return;
+            }
+
+            // Cancel via Hook
+            await cancelReservation(conflict.id);
+          } else {
+            toast.error("El horario no está disponible.");
+            setLoading(false);
+            return;
+          }
+        }
+
         await createOrUpdateReservation({
           id: targetId,
           title,

@@ -194,7 +194,7 @@ async function updateUserHandler(
   }
 
   // Prepare DB Updates
-  const dbUpdates: Record<string, any> = {};
+  const dbUpdates: Record<string, unknown> = {};
   const allowedFields = [
     "full_name",
     "username",
@@ -225,7 +225,7 @@ async function updateUserHandler(
   if (updateError) throw updateError;
 
   // Also update metadata in Auth
-  const metadataUpdates: Record<string, any> = {};
+  const metadataUpdates: Record<string, unknown> = {};
   const metadataFields = [
     "full_name",
     "role",

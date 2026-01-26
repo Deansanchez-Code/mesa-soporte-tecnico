@@ -14,7 +14,14 @@ export function useTickets(currentUser: User | null) {
   const fetchTickets = useCallback(async () => {
     setLoading(true);
     try {
+      // Calcular fecha límite (15 días atrás)
+      const limitDate = new Date();
+      limitDate.setDate(limitDate.getDate() - 15);
+      const limitISO = limitDate.toISOString();
+
       // Consultamos tickets con sus relaciones (Usuario y Activo)
+      // FILTRO: Status NO es (CERRADO o RESUELTO) O CreatedAt >= 15 días
+      // Supabase .or syntax: "condition1,condition2"
       const { data, error } = await supabase
         .from("tickets")
         .select(
@@ -25,6 +32,7 @@ export function useTickets(currentUser: User | null) {
         assets ( model, type, serial_number )
       `,
         )
+        .or(`status.neq.CERRADO,status.neq.RESUELTO,created_at.gte.${limitISO}`)
         .order("created_at", { ascending: false });
 
       if (error) {

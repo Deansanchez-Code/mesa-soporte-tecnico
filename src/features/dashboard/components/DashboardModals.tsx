@@ -5,26 +5,28 @@ import UserProfileModal from "@/components/shared/UserProfileModal";
 import TicketDetailsModal from "@/features/tickets/components/TicketDetailsModal";
 import CreateAssetModal from "@/features/assets/components/CreateAssetModal";
 import { MetricsOverview } from "@/components/dashboard/MetricsOverview";
-import { Ticket } from "@/app/admin/admin.types";
+import { Ticket, Agent } from "@/app/admin/admin.types";
+import { User } from "@supabase/supabase-js";
+import { UserProfile } from "@/features/auth/hooks/useUserProfile";
 
 interface DashboardModalsProps {
   selectedAssetSerial: string | null;
   setSelectedAssetSerial: (serial: string | null) => void;
   showProfileModal: boolean;
   setShowProfileModal: (show: boolean) => void;
-  currentUser: any;
+  currentUser: User | null;
   role: string | null;
   selectedTicket: Ticket | null;
   setSelectedTicket: (ticket: Ticket | null) => void;
   updateStatus: (ticketId: number, status: string) => Promise<void>;
   saveTicketComment: (ticketId: number, comment: string) => Promise<void>;
-  agents: any[];
+  agents: { id: string; full_name: string; role: string }[];
   showCreateAssetModal: boolean;
   setShowCreateAssetModal: (show: boolean) => void;
   showMetricsModal: boolean;
   setShowMetricsModal: (show: boolean) => void;
   tickets: Ticket[];
-  profile: any;
+  profile: UserProfile["profile"];
 }
 
 export default function DashboardModals({
@@ -102,7 +104,11 @@ export default function DashboardModals({
           onUpdateStatus={updateStatus}
           onAssign={(tId) => updateStatus(tId, "EN_PROGRESO")}
           onAddComment={saveTicketComment}
-          agents={agents}
+          agents={
+            role === "superadmin"
+              ? agents
+              : agents.filter((a) => a.role !== "superadmin")
+          }
         />
       )}
 

@@ -263,7 +263,10 @@ export default function ArticleEditor({
                           <FileText className="w-4 h-4" />
                         </div>
                         <span className="text-sm font-medium text-gray-600 truncate max-w-[300px]">
-                          Manual_Adjunto_{index + 1}.pdf
+                          {url.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/)
+                            ? "Imagen"
+                            : "Documento"}
+                          _{index + 1}
                         </span>
                       </div>
                       <button

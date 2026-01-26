@@ -1,5 +1,7 @@
 "use client";
 
+import { User } from "@supabase/supabase-js";
+import { UserProfile } from "@/features/auth/hooks/useUserProfile";
 import {
   LayoutDashboard,
   Power,
@@ -13,8 +15,8 @@ import {
 import Link from "next/link";
 
 interface DashboardHeaderProps {
-  currentUser: any;
-  profile: any;
+  currentUser: User | null;
+  profile: UserProfile["profile"];
   role: string | null;
   isAvailable: boolean;
   toggleAvailability: () => void;

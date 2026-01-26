@@ -1,0 +1,58 @@
+
+> mesa-soporte-tecnico@0.1.0 lint
+> eslint
+
+
+D:\mesa-soporte-tecnico\scripts\apply_migration_simple.js
+  1:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  2:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  3:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\scripts\check_db.js
+  1:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  2:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  3:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\scripts\emergency_fix_db.js
+  1:20  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  2:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  3:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\src\app\dashboard\page.tsx
+  67:0  error  Parsing error: Merge conflict marker encountered
+
+D:\mesa-soporte-tecnico\src\features\assignments\components\AssignmentManager.tsx
+  162:48  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\mesa-soporte-tecnico\src\features\dashboard\components\DashboardModals.tsx
+  8:18  warning  'Agent' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\mesa-soporte-tecnico\src\features\knowledge\components\KnowledgeSearchModal.tsx
+  11:3  warning  'Check' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\mesa-soporte-tecnico\src\features\reservations\components\AuditoriumReservationForm.tsx
+  165:0  error  Parsing error: Merge conflict marker encountered
+
+D:\mesa-soporte-tecnico\src\features\reservations\hooks\useReservations.ts
+  62:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\mesa-soporte-tecnico\src\features\reservations\hooks\useReservations.ts:62:5
+  60 |
+  61 |   useEffect(() => {
+> 62 |     fetchReservations();
+     |     ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  63 |     checkVipStatus();
+  64 |   }, [fetchReservations, checkVipStatus]);
+  65 |  react-hooks/set-state-in-effect
+
+D:\mesa-soporte-tecnico\src\lib\api-middleware.ts
+  24:58  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+Ô£û 16 problems (14 errors, 2 warnings)
+

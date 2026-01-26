@@ -1,5 +1,10 @@
 import React from "react";
-import { Clock } from "lucide-react";
+import {
+  Clock,
+  ExternalLink,
+  Image as ImageIcon,
+  FileText,
+} from "lucide-react";
 
 interface TimelineItem {
   id?: string;
@@ -88,7 +93,30 @@ export function TicketTimeline({
 
             {item.text && (
               <div className="mt-1 text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100">
-                {item.text}
+                {item.text.startsWith("[EVIDENCIA]:") ? (
+                  <div className="flex items-center gap-2">
+                    {item.text
+                      .toLowerCase()
+                      .match(/\.(jpg|jpeg|png|gif|webp)$/) ? (
+                      <ImageIcon className="w-4 h-4 text-blue-500" />
+                    ) : (
+                      <FileText className="w-4 h-4 text-red-500" />
+                    )}
+                    <span className="font-bold text-gray-800">
+                      Evidencia Adjunta:
+                    </span>
+                    <a
+                      href={item.text.replace("[EVIDENCIA]:", "").trim()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      Ver Archivo <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                ) : (
+                  item.text
+                )}
               </div>
             )}
           </div>

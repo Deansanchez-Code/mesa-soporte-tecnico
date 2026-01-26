@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, NextRequest } from "next/server";
-import { z } from "zod";
+import { z, ZodError } from "zod";
 import { forbidden, verifyUserPermissions } from "@/lib/auth-check";
 import { withAuth, AuthenticatedContext } from "@/lib/api-middleware";
 
@@ -85,7 +85,7 @@ async function createAssignmentsHandler(
     console.error("Server error:", error);
     // withAuth handles ZodError automatically.
     // For other errors, we throw or return 500.
-    if (error instanceof Error && (error as any).issues) {
+    if (error instanceof ZodError) {
       throw error; // Let withAuth handle ZodError
     }
     return NextResponse.json(

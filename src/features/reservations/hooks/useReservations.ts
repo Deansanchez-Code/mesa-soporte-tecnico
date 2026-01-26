@@ -59,14 +59,8 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
   }, []);
 
   useEffect(() => {
-    let active = true;
-    if (active) {
-      fetchReservations();
-      checkVipStatus();
-    }
-    return () => {
-      active = false;
-    };
+    fetchReservations();
+    checkVipStatus();
   }, [fetchReservations, checkVipStatus]);
 
   const getAuthToken = async (): Promise<string | null> => {
