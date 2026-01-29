@@ -166,12 +166,12 @@ export async function createReservationAction(
     revalidatePath("/dashboard");
     return { success: true, data: result };
   } catch (error: unknown) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : String(error || "Error al crear reserva"),
-    };
+    const errorMsg =
+      (error as Record<string, unknown>)?.message ||
+      (typeof error === "object"
+        ? JSON.stringify(error)
+        : String(error || "Error al crear reserva"));
+    return { error: String(errorMsg) };
   }
 }
 
@@ -264,11 +264,11 @@ export async function updateReservationAction(
     revalidatePath("/dashboard");
     return { success: true, data: result };
   } catch (error: unknown) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : String(error || "Error al actualizar reserva"),
-    };
+    const errorMsg =
+      (error as Record<string, unknown>)?.message ||
+      (typeof error === "object"
+        ? JSON.stringify(error)
+        : String(error || "Error al actualizar reserva"));
+    return { error: String(errorMsg) };
   }
 }
