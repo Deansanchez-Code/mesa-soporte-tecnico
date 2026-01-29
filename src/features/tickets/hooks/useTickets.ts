@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/cliente";
 import { Ticket } from "@/app/admin/admin.types";
@@ -9,7 +9,7 @@ export function useTickets(currentUser: User | null) {
 
   // 1. Query para Tickets
   const {
-    data: tickets = [],
+    data: rawTickets = [],
     isLoading: loadingTickets,
     isFetching: fetchingTickets,
     error: ticketError,
@@ -22,7 +22,7 @@ export function useTickets(currentUser: User | null) {
         .select(
           `
           *,
-          users:users!tickets_user_id_fkey ( full_name, area ),
+          users:users!tickets_user_id_fkey ( full_name, area, is_vip ),
           assigned_agent:users!tickets_assigned_agent_id_fkey ( full_name ),
           assets ( model, type, serial_number )
         `,
@@ -35,7 +35,34 @@ export function useTickets(currentUser: User | null) {
     enabled: !!currentUser,
   });
 
-  // 2. Query para Agentes
+  // 2. Ordenamiento por Prioridad
+  const tickets = useMemo(() => {
+    if (!rawTickets) return [];
+
+    return [...rawTickets].sort((a, b) => {
+      // Priority 1: VIP (is_vip from user profile or is_vip_ticket flag)
+      const aIsVip = a.is_vip_ticket || a.users?.is_vip;
+      const bIsVip = b.is_vip_ticket || b.users?.is_vip;
+
+      if (aIsVip && !bIsVip) return -1;
+      if (!aIsVip && bIsVip) return 1;
+
+      // Priority 2: Not Auditorium Reservation (Direct Support)
+      const aIsAuditorium = a.category?.toLowerCase().includes("auditorio");
+      const bIsAuditorium = b.category?.toLowerCase().includes("auditorio");
+
+      if (!aIsAuditorium && bIsAuditorium) return -1;
+      if (aIsAuditorium && !bIsAuditorium) return 1;
+
+      // Priority 3: Creation Date (desc)
+      return (
+        new Date(b.created_at || "").getTime() -
+        new Date(a.created_at || "").getTime()
+      );
+    });
+  }, [rawTickets]);
+
+  // 3. Query para Agentes
   const { data: agents = [], isLoading: loadingAgents } = useQuery({
     queryKey: ["agents"],
     queryFn: async () => {
@@ -48,10 +75,10 @@ export function useTickets(currentUser: User | null) {
       return data;
     },
     enabled: !!currentUser,
-    staleTime: 1000 * 60 * 5, // Los agentes no cambian tan seguido
+    staleTime: 1000 * 60 * 5,
   });
 
-  // 3. Realtime Subscription (Invalidación de caché)
+  // 4. Realtime Subscription
   useEffect(() => {
     if (!currentUser) return;
 
@@ -61,7 +88,6 @@ export function useTickets(currentUser: User | null) {
         "postgres_changes",
         { event: "*", schema: "public", table: "tickets" },
         () => {
-          // En lugar de hacer fetch manual, invalidamos para que React Query haga lo suyo
           queryClient.invalidateQueries({ queryKey: ["dashboard-tickets"] });
         },
       )

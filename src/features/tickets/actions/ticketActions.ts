@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/servidor";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { Ticket } from "@/app/admin/admin.types";
+import { calculateSLADueDate, getSLAHours } from "@/lib/domain/sla-calculator";
 
 const TicketSchema = z.object({
   category: z.string().min(1, "La categoría es requerida"),
@@ -10,6 +12,7 @@ const TicketSchema = z.object({
   asset_serial: z.string().optional().nullable(),
   location: z.string().min(1, "La ubicación es requerida"),
   description: z.string().optional(),
+  user_id: z.string().optional(), // Optional for admin-created tickets
 });
 
 export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
@@ -29,6 +32,15 @@ export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
     } = await supabase.auth.getUser();
     if (!authUser) throw new Error("No autenticado");
 
+    // 1.1 Get Public User Profile (to check VIP)
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select("id, is_vip")
+      .eq("auth_id", authUser.id)
+      .single();
+
+    const isVip = !!publicUser?.is_vip;
+
     // 2. AUTO-ASSIGNMENT LOGIC
     let assignedAgentId: string | null = null;
     try {
@@ -47,12 +59,12 @@ export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
             .map((a) => a.auth_id)
             .filter(Boolean) as string[];
 
-          // Get workload (tickets assigned to these agents that are NOT resolved or cancelled)
+          // Get workload (tickets assigned to these agents that are NOT resolved or cancelled or closed)
           const { data: workload } = await supabase
             .from("tickets")
             .select("assigned_agent_id")
             .in("assigned_agent_id", agentIds)
-            .not("status", "in", '("RESUELTO","CANCELADO")');
+            .not("status", "in", '("RESUELTO","CANCELADO","CERRADO")');
 
           const counts: Record<string, number> = {};
           agentIds.forEach((id) => (counts[id] = 0));
@@ -71,7 +83,16 @@ export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
       console.error("Auto-assignment failed in Server Action:", e);
     }
 
-    // 3. Insert
+    // 3. SLA Calculation
+    // We create a mock ticket object for the calculator
+    const slaHours = getSLAHours({
+      is_vip_ticket: isVip,
+      ticket_type: ticket_type,
+    } as Ticket);
+    const createdAt = new Date().toISOString();
+    const expectedEndAt = calculateSLADueDate(createdAt, slaHours);
+
+    // 4. Insert
     const { data: result, error } = await supabase
       .from("tickets")
       .insert([
@@ -81,9 +102,13 @@ export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
           asset_serial,
           location,
           description,
-          user_id: authUser.id,
+          user_id: data.user_id || authUser.id,
           status: "PENDIENTE",
           assigned_agent_id: assignedAgentId,
+          is_vip_ticket: isVip,
+          sla_start_at: createdAt,
+          sla_expected_end_at: expectedEndAt.toISOString(),
+          sla_status: "running",
         },
       ])
       .select()

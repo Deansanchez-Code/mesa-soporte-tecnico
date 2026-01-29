@@ -201,7 +201,8 @@ export default function AuditoriumReservationForm({
         if (reservationToEdit) {
           // Sync Support Ticket
           const oldDescSubstring = `Reserva de Auditorio: ${reservationToEdit.title}`;
-          const newDesc = `Reserva de Auditorio: ${title}\nFecha: ${date}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
+          const formattedDate = date.split("-").reverse().join("-");
+          const newDesc = `Reserva de Auditorio: ${title}\nFecha: ${formattedDate}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
             ", ",
           )}\nDetalles: ${description}\n(ACTUALIZADO)`;
 
@@ -211,7 +212,8 @@ export default function AuditoriumReservationForm({
           );
           toast.success("Reserva y ticket de soporte actualizados.");
         } else {
-          const descriptionText = `Reserva de Auditorio: ${title}\nFecha: ${date}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
+          const formattedDate = date.split("-").reverse().join("-");
+          const descriptionText = `Reserva de Auditorio: ${title}\nFecha: ${formattedDate}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
             ", ",
           )}\nDetalles: ${description}`;
 
