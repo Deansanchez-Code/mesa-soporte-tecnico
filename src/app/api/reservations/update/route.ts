@@ -12,6 +12,7 @@ const UpdateReservationSchema = z.object({
   user_id: z.string().uuid(),
   auditorium_id: z.string().optional(),
   resources: z.array(z.string()).optional().nullable(),
+  description: z.string().optional().nullable(),
 });
 
 async function updateReservation(req: NextRequest, ctx: AuthenticatedContext) {
@@ -25,8 +26,16 @@ async function updateReservation(req: NextRequest, ctx: AuthenticatedContext) {
     );
   }
 
-  const { id, title, start_time, end_time, user_id, auditorium_id, resources } =
-    parseResult.data;
+  const {
+    id,
+    title,
+    start_time,
+    end_time,
+    user_id,
+    auditorium_id,
+    resources,
+    description,
+  } = parseResult.data;
 
   const supabaseAdmin = getSupabaseAdmin();
 
@@ -92,6 +101,7 @@ async function updateReservation(req: NextRequest, ctx: AuthenticatedContext) {
       user_id, // Permite reasignar si es admin? Sigamos el body.
       auditorium_id: auditorium_id || "1",
       resources,
+      description,
     })
     .eq("id", id)
     .select()

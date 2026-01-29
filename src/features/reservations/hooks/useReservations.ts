@@ -60,10 +60,13 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
 
   useEffect(() => {
     let active = true;
-    if (active) {
-      fetchReservations();
-      checkVipStatus();
-    }
+    const loadData = async () => {
+      if (active) {
+        await fetchReservations();
+        await checkVipStatus();
+      }
+    };
+    loadData();
     return () => {
       active = false;
     };
@@ -101,6 +104,7 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
     user_id: string;
     auditorium_id: string;
     resources: string[];
+    description?: string | null;
   }) => {
     const authToken = await getAuthToken();
     if (!authToken) throw new Error("No auth token");

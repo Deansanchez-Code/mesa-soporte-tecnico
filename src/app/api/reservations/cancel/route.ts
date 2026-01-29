@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     // 1. Fetch reservation to check ownership
     const { data: reservation } = await supabaseAdmin
       .from("reservations")
-      .select("user_id, start_time")
+      .select("user_id, start_time, title")
       .eq("id", reservation_id)
       .single();
 
@@ -82,6 +82,17 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // 4. Notify Owner if it was a VIP Override
+    if (!isOwner && isVip) {
+      await supabaseAdmin.from("user_notifications").insert([
+        {
+          user_id: reservation.user_id,
+          title: "Reserva Cancelada por Prioridad",
+          message: `Tu reserva "${reservation.title}" para el ${new Date(reservation.start_time).toLocaleString()} ha sido cancelada por un usuario VIP.`,
+        },
+      ]);
     }
 
     return NextResponse.json({ success: true }, { status: 200 });

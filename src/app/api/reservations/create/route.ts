@@ -11,6 +11,7 @@ const ReservationSchema = z.object({
   user_id: z.string().uuid(),
   auditorium_id: z.string().optional(),
   resources: z.array(z.string()).optional().nullable(),
+  description: z.string().optional().nullable(),
 });
 
 async function createReservation(req: NextRequest, ctx: AuthenticatedContext) {
@@ -24,8 +25,15 @@ async function createReservation(req: NextRequest, ctx: AuthenticatedContext) {
     );
   }
 
-  const { title, start_time, end_time, user_id, auditorium_id, resources } =
-    parseResult.data;
+  const {
+    title,
+    start_time,
+    end_time,
+    user_id,
+    auditorium_id,
+    resources,
+    description,
+  } = parseResult.data;
 
   // Ownership Check
   const supabaseAdmin = getSupabaseAdmin();
@@ -78,6 +86,7 @@ async function createReservation(req: NextRequest, ctx: AuthenticatedContext) {
         user_id,
         auditorium_id: auditorium_id || "1",
         resources,
+        description,
         status: "APPROVED",
       },
     ])

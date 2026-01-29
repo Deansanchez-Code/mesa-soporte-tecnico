@@ -37,6 +37,7 @@ export default function AuditoriumReservationForm({
   const [endTime, setEndTime] = useState("08:00");
   const [title, setTitle] = useState("");
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
+  const [description, setDescription] = useState("");
   const [isMultiDay, setIsMultiDay] = useState(false);
 
   // useReservations Hook
@@ -92,6 +93,7 @@ export default function AuditoriumReservationForm({
         setEndTime(eTime);
         setTitle(reservationToEdit.title || "");
         setSelectedResources(reservationToEdit.resources || []);
+        setDescription(reservationToEdit.description || "");
         setIsMultiDay(sDate !== eDate);
       } catch (e) {
         console.error("Error parsing reservation dates:", e);
@@ -170,6 +172,7 @@ export default function AuditoriumReservationForm({
           user_id: user?.id || "",
           auditorium_id: "1",
           resources: selectedResources,
+          description,
         });
 
         if (reservationToEdit) {
@@ -177,7 +180,7 @@ export default function AuditoriumReservationForm({
           const oldDescSubstring = `Reserva de Auditorio: ${reservationToEdit.title}`;
           const newDesc = `Reserva de Auditorio: ${title}\nFecha: ${date}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
             ", ",
-          )} (ACTUALIZADO)`;
+          )}\nDetalles: ${description}\n(ACTUALIZADO)`;
 
           await updateSupportTicketByDescriptionMatch(
             oldDescSubstring,
@@ -185,14 +188,14 @@ export default function AuditoriumReservationForm({
           );
           toast.success("Reserva y ticket de soporte actualizados.");
         } else {
-          const description = `Reserva de Auditorio: ${title}\nFecha: ${date}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
+          const descriptionText = `Reserva de Auditorio: ${title}\nFecha: ${date}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
             ", ",
-          )}`;
+          )}\nDetalles: ${description}`;
 
           await createSupportTicket({
             category: "Reserva Auditorio",
             ticket_type: "REQ",
-            description,
+            description: descriptionText,
             user_id: user?.id || "",
             location: "Auditorio",
           });
@@ -397,6 +400,19 @@ export default function AuditoriumReservationForm({
               </label>
             ))}
           </div>
+        </div>
+
+        {/* Requerimientos Adicionales */}
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-2">
+            Requerimientos Especiales (Opcional)
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition min-h-[100px] text-sm"
+            placeholder="Ej: Números de contacto, encargado, organización especial de mesas, etc..."
+          />
         </div>
 
         {/* Disponibilidad */}
