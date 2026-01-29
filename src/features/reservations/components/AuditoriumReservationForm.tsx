@@ -174,7 +174,7 @@ export default function AuditoriumReservationForm({
               `Existe una reserva de ${conflict.users?.full_name}. Al ser usuario VIP, puedes tomar este horario. Se cancelará la reserva anterior. ¿Deseas continuar?`,
             );
             if (!confirmOverride) {
-              setLoading(false);
+              setIsSubmitting(false);
               return;
             }
 
@@ -182,7 +182,7 @@ export default function AuditoriumReservationForm({
             await cancelReservation(conflict.id);
           } else {
             toast.error("El horario no está disponible.");
-            setLoading(false);
+            setIsSubmitting(false);
             return;
           }
         }
