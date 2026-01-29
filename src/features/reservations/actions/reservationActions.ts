@@ -167,7 +167,10 @@ export async function createReservationAction(
     return { success: true, data: result };
   } catch (error: unknown) {
     return {
-      error: error instanceof Error ? error.message : "Error al crear reserva",
+      error:
+        error instanceof Error
+          ? error.message
+          : String(error || "Error al crear reserva"),
     };
   }
 }
@@ -263,7 +266,9 @@ export async function updateReservationAction(
   } catch (error: unknown) {
     return {
       error:
-        error instanceof Error ? error.message : "Error al actualizar reserva",
+        error instanceof Error
+          ? error.message
+          : String(error || "Error al actualizar reserva"),
     };
   }
 }
