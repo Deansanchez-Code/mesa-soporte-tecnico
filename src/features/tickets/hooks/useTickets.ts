@@ -35,26 +35,55 @@ export function useTickets(currentUser: User | null) {
     enabled: !!currentUser,
   });
 
-  // 2. Ordenamiento por Prioridad
+  // 2. Ordenamiento por Prioridad Dinámica
   const tickets = useMemo(() => {
     if (!rawTickets) return [];
 
+    const now = new Date();
+
     return [...rawTickets].sort((a, b) => {
-      // Priority 1: VIP (is_vip from user profile or is_vip_ticket flag)
-      const aIsVip = a.is_vip_ticket || a.users?.is_vip;
-      const bIsVip = b.is_vip_ticket || b.users?.is_vip;
+      // Función auxiliar para extraer fecha/hora de auditorio si existe
+      const getAuditoriumDate = (ticket: Ticket) => {
+        if (!ticket.category?.toLowerCase().includes("auditorio")) return null;
+        const desc = ticket.description || "";
+        const dateMatch = desc.match(/Fecha: (\d{2}-\d{2}-\d{4})/);
+        const timeMatch = desc.match(/Hora: (\d{2}:\d{2})/);
+        if (dateMatch && timeMatch) {
+          const [d, m, y] = dateMatch[1].split("-");
+          return new Date(`${y}-${m}-${d}T${timeMatch[1]}`);
+        }
+        return null;
+      };
 
-      if (aIsVip && !bIsVip) return -1;
-      if (!aIsVip && bIsVip) return 1;
+      const dateA = getAuditoriumDate(a);
+      const dateB = getAuditoriumDate(b);
 
-      // Priority 2: Not Auditorium Reservation (Direct Support)
-      const aIsAuditorium = a.category?.toLowerCase().includes("auditorio");
-      const bIsAuditorium = b.category?.toLowerCase().includes("auditorio");
+      const getPriority = (ticket: Ticket, eventDate: Date | null) => {
+        // 1. Auditorio < 24h -> Cabeza (0)
+        if (eventDate) {
+          const hoursDiff =
+            (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+          if (hoursDiff > 0 && hoursDiff < 24) return 0;
+          if (hoursDiff >= 48) return 5; // Congelado (> 2 días) -> Cola (5)
+          if (hoursDiff >= 24 && hoursDiff < 48) return 3; // Auditorio próximo (3)
+        }
 
-      if (!aIsAuditorium && bIsAuditorium) return -1;
-      if (aIsAuditorium && !bIsAuditorium) return 1;
+        // 2. VIP (1)
+        if (ticket.is_vip_ticket || ticket.users?.is_vip) return 1;
 
-      // Priority 3: Creation Date (desc)
+        // 3. REQ HW/SW (2)
+        const cat = ticket.category?.toLowerCase() || "";
+        if (cat.includes("hardware") || cat.includes("software")) return 2;
+
+        return 4; // Otros (4)
+      };
+
+      const prioA = getPriority(a, dateA);
+      const prioB = getPriority(b, dateB);
+
+      if (prioA !== prioB) return prioA - prioB;
+
+      // Si tienen la misma prioridad, por fecha de creación (más reciente arriba)
       return (
         new Date(b.created_at || "").getTime() -
         new Date(a.created_at || "").getTime()
