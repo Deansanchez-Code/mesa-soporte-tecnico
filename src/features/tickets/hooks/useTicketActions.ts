@@ -2,86 +2,97 @@ import { supabase } from "@/lib/supabase/cliente";
 import { Ticket } from "@/app/admin/admin.types";
 import { User } from "@supabase/supabase-js";
 import { safeGetItem } from "@/lib/storage";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 export function useTicketActions(
   tickets: Ticket[],
   onUpdate: () => void,
   currentUser: User | null,
 ) {
+  const queryClient = useQueryClient();
+
+  // --- MUTATION FOR OPTIMISTIC TICKET UPDATES ---
+  const ticketMutation = useMutation({
+    mutationFn: async ({
+      ticketId,
+      updates,
+    }: {
+      ticketId: number;
+      updates: Partial<Ticket>;
+    }) => {
+      const { data, error } = await supabase
+        .from("tickets")
+        .update(updates)
+        .eq("id", ticketId)
+        .select();
+
+      if (error) throw error;
+      if (!data || data.length === 0)
+        throw new Error("Acción bloqueada por permisos (RLS)");
+      return data[0];
+    },
+    onMutate: async ({ ticketId, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ["dashboard-tickets"] });
+      const previousTickets = queryClient.getQueryData<Ticket[]>([
+        "dashboard-tickets",
+      ]);
+
+      queryClient.setQueryData<Ticket[]>(["dashboard-tickets"], (old = []) =>
+        old.map((t) => (t.id === ticketId ? { ...t, ...updates } : t)),
+      );
+
+      return { previousTickets };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousTickets) {
+        queryClient.setQueryData(
+          ["dashboard-tickets"],
+          context.previousTickets,
+        );
+      }
+      alert(
+        `Error: ${err instanceof Error ? err.message : "Error al actualizar"}`,
+      );
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard-tickets"] });
+      onUpdate();
+    },
+  });
+
   // --- REASSIGN ---
   const handleReassign = async (ticketId: number, newAgentId: string) => {
     if (!newAgentId) return;
-    const { error } = await supabase
-      .from("tickets")
-      .update({ assigned_agent_id: newAgentId })
-      .eq("id", ticketId);
-
-    if (error) {
-      console.error("Error reasignando ticket:", error);
-      alert(
-        `Error reasignando ticket: ${
-          error.message || error.details || JSON.stringify(error)
-        }`,
-      );
-    } else {
-      alert("Ticket reasignado correctamente");
-      onUpdate();
-    }
+    ticketMutation.mutate({
+      ticketId,
+      updates: { assigned_agent_id: newAgentId },
+    });
   };
 
   // --- TOGGLE HOLD (SLA) ---
   const toggleHold = async (ticket: Ticket) => {
     const isHolding = ticket.status === "EN_ESPERA";
-
-    // Determinamos el nuevo estado
     const newStatus = isHolding ? "EN_PROGRESO" : "EN_ESPERA";
-
     const updates: Partial<Ticket> = { status: newStatus };
 
     if (!isHolding) {
-      // >>> CONGELAR <<<
-      const reason = prompt(
-        "Ingrese el motivo de pausa (Ej: Espera Repuesto, Espera Usuario, etc):",
-      );
-      if (!reason) return; // Cancelar si no escribe motivo
-
-      // Guardamos la fecha actual para detener el reloj de métricas
+      const reason = prompt("Motivo de pausa:");
+      if (!reason) return;
       updates.sla_clock_stopped_at = new Date().toISOString();
       updates.hold_reason = reason;
-      updates.sla_pause_reason = reason; // Asegurar compatibilidad
+      updates.sla_pause_reason = reason;
       updates.sla_status = "paused";
-
-      // Lógica de movimiento a Freezer
       if (/repuesto|garant|proveedor|compra/i.test(reason)) {
         updates.status = "EN_ESPERA";
-      } else {
-        updates.status = "EN_PROGRESO";
       }
     } else {
-      // >>> REANUDAR <<<
-      // Limpiamos la fecha de parada para que el reloj "siga corriendo"
       updates.sla_clock_stopped_at = null;
       updates.hold_reason = null;
       updates.sla_pause_reason = null;
       updates.sla_status = "running";
     }
 
-    // Actualizamos en Base de Datos
-    const { error } = await supabase
-      .from("tickets")
-      .update(updates)
-      .eq("id", ticket.id);
-
-    if (error) {
-      console.error("Error SLA:", error);
-      alert(
-        `Error al actualizar SLA: ${
-          error.message || error.details || JSON.stringify(error)
-        }`,
-      );
-    } else {
-      onUpdate();
-    }
+    ticketMutation.mutate({ ticketId: ticket.id, updates });
   };
 
   // --- CATEGORY CHANGE ---
@@ -89,16 +100,10 @@ export function useTicketActions(
     ticketId: number,
     newCategory: string,
   ) => {
-    const { error } = await supabase
-      .from("tickets")
-      .update({ category: newCategory })
-      .eq("id", ticketId);
-
-    if (error) {
-      alert("Error actualizando categoría");
-    } else {
-      onUpdate();
-    }
+    ticketMutation.mutate({
+      ticketId,
+      updates: { category: newCategory },
+    });
   };
 
   // --- ADD COMMENT ---
@@ -108,29 +113,15 @@ export function useTicketActions(
     currentDescription?: string,
   ) => {
     if (!newComment) return;
-
-    let finalDesc = currentDescription || "";
-
-    if (!finalDesc) {
-      const t = tickets.find((ticket) => ticket.id === ticketId);
-      if (t) finalDesc = t.description || "";
-    }
-
+    const t = tickets.find((ticket) => ticket.id === ticketId);
+    const finalDesc = currentDescription || t?.description || "";
     const dateStr = new Date().toLocaleString();
-    const newDescription =
-      (finalDesc || "") + `\n\n[${dateStr}] SEGUIMIENTO: ${newComment}`;
+    const newDescription = `${finalDesc}\n\n[${dateStr}] SEGUIMIENTO: ${newComment}`;
 
-    const { error } = await supabase
-      .from("tickets")
-      .update({ description: newDescription })
-      .eq("id", ticketId);
-
-    if (error) {
-      alert("Error al guardar comentario");
-    } else {
-      alert("Comentario agregado correctamente");
-      onUpdate();
-    }
+    ticketMutation.mutate({
+      ticketId,
+      updates: { description: newDescription },
+    });
   };
 
   // --- PROMPT COMMENT WRAPPER ---
@@ -140,7 +131,6 @@ export function useTicketActions(
   ) => {
     const comment = prompt("Ingrese su comentario de seguimiento:");
     if (!comment) return;
-
     await saveTicketComment(ticketId, comment, currentDescription);
   };
 
@@ -153,8 +143,6 @@ export function useTicketActions(
     const updates: Partial<Ticket> = { status: newStatus };
 
     try {
-      // We rely on the hook consumer to pass the currentUser, but here we double check or use local storage as fallback
-      // like the original code did, to be safe.
       let userId = currentUser?.id;
       if (!userId) {
         const userStr = safeGetItem("tic_user");
@@ -163,69 +151,25 @@ export function useTicketActions(
       }
 
       if (newStatus === "EN_PROGRESO") {
-        // Asignar al usuario actual al tomar el ticket
-        if (userId) {
-          updates.assigned_agent_id = userId;
-        }
+        if (userId) updates.assigned_agent_id = userId;
       } else if (newStatus === "PENDIENTE") {
-        // Desasignar al soltar el ticket
         updates.assigned_agent_id = null;
       } else if (newStatus === "RESUELTO") {
-        // Asignar al usuario actual si cierra el ticket ("El que cierra gana")
-        if (userId) {
-          updates.assigned_agent_id = userId;
-        }
-        // Guardar la solución si existe
+        if (userId) updates.assigned_agent_id = userId;
         if (solutionText) {
           updates.solution = solutionText;
-
-          // Buscar el ticket actual para obtener descripción previa
           const currentTicket = tickets.find((t) => t.id === ticketId);
           if (currentTicket) {
             const dateStr = new Date().toLocaleString();
-            updates.description =
-              (currentTicket.description || "") +
-              `\n\n[${dateStr}] SOLUCIÓN: ${solutionText}`;
+            updates.description = `${currentTicket.description || ""}\n\n[${dateStr}] SOLUCIÓN: ${solutionText}`;
           }
         }
       }
     } catch (e) {
-      console.warn("Error gestionando asignación de usuario:", e);
+      console.warn("Error gestionando asignación:", e);
     }
 
-    // Usamos .select() para verificar si realmente se actualizó (RLS)
-    const { data, error } = await supabase
-      .from("tickets")
-      .update(updates)
-      .eq("id", ticketId)
-      .select();
-
-    if (error) {
-      console.error("Error actualizando ticket:", error);
-      alert(
-        `Error actualizando ticket: ${
-          error.message || error.details || JSON.stringify(error)
-        }`,
-      );
-    } else if (!data || data.length === 0) {
-      // Si no hay error pero no devolvió datos, es probable que RLS lo haya bloqueado silenciosamente
-      console.error("Actualización ignorada por RLS (sin permisos)");
-      alert(
-        "⚠️ No se pudo actualizar el estado. Es posible que no tengas permisos para modificar este ticket o que ya haya sido modificado.",
-      );
-    } else {
-      // Éxito
-      const statusMessages: Record<string, string> = {
-        EN_PROGRESO: "Ticket atendido correctamente",
-        RESUELTO: "Ticket resuelto correctamente",
-        EN_ESPERA: "Ticket pausado correctamente",
-        PENDIENTE: "Ticket devuelto a pendientes",
-      };
-      // We do NOT fetchTickets() here, we let the caller do it via onUpdate() callback
-      onUpdate();
-
-      alert(statusMessages[newStatus] || "Ticket actualizado");
-    }
+    ticketMutation.mutate({ ticketId, updates });
   };
 
   return {

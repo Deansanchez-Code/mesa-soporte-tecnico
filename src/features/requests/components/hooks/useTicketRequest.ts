@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/cliente";
 import { User, Asset, Outage } from "../types";
+import { createTicketAction } from "@/features/tickets/actions/ticketActions";
+import { toast } from "sonner";
 
 interface UseTicketRequestProps {
   user: User;
@@ -204,20 +206,27 @@ export function useTicketRequest({
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("tickets").insert({
-        user_id: user.id,
+      const result = await createTicketAction({
         category: category,
+        ticket_type: "REQ",
         asset_serial: selectedAsset || manualSerial || null,
         location: location,
-        status: "PENDIENTE",
+        description: `Ticket creado desde formulario de usuario.`,
       });
 
-      if (error) throw error;
-      alert("✅ ¡Ticket creado exitosamente! Un técnico va en camino.");
+      if (result.error) throw new Error(result.error);
+
+      toast.success("¡Ticket creado exitosamente!", {
+        description: "Un técnico ha sido asignado automáticamente.",
+      });
+
       if (onSuccess) onSuccess();
     } catch (error) {
       console.error("Error creating ticket:", error);
-      alert("❌ Error al crear el ticket. Intenta de nuevo.");
+      toast.error("Error al crear el ticket", {
+        description:
+          error instanceof Error ? error.message : "Intente de nuevo.",
+      });
     } finally {
       setIsSubmitting(false);
     }

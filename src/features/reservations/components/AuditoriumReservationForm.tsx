@@ -9,6 +9,7 @@ import { useReservations } from "../hooks/useReservations";
 import { Reservation } from "../types";
 
 import { UserProfile } from "@/features/auth/hooks/useUserProfile";
+import { Skeleton } from "@/components/Skeleton";
 
 interface AuditoriumReservationFormProps {
   user: UserProfile["profile"];
@@ -39,13 +40,13 @@ export default function AuditoriumReservationForm({
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [isMultiDay, setIsMultiDay] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // useReservations Hook
   const {
     reservations,
     currentUserVip,
     loading,
-    setLoading,
     cancelReservation,
     createOrUpdateReservation,
     createSupportTicket,
@@ -131,7 +132,7 @@ export default function AuditoriumReservationForm({
       }
     }
 
-    setLoading(true);
+    setIsSubmitting(true);
 
     try {
       if (isOverride && conflict) {
@@ -213,7 +214,7 @@ export default function AuditoriumReservationForm({
         error instanceof Error ? error.message : "Error desconocido";
       toast.error(`Error: ${message}`);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
       setShowOverrideConfirm(false);
     }
   };
@@ -436,45 +437,53 @@ export default function AuditoriumReservationForm({
           </div>
 
           <div className="grid grid-cols-5 gap-1">
-            {timeSlots.map((hour) => {
-              const formatHour = (h: number) => h.toString().padStart(2, "0");
-              const slotStart = new Date(
-                `${startDate}T${formatHour(hour)}:00:00`,
-              );
-              const slotEnd = new Date(
-                `${startDate}T${formatHour(hour + 1)}:00:00`,
-              );
+            {loading
+              ? Array.from({ length: 15 }).map((_, idx) => (
+                  <Skeleton
+                    key={idx}
+                    className="h-10 w-full rounded border border-gray-100"
+                  />
+                ))
+              : timeSlots.map((hour) => {
+                  const formatHour = (h: number) =>
+                    h.toString().padStart(2, "0");
+                  const slotStart = new Date(
+                    `${startDate}T${formatHour(hour)}:00:00`,
+                  );
+                  const slotEnd = new Date(
+                    `${startDate}T${formatHour(hour + 1)}:00:00`,
+                  );
 
-              const isOccupied = reservations.some((r) => {
-                const rStart = new Date(r.start_time);
-                const rEnd = new Date(r.end_time);
-                return (
-                  slotStart.getTime() < rEnd.getTime() &&
-                  slotEnd.getTime() > rStart.getTime()
-                );
-              });
+                  const isOccupied = reservations.some((r) => {
+                    const rStart = new Date(r.start_time);
+                    const rEnd = new Date(r.end_time);
+                    return (
+                      slotStart.getTime() < rEnd.getTime() &&
+                      slotEnd.getTime() > rStart.getTime()
+                    );
+                  });
 
-              const isSelected =
-                startTime &&
-                endTime &&
-                hour >= parseInt(startTime.split(":")[0]) &&
-                hour < parseInt(endTime.split(":")[0]);
+                  const isSelected =
+                    startTime &&
+                    endTime &&
+                    hour >= parseInt(startTime.split(":")[0]) &&
+                    hour < parseInt(endTime.split(":")[0]);
 
-              return (
-                <div
-                  key={hour}
-                  className={`p-2 rounded border text-center text-xs transition-all ${
-                    isOccupied
-                      ? "bg-red-50 border-red-200 text-red-400 cursor-not-allowed"
-                      : isSelected
-                        ? "bg-blue-50 border-blue-300 text-blue-700 font-bold shadow-sm ring-1 ring-blue-200"
-                        : "bg-white border-green-100 hover:border-green-300 text-gray-600"
-                  }`}
-                >
-                  {hour}:00
-                </div>
-              );
-            })}
+                  return (
+                    <div
+                      key={hour}
+                      className={`p-2 rounded border text-center text-xs transition-all ${
+                        isOccupied
+                          ? "bg-red-50 border-red-200 text-red-400 cursor-not-allowed"
+                          : isSelected
+                            ? "bg-blue-50 border-blue-300 text-blue-700 font-bold shadow-sm ring-1 ring-blue-200"
+                            : "bg-white border-green-100 hover:border-green-300 text-gray-600"
+                      }`}
+                    >
+                      {hour}:00
+                    </div>
+                  );
+                })}
           </div>
         </div>
 
@@ -511,14 +520,14 @@ export default function AuditoriumReservationForm({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={loading || (!title && !conflict)}
+            disabled={isSubmitting || loading || (!title && !conflict)}
             className={`flex-1 py-3 rounded-xl font-bold text-white shadow-lg shadow-green-900/20 transition-all flex items-center justify-center gap-2 ${
-              loading || (!title && !conflict)
+              isSubmitting || loading || (!title && !conflict)
                 ? "bg-gray-300 cursor-not-allowed shadow-none"
                 : "bg-sena-green hover:bg-green-700 hover:scale-[1.02]"
             }`}
           >
-            {loading
+            {isSubmitting
               ? "Procesando..."
               : reservationToEdit
                 ? "Guardar Cambios"
@@ -534,7 +543,7 @@ export default function AuditoriumReservationForm({
           message={`Existe una reserva de ${conflict?.users?.full_name}. Al ser usuario VIP, puedes tomar este horario. Se cancelará la reserva anterior. ¿Deseas continuar?`}
           confirmText="Confirmar y Sobrescribir"
           variant="warning"
-          isLoading={loading}
+          isLoading={isSubmitting}
         />
       </div>
     </div>

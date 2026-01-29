@@ -7,6 +7,7 @@ import { formatDateForDB } from "@/lib/scheduling";
 import { TimeBlock } from "@/lib/scheduling";
 
 import { Assignment } from "../types";
+import { cancelReservationAction } from "@/features/reservations/actions/reservationActions";
 
 interface UseAssignmentsProps {
   areaId: number;
@@ -133,26 +134,11 @@ export function useAssignments({
     async (id: number, isReservation: boolean, deletedByName?: string) => {
       try {
         if (isReservation) {
-          // Use the API for reservations to ensure server-side auth/VIP checks
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-          const authToken = session?.access_token;
+          // Use Server Action
+          const result = await cancelReservationAction(id);
 
-          if (!authToken) throw new Error("No hay sesión activa");
-
-          const res = await fetch("/api/reservations/cancel", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${authToken}`,
-            },
-            body: JSON.stringify({ reservation_id: id }),
-          });
-
-          if (!res.ok) {
-            const errData = await res.json();
-            throw new Error(errData.error || "Error al cancelar la reserva");
+          if (result.error) {
+            throw new Error(result.error);
           }
 
           toast.success(

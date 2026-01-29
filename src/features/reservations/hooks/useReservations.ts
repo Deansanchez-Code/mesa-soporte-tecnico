@@ -1,8 +1,12 @@
-"use client";
-
-import { useState, useEffect, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/cliente";
 import { Reservation } from "../types";
+import {
+  cancelReservationAction,
+  createReservationAction,
+  updateReservationAction,
+} from "../actions/reservationActions";
+import { createTicketAction } from "@/features/tickets/actions/ticketActions";
 
 interface UseReservationsProps {
   userId: string;
@@ -10,89 +14,86 @@ interface UseReservationsProps {
 }
 
 export function useReservations({ userId, startDate }: UseReservationsProps) {
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [currentUserVip, setCurrentUserVip] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  const fetchReservations = useCallback(async () => {
-    const startOfDay = `${startDate}T00:00:00`;
-    const endOfDay = `${startDate}T23:59:59`;
+  // 1. Query para Reservas (Filtrado por fecha)
+  const {
+    data: reservations = [],
+    isLoading: loadingReservations,
+    refetch: refetchReservations,
+  } = useQuery<Reservation[]>({
+    queryKey: ["reservations", startDate],
+    queryFn: async () => {
+      const startOfDay = `${startDate}T00:00:00`;
+      const endOfDay = `${startDate}T23:59:59`;
 
-    const { data, error } = await supabase
-      .from("reservations")
-      .select("*, users(full_name, is_vip)")
-      .eq("status", "APPROVED")
-      .gte("start_time", startOfDay)
-      .lte("start_time", endOfDay)
-      .order("start_time");
+      const { data, error } = await supabase
+        .from("reservations")
+        .select("*, users(full_name, is_vip)")
+        .eq("status", "APPROVED")
+        .gte("start_time", startOfDay)
+        .lte("start_time", endOfDay)
+        .order("start_time");
 
-    if (error) {
-      console.error("[useReservations] Fetch Error:", error);
-      return;
-    }
-    if (data) setReservations(data as unknown as Reservation[]);
-  }, [startDate]);
+      if (error) throw error;
+      return data as unknown as Reservation[];
+    },
+    enabled: !!startDate,
+  });
 
-  const checkVipStatus = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+  // 2. Query para Status VIP
+  const { data: currentUserVip = false } = useQuery({
+    queryKey: ["vip-status", userId],
+    queryFn: async () => {
+      if (!userId) return false;
+      const { data, error } = await supabase
+        .from("users")
+        .select("is_vip")
+        .eq("auth_id", userId)
+        .maybeSingle();
 
-    // Check both metadata and DB (robust redundancy)
-    const isVipMetadata = !!(
-      user.user_metadata?.is_vip ||
-      user.user_metadata?.role?.toLowerCase() === "vip"
-    );
-    if (isVipMetadata) {
-      setCurrentUserVip(true);
-      return;
-    }
+      if (error) throw error;
+      return data?.is_vip || false;
+    },
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 10, // VIP status doesn't change often
+  });
 
-    const { data: dbUser } = await supabase
-      .from("users")
-      .select("is_vip")
-      .eq("auth_id", user.id)
-      .maybeSingle();
+  // 3. Mutation para Cancelar con Optimismo
+  const cancelMutation = useMutation({
+    mutationFn: (id: number) => cancelReservationAction(id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({
+        queryKey: ["reservations", startDate],
+      });
+      const previousReservations = queryClient.getQueryData<Reservation[]>([
+        "reservations",
+        startDate,
+      ]);
 
-    if (dbUser) setCurrentUserVip(dbUser.is_vip);
-  }, []);
+      queryClient.setQueryData<Reservation[]>(
+        ["reservations", startDate],
+        (old = []) => old.filter((r) => r.id !== id),
+      );
 
-  useEffect(() => {
-    let active = true;
-    const loadData = async () => {
-      if (active) {
-        await fetchReservations();
-        await checkVipStatus();
+      return { previousReservations };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousReservations) {
+        queryClient.setQueryData(
+          ["reservations", startDate],
+          context.previousReservations,
+        );
       }
-    };
-    loadData();
-    return () => {
-      active = false;
-    };
-  }, [fetchReservations, checkVipStatus]);
-
-  const getAuthToken = async (): Promise<string | null> => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    return session?.access_token || null;
-  };
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["reservations"] });
+    },
+  });
 
   const cancelReservation = async (reservationId: number) => {
-    const authToken = await getAuthToken();
-    if (!authToken) throw new Error("No auth token");
-
-    const res = await fetch("/api/reservations/cancel", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify({ reservation_id: reservationId }),
-    });
-
-    if (!res.ok) throw new Error("Error cancelling reservation");
+    const result = await cancelMutation.mutateAsync(reservationId);
+    if (result.error) throw new Error(result.error);
     return true;
   };
 
@@ -106,58 +107,34 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
     resources: string[];
     description?: string | null;
   }) => {
-    const authToken = await getAuthToken();
-    if (!authToken) throw new Error("No auth token");
+    const result = data.id
+      ? await updateReservationAction(data as Required<typeof data>)
+      : await createReservationAction(data);
 
-    const apiUrl = data.id
-      ? "/api/reservations/update"
-      : "/api/reservations/create";
-    const method = data.id ? "PUT" : "POST";
-
-    const res = await fetch(apiUrl, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(errData.error || "Error saving reservation");
+    if (result.error) {
+      throw new Error(result.error);
     }
-    return await res.json();
+
+    queryClient.invalidateQueries({ queryKey: ["reservations"] });
+    return result.data;
   };
 
   const createSupportTicket = async (data: {
     category: string;
-    ticket_type: string;
+    ticket_type: "INC" | "REQ";
     description: string;
     user_id: string;
     location: string;
   }) => {
-    const authToken = await getAuthToken();
-    if (!authToken) throw new Error("No auth token");
-
-    const res = await fetch("/api/tickets", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!res.ok) throw new Error("Error creating support ticket");
-    return await res.json();
+    const result = await createTicketAction(data);
+    if (result.error) throw new Error(result.error);
+    return result.data;
   };
 
   const updateSupportTicketByDescriptionMatch = async (
     oldDescriptionSubstring: string,
     newDescription: string,
   ) => {
-    // 1. Find the ticket
     const { data: tickets, error: searchError } = await supabase
       .from("tickets")
       .select("id")
@@ -167,27 +144,19 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
       .order("created_at", { ascending: false })
       .limit(1);
 
-    if (searchError) {
-      console.error("Error searching ticket:", searchError);
-      return;
-    }
+    if (searchError || !tickets?.length) return;
 
-    if (tickets && tickets.length > 0) {
-      const { error: updateError } = await supabase
-        .from("tickets")
-        .update({ description: newDescription })
-        .eq("id", tickets[0].id);
-
-      if (updateError) console.error("Error updating ticket:", updateError);
-    }
+    await supabase
+      .from("tickets")
+      .update({ description: newDescription })
+      .eq("id", tickets[0].id);
   };
 
   return {
     reservations,
     currentUserVip,
-    loading,
-    setLoading,
-    refetch: fetchReservations,
+    loading: loadingReservations,
+    refetch: refetchReservations,
     cancelReservation,
     createOrUpdateReservation,
     createSupportTicket,
