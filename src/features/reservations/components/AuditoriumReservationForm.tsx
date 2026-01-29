@@ -142,8 +142,10 @@ export default function AuditoriumReservationForm({
 
       const datesToReserve: string[] = [];
       if (isMultiDay) {
-        const current = new Date(startDate);
-        const end = new Date(finalDate);
+        const [sY, sM, sD] = startDate.split("-").map(Number);
+        const [eY, eM, eD] = finalDate.split("-").map(Number);
+        const current = new Date(sY, sM - 1, sD);
+        const end = new Date(eY, eM - 1, eD);
         let safetyCounter = 0;
         while (current <= end && safetyCounter < 31) {
           datesToReserve.push(getLocalDateString(current));

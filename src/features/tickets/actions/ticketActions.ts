@@ -120,7 +120,10 @@ export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
     return { success: true, data: result };
   } catch (error: unknown) {
     return {
-      error: error instanceof Error ? error.message : "Error al crear ticket",
+      error:
+        error instanceof Error
+          ? error.message
+          : String(error || "Error al crear ticket"),
     };
   }
 }
