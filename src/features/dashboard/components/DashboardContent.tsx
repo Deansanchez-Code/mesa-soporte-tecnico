@@ -31,6 +31,7 @@ interface DashboardContentProps {
   setSelectedAssetSerial: (serial: string | null) => void;
   setResolvingTicketId: (ticketId: number | null) => void;
   showFreezer: boolean;
+  loading?: boolean;
 }
 
 export default function DashboardContent({
@@ -54,6 +55,7 @@ export default function DashboardContent({
   setSelectedAssetSerial,
   setResolvingTicketId,
   showFreezer,
+  loading,
 }: DashboardContentProps) {
   if (viewMode === "ENVIRONMENTS") {
     return (
@@ -97,6 +99,7 @@ export default function DashboardContent({
       setSelectedAssetSerial={setSelectedAssetSerial}
       setResolvingTicketId={setResolvingTicketId}
       showFreezer={showFreezer}
+      loading={loading}
     />
   );
 }

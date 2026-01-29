@@ -1,87 +1,68 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/cliente";
 import { Ticket } from "@/app/admin/admin.types";
 import { User } from "@supabase/supabase-js";
 
 export function useTickets(currentUser: User | null) {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [agents, setAgents] = useState<
-    { id: string; full_name: string; role: string }[]
-  >([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchTickets = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Calcular fecha límite (15 días atrás)
-      const limitDate = new Date();
-      limitDate.setDate(limitDate.getDate() - 15);
-      const limitISO = limitDate.toISOString();
-
-      // Consultamos tickets con sus relaciones (Usuario y Activo)
-      // FILTRO: Status NO es (CERRADO o RESUELTO) O CreatedAt >= 15 días
-      // Supabase .or syntax: "condition1,condition2"
+  // 1. Query para Tickets
+  const {
+    data: tickets = [],
+    isLoading: loadingTickets,
+    isFetching: fetchingTickets,
+    error: ticketError,
+    refetch: refreshTickets,
+  } = useQuery<Ticket[]>({
+    queryKey: ["dashboard-tickets"],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("tickets")
         .select(
           `
-        *,
-        users:users!tickets_user_id_fkey ( full_name, area ),
-        assigned_agent:users!tickets_assigned_agent_id_fkey ( full_name ),
-        assets ( model, type, serial_number )
-      `,
+          *,
+          users:users!tickets_user_id_fkey ( full_name, area ),
+          assigned_agent:users!tickets_assigned_agent_id_fkey ( full_name ),
+          assets ( model, type, serial_number )
+        `,
         )
-        .or(`status.neq.CERRADO,status.neq.RESUELTO,created_at.gte.${limitISO}`)
         .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("❌ Error cargando tickets:", error);
-        throw error;
-      }
+      if (error) throw error;
+      return data as Ticket[];
+    },
+    enabled: !!currentUser,
+  });
 
-      setTickets(data as Ticket[]);
-
-      // Cargar Agentes para reasignación logic could be moved if it's static or needed elsewhere
-      // But keeping it here ensures we have agents available for the UI that consumes this hook
-      const { data: agentsData } = await supabase
+  // 2. Query para Agentes
+  const { data: agents = [], isLoading: loadingAgents } = useQuery({
+    queryKey: ["agents"],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("users")
         .select("id, full_name, role")
-        .in("role", ["agent", "admin", "superadmin"]); // Added superadmin just in case
+        .in("role", ["agent", "admin", "superadmin"]);
 
-      if (agentsData) {
-        setAgents(agentsData);
-      }
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentUser,
+    staleTime: 1000 * 60 * 5, // Los agentes no cambian tan seguido
+  });
 
-      setError(null);
-    } catch (err: unknown) {
-      console.error("❌ Error en fetchTickets:", err);
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Error desconocido al cargar tickets";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // --- Realtime Subscription ---
+  // 3. Realtime Subscription (Invalidación de caché)
   useEffect(() => {
-    const loadData = async () => {
-      await fetchTickets(); // Carga inicial
-    };
+    if (!currentUser) return;
 
-    if (currentUser) void loadData();
-
-    // Suscripción a cambios en la base de datos
     const channel = supabase
-      .channel("realtime tickets")
+      .channel("realtime-dashboard-tickets")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tickets" },
         () => {
-          void fetchTickets(); // Recargar si algo cambia
+          // En lugar de hacer fetch manual, invalidamos para que React Query haga lo suyo
+          queryClient.invalidateQueries({ queryKey: ["dashboard-tickets"] });
         },
       )
       .subscribe();
@@ -89,7 +70,17 @@ export function useTickets(currentUser: User | null) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentUser, fetchTickets]);
+  }, [currentUser, queryClient]);
 
-  return { tickets, agents, loading, error, refreshTickets: fetchTickets };
+  const isLoading = loadingTickets || loadingAgents;
+  const isFetching = fetchingTickets;
+  const error = ticketError instanceof Error ? ticketError.message : null;
+
+  return {
+    tickets,
+    agents,
+    loading: isLoading || isFetching,
+    error,
+    refreshTickets,
+  };
 }

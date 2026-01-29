@@ -7,6 +7,7 @@ export interface Reservation {
   user_id: string;
   auditorium_id?: string;
   resources?: string[];
+  description?: string | null;
   users?: {
     full_name: string;
     is_vip: boolean;

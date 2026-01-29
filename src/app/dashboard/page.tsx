@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase/cliente";
 import { safeGetItem, safeRemoveItem } from "@/lib/storage";
 import { useRouter } from "next/navigation";
 import NotificationManager from "@/components/NotificationManager";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 // --- HOOKS ---
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
@@ -132,88 +133,91 @@ export default function AgentDashboard() {
   });
 
   return (
-    <AuthGuard allowedRoles={["agent", "admin", "superadmin"]}>
-      <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
-        <NotificationManager tickets={tickets} />
+    <ErrorBoundary>
+      <AuthGuard allowedRoles={["agent", "admin", "superadmin"]}>
+        <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+          <NotificationManager tickets={tickets} />
 
-        <DashboardModals
-          selectedAssetSerial={selectedAssetSerial}
-          setSelectedAssetSerial={setSelectedAssetSerial}
-          showProfileModal={showProfileModal}
-          setShowProfileModal={setShowProfileModal}
-          currentUser={currentUser}
-          role={role}
-          selectedTicket={selectedTicket}
-          setSelectedTicket={setSelectedTicket}
-          updateStatus={updateStatus}
-          saveTicketComment={saveTicketComment}
-          agents={agents}
-          showCreateAssetModal={showCreateAssetModal}
-          setShowCreateAssetModal={setShowCreateAssetModal}
-          showMetricsModal={showMetricsModal}
-          setShowMetricsModal={setShowMetricsModal}
-          tickets={tickets}
-          profile={profile}
-        />
-
-        <DashboardHeader
-          currentUser={currentUser}
-          profile={profile}
-          role={role}
-          isAvailable={isAvailable}
-          toggleAvailability={toggleAvailability}
-          setShowCreateAssetModal={setShowCreateAssetModal}
-          handleLogout={handleLogout}
-          viewMode={viewMode}
-          setViewMode={setViewMode}
-          setShowProfileModal={setShowProfileModal}
-          setShowMetricsModal={setShowMetricsModal}
-        />
-
-        {/* CONTENIDO */}
-        <main className="flex-1 p-6 overflow-x-auto">
-          <DashboardTabs
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-            showFreezer={showFreezer}
-            setShowFreezer={setShowFreezer}
-            waitingTicketsCount={waitingTickets.length}
-            loading={loading}
-            fetchTickets={fetchTickets}
-          />
-
-          <DashboardContent
-            viewMode={viewMode}
-            permissions={permissions}
+          <DashboardModals
+            selectedAssetSerial={selectedAssetSerial}
+            setSelectedAssetSerial={setSelectedAssetSerial}
+            showProfileModal={showProfileModal}
+            setShowProfileModal={setShowProfileModal}
             currentUser={currentUser}
             role={role}
-            profile={profile}
-            tickets={tickets}
-            pendingTickets={pendingTickets}
-            inProgressTickets={inProgressTickets}
-            resolvedTickets={resolvedTickets}
-            waitingTickets={waitingTickets}
-            agents={agents}
-            updateStatus={updateStatus}
-            handleReassign={handleReassign}
-            toggleHold={toggleHold}
-            promptAddComment={promptAddComment}
-            handleCategoryChange={handleCategoryChange}
+            selectedTicket={selectedTicket}
             setSelectedTicket={setSelectedTicket}
-            setSelectedAssetSerial={setSelectedAssetSerial}
-            setResolvingTicketId={setResolvingTicketId}
-            showFreezer={showFreezer}
+            updateStatus={updateStatus}
+            saveTicketComment={saveTicketComment}
+            agents={agents}
+            showCreateAssetModal={showCreateAssetModal}
+            setShowCreateAssetModal={setShowCreateAssetModal}
+            showMetricsModal={showMetricsModal}
+            setShowMetricsModal={setShowMetricsModal}
+            tickets={tickets}
+            profile={profile}
           />
-        </main>
 
-        <ResolutionModal
-          resolvingTicketId={resolvingTicketId}
-          onClose={() => setResolvingTicketId(null)}
-          solutionTexts={solutionTexts}
-          setSolutionTexts={setSolutionTexts}
-          onUpdateStatus={updateStatus}
-        />
-      </div>
-    </AuthGuard>
+          <DashboardHeader
+            currentUser={currentUser}
+            profile={profile}
+            role={role}
+            isAvailable={isAvailable}
+            toggleAvailability={toggleAvailability}
+            setShowCreateAssetModal={setShowCreateAssetModal}
+            handleLogout={handleLogout}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            setShowProfileModal={setShowProfileModal}
+            setShowMetricsModal={setShowMetricsModal}
+          />
+
+          {/* CONTENIDO */}
+          <main className="flex-1 p-6 overflow-x-auto">
+            <DashboardTabs
+              viewMode={viewMode}
+              setViewMode={setViewMode}
+              showFreezer={showFreezer}
+              setShowFreezer={setShowFreezer}
+              waitingTicketsCount={waitingTickets.length}
+              loading={loading}
+              fetchTickets={fetchTickets}
+            />
+
+            <DashboardContent
+              viewMode={viewMode}
+              permissions={permissions}
+              currentUser={currentUser}
+              role={role}
+              profile={profile}
+              tickets={tickets}
+              pendingTickets={pendingTickets}
+              inProgressTickets={inProgressTickets}
+              resolvedTickets={resolvedTickets}
+              waitingTickets={waitingTickets}
+              agents={agents}
+              updateStatus={updateStatus}
+              handleReassign={handleReassign}
+              toggleHold={toggleHold}
+              promptAddComment={promptAddComment}
+              handleCategoryChange={handleCategoryChange}
+              setSelectedTicket={setSelectedTicket}
+              setSelectedAssetSerial={setSelectedAssetSerial}
+              setResolvingTicketId={setResolvingTicketId}
+              showFreezer={showFreezer}
+              loading={loading}
+            />
+          </main>
+
+          <ResolutionModal
+            resolvingTicketId={resolvingTicketId}
+            onClose={() => setResolvingTicketId(null)}
+            solutionTexts={solutionTexts}
+            setSolutionTexts={setSolutionTexts}
+            onUpdateStatus={updateStatus}
+          />
+        </div>
+      </AuthGuard>
+    </ErrorBoundary>
   );
 }
