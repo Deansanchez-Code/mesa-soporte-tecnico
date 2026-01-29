@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { X, Upload, FileText, Save, Loader2, Trash2 } from "lucide-react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase/cliente";
 import { toast } from "sonner";
 
 export interface Article {
@@ -19,11 +19,6 @@ interface ArticleEditorProps {
   onClose: () => void;
   onSaved: () => void;
 }
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
 
 export default function ArticleEditor({
   article,
@@ -53,9 +48,18 @@ export default function ArticleEditor({
         : "/api/knowledge";
       const method = article?.id ? "PUT" : "POST";
 
+      // Obtener sesión para el token
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
       const response = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(formData),
       });
 

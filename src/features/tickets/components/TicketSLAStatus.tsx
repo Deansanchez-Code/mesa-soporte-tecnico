@@ -10,7 +10,25 @@ interface TicketSLAStatusProps {
 }
 
 export function TicketSLAStatus({ ticket }: TicketSLAStatusProps) {
-  const isPaused = ticket.sla_status === "paused";
+  // Parsing logic for auditorium date
+  const getAuditoriumDate = (t: Ticket) => {
+    if (!t.category?.toLowerCase().includes("auditorio")) return null;
+    const desc = t.description || "";
+    const dateMatch = desc.match(/Fecha: (\d{2}-\d{2}-\d{4})/);
+    const timeMatch = desc.match(/Hora: (\d{2}:\d{2})/);
+    if (dateMatch && timeMatch) {
+      const [d, m, y] = dateMatch[1].split("-");
+      return new Date(`${y}-${m}-${d}T${timeMatch[1]}`);
+    }
+    return null;
+  };
+
+  const eventDate = getAuditoriumDate(ticket);
+  const now = new Date();
+  const isFutureAuditorium =
+    eventDate && (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60) >= 48;
+
+  const isPaused = ticket.sla_status === "paused" || isFutureAuditorium;
   const slaHours = getSLAHours(ticket);
   const created = ticket.created_at || new Date().toISOString();
 
@@ -52,7 +70,7 @@ export function TicketSLAStatus({ ticket }: TicketSLAStatusProps) {
         </span>
         {isPaused && (
           <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full text-[10px] animate-pulse">
-            CONGELADO
+            {isFutureAuditorium ? "ESPERA AGENDADA" : "CONGELADO"}
           </span>
         )}
       </h3>
@@ -80,7 +98,9 @@ export function TicketSLAStatus({ ticket }: TicketSLAStatusProps) {
           {isResolved
             ? "Completado"
             : isPaused
-              ? `Congelado - Falta ${formatDistanceToNow(dueDate, { locale: es })}`
+              ? isFutureAuditorium
+                ? "En espera de activación (24h antes)"
+                : `Congelado - Falta ${formatDistanceToNow(dueDate, { locale: es })}`
               : isOverdue
                 ? `Vencido hace ${formatDistanceToNow(dueDate, { locale: es })}`
                 : `Vence en ${formatDistanceToNow(dueDate, { locale: es })}`}
