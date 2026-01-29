@@ -119,11 +119,13 @@ export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
     revalidatePath("/dashboard");
     return { success: true, data: result };
   } catch (error: unknown) {
+    const errorMsg =
+      (error as Record<string, unknown>)?.message ||
+      (typeof error === "object"
+        ? JSON.stringify(error)
+        : String(error || "Error al crear ticket"));
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : String(error || "Error al crear ticket"),
+      error: String(errorMsg),
     };
   }
 }
