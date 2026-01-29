@@ -100,6 +100,7 @@ export function useTicketDetails({
         .from("tickets")
         .update({
           sla_status: "paused",
+          sla_last_paused_at: new Date().toISOString(),
           sla_pause_reason: finalReason,
           status: /repuesto|garant|proveedor|compra/i.test(finalReason)
             ? "EN_ESPERA" // Automático a En Espera
@@ -136,10 +137,26 @@ export function useTicketDetails({
   const handleResume = async () => {
     setProcessingAction(true);
     try {
+      // 1. Calculate how much time the ticket was paused
+      const now = new Date();
+      let newExpectedEndAt = ticket.sla_expected_end_at;
+
+      if (ticket.sla_last_paused_at && ticket.sla_expected_end_at) {
+        const lastPausedAt = new Date(ticket.sla_last_paused_at);
+        const pauseDurationMs = now.getTime() - lastPausedAt.getTime();
+        const currentExpectedEnd = new Date(ticket.sla_expected_end_at);
+        const adjustedEnd = new Date(
+          currentExpectedEnd.getTime() + pauseDurationMs,
+        );
+        newExpectedEndAt = adjustedEnd.toISOString();
+      }
+
       const { error } = await supabase
         .from("tickets")
         .update({
           sla_status: "running",
+          sla_expected_end_at: newExpectedEndAt,
+          sla_last_paused_at: null,
           status: "EN_PROGRESO",
         })
         .eq("id", ticket.id);

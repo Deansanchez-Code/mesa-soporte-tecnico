@@ -1,7 +1,11 @@
 import { Tables, Json } from "./types";
 
 export interface Ticket extends Tables<"tickets"> {
-  users: { full_name: string; area: string | null } | null;
+  users: {
+    full_name: string;
+    area: string | null;
+    is_vip: boolean | null;
+  } | null;
   assigned_agent: { full_name: string } | null;
   assets: {
     model: string | null;
