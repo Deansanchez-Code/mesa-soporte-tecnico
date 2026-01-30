@@ -1,16 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Search,
-  Loader2,
-  BookOpen,
-  ChevronRight,
-  X,
-  Copy,
-  Check,
-} from "lucide-react";
+import { Search, Loader2, BookOpen, ChevronRight, X, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase/cliente";
 
 interface Article {
   id: string;
@@ -43,7 +36,14 @@ export default function KnowledgeSearchModal({
       if (selectedCategory !== "Todos")
         params.append("category", selectedCategory);
 
-      const response = await fetch(`/api/knowledge?${params.toString()}`);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+
+      const response = await fetch(`/api/knowledge?${params.toString()}`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
       if (!response.ok) throw new Error("Error fetching articles");
       const data = await response.json();
       setArticles(data);
@@ -79,9 +79,10 @@ export default function KnowledgeSearchModal({
               </h3>
               <button
                 onClick={onClose}
-                className="md:hidden p-2 hover:bg-gray-100 rounded-full"
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors group"
+                title="Cerrar buscador"
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5 text-gray-400 group-hover:text-gray-600" />
               </button>
             </div>
 
