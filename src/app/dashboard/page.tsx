@@ -211,6 +211,7 @@ export default function AgentDashboard() {
 
           <ResolutionModal
             resolvingTicketId={resolvingTicketId}
+            ticket={tickets.find((t) => t.id === resolvingTicketId)}
             onClose={() => setResolvingTicketId(null)}
             solutionTexts={solutionTexts}
             setSolutionTexts={setSolutionTexts}

@@ -151,13 +151,15 @@ export function TicketActions({
             <MessageSquare className="w-4 h-4 text-blue-500" /> Agregar
             Seguimiento
           </span>
-          <button
-            onClick={() => setShowSearchModal(true)}
-            className="text-xs flex items-center gap-1.5 text-sena-green font-bold hover:underline bg-green-50 px-2 py-1 rounded-lg transition-colors border border-green-100"
-            title="Buscar en Base de Conocimiento"
-          >
-            <BookOpen className="w-3.5 h-3.5" /> Buscar Solución
-          </button>
+          {ticket.status !== "PENDIENTE" && (
+            <button
+              onClick={() => setShowSearchModal(true)}
+              className="text-xs flex items-center gap-1.5 text-sena-green font-bold hover:underline bg-green-50 px-2 py-1 rounded-lg transition-colors border border-green-100"
+              title="Buscar en Base de Conocimiento"
+            >
+              <BookOpen className="w-3.5 h-3.5" /> Buscar Solución
+            </button>
+          )}
         </h3>
         <textarea
           className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
@@ -191,6 +193,7 @@ export function TicketActions({
           </div>
           <div className="flex gap-2">
             {onUpdateStatus &&
+              ticket.status !== "PENDIENTE" &&
               ticket.status !== "RESUELTO" &&
               ticket.status !== "CERRADO" && (
                 <button
