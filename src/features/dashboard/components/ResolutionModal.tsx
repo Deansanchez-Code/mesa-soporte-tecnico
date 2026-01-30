@@ -5,12 +5,19 @@ import {
   ArrowLeft,
   Paperclip,
   Loader2,
+  Search,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/cliente";
 import { toast } from "sonner";
+import KnowledgeSearchModal from "@/features/knowledge/components/KnowledgeSearchModal";
+import ArticleEditor, {
+  Article,
+} from "@/features/knowledge/components/ArticleEditor";
+import { Ticket } from "@/app/admin/admin.types";
 
 interface ResolutionModalProps {
   resolvingTicketId: number | null;
+  ticket?: Ticket | null; // Added
   onClose: () => void;
   solutionTexts: Record<number, string>;
   setSolutionTexts: (texts: Record<number, string>) => void;
@@ -19,12 +26,19 @@ interface ResolutionModalProps {
 
 export default function ResolutionModal({
   resolvingTicketId,
+  ticket,
   onClose,
   solutionTexts,
   setSolutionTexts,
   onUpdateStatus,
 }: ResolutionModalProps) {
   const [isUploading, setIsUploading] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showArticleEditor, setShowArticleEditor] = useState(false);
+  const [saveToKb, setSaveToKb] = useState(false);
+  const [draftArticle, setDraftArticle] = useState<Article | undefined>(
+    undefined,
+  );
 
   if (!resolvingTicketId) return null;
 
@@ -113,7 +127,14 @@ export default function ResolutionModal({
               <label className="text-sm font-bold text-gray-700">
                 Solución Técnica
               </label>
-              <div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowSearchModal(true)}
+                  className="text-xs flex items-center gap-1.5 text-sena-green font-bold hover:bg-green-50 px-2 py-1 rounded-lg transition-colors border border-green-200 bg-white"
+                  title="Buscar en base de conocimiento"
+                >
+                  <Search className="w-3.5 h-3.5" /> Buscar Solución
+                </button>
                 <input
                   type="file"
                   id="evidence-upload"
@@ -157,7 +178,31 @@ export default function ResolutionModal({
             </div>
           </div>
 
-          <div className="flex gap-4 pt-4">
+          <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center h-5">
+              <input
+                id="save-kb-res"
+                type="checkbox"
+                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                checked={saveToKb}
+                onChange={(e) => setSaveToKb(e.target.checked)}
+              />
+            </div>
+            <label
+              htmlFor="save-kb-res"
+              className="text-xs text-gray-700 cursor-pointer select-none"
+            >
+              <span className="font-bold block text-gray-900">
+                Guardar solución en el repositorio
+              </span>
+              <span className="text-gray-500">
+                Ayuda a otros agentes guardando esta solución en la base de
+                conocimiento.
+              </span>
+            </label>
+          </div>
+
+          <div className="flex gap-4 pt-2">
             <button
               onClick={onClose}
               className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
@@ -169,7 +214,27 @@ export default function ResolutionModal({
               disabled={!isValid}
               onClick={async () => {
                 await onUpdateStatus(resolvingTicketId, "RESUELTO");
-                onClose();
+                if (saveToKb) {
+                  setDraftArticle({
+                    title: `Solución: Ticket #${resolvingTicketId}`,
+                    category:
+                      ticket?.category?.includes("HW") ||
+                      ticket?.category?.toUpperCase().includes("HARDWARE")
+                        ? "Hardware"
+                        : ticket?.category
+                              ?.toUpperCase()
+                              .includes("SOFTWARE") ||
+                            ticket?.category?.includes("SOFT")
+                          ? "Software"
+                          : "Otro",
+                    problem_type: "Incidencia/Requerimiento",
+                    solution: currentText,
+                    file_urls: [],
+                  });
+                  setShowArticleEditor(true);
+                } else {
+                  onClose();
+                }
               }}
               className={`flex-1 py-3 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${
                 !isValid
@@ -183,6 +248,38 @@ export default function ResolutionModal({
           </div>
         </div>
       </div>
+
+      {showSearchModal && (
+        <KnowledgeSearchModal
+          onClose={() => setShowSearchModal(false)}
+          onSelect={(solution) => {
+            const newText = currentText
+              ? currentText + "\n\n" + solution
+              : solution;
+            setSolutionTexts({
+              ...solutionTexts,
+              [resolvingTicketId]: newText,
+            });
+            toast.success("Solución copiada al detalle");
+            setShowSearchModal(false);
+          }}
+        />
+      )}
+
+      {showArticleEditor && (
+        <ArticleEditor
+          article={draftArticle}
+          onClose={() => {
+            setShowArticleEditor(false);
+            onClose();
+          }}
+          onSaved={() => {
+            setShowArticleEditor(false);
+            toast.success("Solución guardada en el repositorio");
+            onClose();
+          }}
+        />
+      )}
     </div>
   );
 }

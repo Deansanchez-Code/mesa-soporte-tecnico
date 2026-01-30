@@ -477,8 +477,19 @@ export default function AdminDashboard() {
     const { error } = await supabase
       .from(type)
       .insert({ name: newConfigItem.toUpperCase() });
-    if (error) alert("Error: Posible duplicado");
-    else {
+
+    if (error) {
+      console.error(`Error adding ${type}:`, error);
+      if (error.code === "23505") {
+        alert("Error: Este elemento ya existe (duplicado).");
+      } else if (error.code === "42501") {
+        alert(
+          "Error de permisos: No tienes autorización para crear este elemento.",
+        );
+      } else {
+        alert(`Error al guardar: ${error.message}`);
+      }
+    } else {
       setNewConfigItem("");
       fetchData();
     }
