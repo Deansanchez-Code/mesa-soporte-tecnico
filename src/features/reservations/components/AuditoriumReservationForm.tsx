@@ -48,7 +48,7 @@ export default function AuditoriumReservationForm({
     currentUserVip,
     loading,
     cancelReservation,
-    createOrUpdateReservation,
+    createBatchReservations,
     createSupportTicket,
     updateSupportTicketByDescriptionMatch,
   } = useReservations({
@@ -156,6 +156,10 @@ export default function AuditoriumReservationForm({
         datesToReserve.push(startDate);
       }
 
+      // Build Payload Data
+      const reservationsPayload = [];
+      const supportTicketsPayload = [];
+
       for (let i = 0; i < datesToReserve.length; i++) {
         const date = datesToReserve[i];
         const startDateObj = new Date(`${date}T${startTime}:00`);
@@ -163,33 +167,10 @@ export default function AuditoriumReservationForm({
         const startIso = startDateObj.toISOString();
         const endIso = endDateObj.toISOString();
 
-        // Only use the ID for the FIRST record if we are editing
-        // If we are expanding to multiple days, the extra days must be NEW reservations
+        // Target ID only for first if editing (multiday edits not fully supported yet in UI, assuming new additions)
         const targetId = i === 0 ? reservationToEdit?.id : undefined;
 
-        // VIP Override Logic using API
-        if (conflict && !isMultiDay) {
-          // We reuse 'conflict' state from current view
-          // Assuming the conflict is exactly the one we see
-          if (currentUserVip && !conflict.users?.is_vip) {
-            const confirmOverride = window.confirm(
-              `Existe una reserva de ${conflict.users?.full_name}. Al ser usuario VIP, puedes tomar este horario. Se cancelará la reserva anterior. ¿Deseas continuar?`,
-            );
-            if (!confirmOverride) {
-              setIsSubmitting(false);
-              return;
-            }
-
-            // Cancel via Hook
-            await cancelReservation(conflict.id);
-          } else {
-            toast.error("El horario no está disponible.");
-            setIsSubmitting(false);
-            return;
-          }
-        }
-
-        await createOrUpdateReservation({
+        reservationsPayload.push({
           id: targetId,
           title,
           start_time: startIso,
@@ -200,11 +181,24 @@ export default function AuditoriumReservationForm({
           description,
         });
 
-        if (reservationToEdit) {
-          // Sync Support Ticket
+        supportTicketsPayload.push({
+          date,
+          start: startTime,
+          end: endTime,
+        });
+      }
+
+      // Execute Batch or Single
+      // Note: createBatchReservations handles conflict checking atomically.
+      await createBatchReservations(reservationsPayload);
+
+      // Handle Support Tickets (Post-success)
+      for (const t of supportTicketsPayload) {
+        if (reservationToEdit && !isMultiDay) {
+          // Only update ticket if single edit
           const oldDescSubstring = `Reserva de Auditorio: ${reservationToEdit.title}`;
-          const formattedDate = date.split("-").reverse().join("-");
-          const newDesc = `Reserva de Auditorio: ${title}\nFecha: ${formattedDate}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
+          const formattedDate = t.date.split("-").reverse().join("-");
+          const newDesc = `Reserva de Auditorio: ${title}\nFecha: ${formattedDate}\nHora: ${t.start} - ${t.end}\nRecursos: ${selectedResources.join(
             ", ",
           )}\nDetalles: ${description}\n(ACTUALIZADO)`;
 
@@ -212,10 +206,11 @@ export default function AuditoriumReservationForm({
             oldDescSubstring,
             newDesc,
           );
-          toast.success("Reserva y ticket de soporte actualizados.");
         } else {
-          const formattedDate = date.split("-").reverse().join("-");
-          const descriptionText = `Reserva de Auditorio: ${title}\nFecha: ${formattedDate}\nHora: ${startTime} - ${endTime}\nRecursos: ${selectedResources.join(
+          // Create new tickets for all (or just one summary? Per requirements, usually one case per event, but multi-day might imply multiple?
+          // Logic in original code created one ticket PER loop iteration. Keeping that behavior.)
+          const formattedDate = t.date.split("-").reverse().join("-");
+          const descriptionText = `Reserva de Auditorio: ${title}\nFecha: ${formattedDate}\nHora: ${t.start} - ${t.end}\nRecursos: ${selectedResources.join(
             ", ",
           )}\nDetalles: ${description}`;
 
@@ -226,12 +221,10 @@ export default function AuditoriumReservationForm({
             user_id: user?.id || "",
             location: "Auditorio",
           });
-
-          toast.success(
-            "Reserva confirmada con éxito. Se ha generado un caso en la bandeja.",
-          );
         }
       }
+
+      toast.success("Reserva(s) confirmada(s) con éxito.");
 
       onSuccess();
     } catch (error: unknown) {

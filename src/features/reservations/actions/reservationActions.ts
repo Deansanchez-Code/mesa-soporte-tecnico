@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/servidor";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-const ReservationSchema = z.object({
+export const ReservationSchema = z.object({
   id: z.number().optional(),
   title: z.string().min(3, "El título debe tener al menos 3 caracteres"),
   start_time: z.string().datetime({ offset: true }),
@@ -261,7 +261,6 @@ export async function updateReservationAction(
 
     if (error) throw error;
 
-    revalidatePath("/dashboard");
     return { success: true, data: result };
   } catch (error: unknown) {
     const errorMsg =
@@ -269,6 +268,102 @@ export async function updateReservationAction(
       (typeof error === "object"
         ? JSON.stringify(error)
         : String(error || "Error al actualizar reserva"));
+    return { error: String(errorMsg) };
+  }
+}
+
+export async function createReservationBatchAction(
+  reservations: z.infer<typeof ReservationSchema>[],
+) {
+  try {
+    const supabase = await createClient();
+
+    // 1. Auth Check
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    if (!authUser) throw new Error("No autenticado");
+
+    // 2. Permissions Check
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("auth_id", authUser.id)
+      .single();
+
+    if (!publicUser) throw new Error("Usuario no encontrado");
+
+    // Pre-validate all
+    const validReservations = [];
+    for (const res of reservations) {
+      const parseResult = ReservationSchema.safeParse(res);
+      if (!parseResult.success) {
+        throw new Error(
+          "Datos inválidos en una de las reservas: " +
+            JSON.stringify(parseResult.error.format()),
+        );
+      }
+      const data = parseResult.data;
+
+      // Identity check
+      if (publicUser.id !== data.user_id) {
+        const isAdmin = ["admin", "superadmin"].includes(
+          publicUser.role?.toLowerCase() || "",
+        );
+        if (!isAdmin)
+          throw new Error(
+            "No tienes permisos para crear reservas a nombre de otros",
+          );
+      }
+      validReservations.push(data);
+    }
+
+    // 3. Global Conflict Check (Atomic-like)
+    // We check ALL ranges before inserting ANY.
+    for (const res of validReservations) {
+      const { data: conflicts } = await supabase
+        .from("reservations")
+        .select("id, users(full_name)")
+        .eq("status", "APPROVED")
+        .lt("start_time", res.end_time)
+        .gt("end_time", res.start_time);
+
+      if (conflicts && conflicts.length > 0) {
+        // @ts-expect-error - users is joined
+        const conflictUser = conflicts[0].users?.full_name || "Otro usuario";
+        throw new Error(
+          `Conflicto detectado para el ${new Date(res.start_time).toLocaleDateString()} (ocupado por ${conflictUser})`,
+        );
+      }
+    }
+
+    // 4. Batch Insert
+    const toInsert = validReservations.map((r) => ({
+      title: r.title,
+      start_time: r.start_time,
+      end_time: r.end_time,
+      user_id: r.user_id,
+      auditorium_id: r.auditorium_id || "1",
+      resources: r.resources,
+      description: r.description,
+      status: "APPROVED",
+    }));
+
+    const { data: result, error } = await supabase
+      .from("reservations")
+      .insert(toInsert)
+      .select();
+
+    if (error) throw error;
+
+    revalidatePath("/dashboard");
+    return { success: true, data: result };
+  } catch (error: unknown) {
+    const errorMsg =
+      (error as Record<string, unknown>)?.message ||
+      (typeof error === "object"
+        ? JSON.stringify(error)
+        : String(error || "Error en creación masiva"));
     return { error: String(errorMsg) };
   }
 }

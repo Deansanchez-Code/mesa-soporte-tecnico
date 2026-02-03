@@ -5,7 +5,10 @@ import {
   cancelReservationAction,
   createReservationAction,
   updateReservationAction,
+  createReservationBatchAction,
+  ReservationSchema,
 } from "../actions/reservationActions";
+import { z } from "zod";
 import { createTicketAction } from "@/features/tickets/actions/ticketActions";
 
 interface UseReservationsProps {
@@ -119,6 +122,15 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
     return result.data;
   };
 
+  const createBatchReservations = async (
+    data: z.infer<typeof ReservationSchema>[],
+  ) => {
+    const result = await createReservationBatchAction(data);
+    if (result.error) throw new Error(result.error);
+    queryClient.invalidateQueries({ queryKey: ["reservations"] });
+    return result.data;
+  };
+
   const createSupportTicket = async (data: {
     category: string;
     ticket_type: "INC" | "REQ";
@@ -159,6 +171,7 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
     refetch: refetchReservations,
     cancelReservation,
     createOrUpdateReservation,
+    createBatchReservations,
     createSupportTicket,
     updateSupportTicketByDescriptionMatch,
   };

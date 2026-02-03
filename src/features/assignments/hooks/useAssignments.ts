@@ -133,11 +133,16 @@ export function useAssignments({
   const deleteAssignment = useCallback(
     async (id: number, isReservation: boolean, deletedByName?: string) => {
       try {
+        // Optimistic UI Update: remove immediately
+        setAssignments((prev) => prev.filter((a) => a.id !== id));
+
         if (isReservation) {
           // Use Server Action
           const result = await cancelReservationAction(id);
 
           if (result.error) {
+            // Revert changes if error (fetch will restore)
+            await fetchAssignments();
             throw new Error(result.error);
           }
 
@@ -156,7 +161,11 @@ export function useAssignments({
             `Asignación eliminada correctamente${deletedByName ? ` por ${deletedByName}` : ""}`,
           );
         }
-        await fetchAssignments();
+        // Force sync after a short delay to ensure DB propagation
+        setTimeout(() => {
+          fetchAssignments();
+        }, 500);
+
         return { success: true };
       } catch (error: unknown) {
         const message =
