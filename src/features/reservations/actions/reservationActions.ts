@@ -3,17 +3,14 @@
 import { createClient } from "@/lib/supabase/servidor";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { EmailService } from "@/lib/email/email-service";
+import ReservationConfirmation from "@/lib/email/templates/ReservationConfirmation";
+import SupportNotification from "@/lib/email/templates/SupportNotification";
+import VipCancellation from "@/lib/email/templates/VipCancellation";
 
-export const ReservationSchema = z.object({
-  id: z.number().optional(),
-  title: z.string().min(3, "El título debe tener al menos 3 caracteres"),
-  start_time: z.string().datetime({ offset: true }),
-  end_time: z.string().datetime({ offset: true }),
-  user_id: z.string().uuid(),
-  auditorium_id: z.string().optional(),
-  resources: z.array(z.string()).optional().nullable(),
-  description: z.string().optional().nullable(),
-});
+import { ReservationSchema } from "../schemas";
+
+// Removed inline schema definition to comply with "use server" rules
 
 export async function cancelReservationAction(reservationId: number) {
   try {
@@ -37,7 +34,7 @@ export async function cancelReservationAction(reservationId: number) {
     // 3. Get public profile for VIP/Role check
     const { data: publicUser } = await supabase
       .from("users")
-      .select("id, is_vip, role")
+      .select("id, is_vip, role, full_name") // Added full_name for email
       .eq("auth_id", user.id)
       .single();
 
@@ -66,8 +63,9 @@ export async function cancelReservationAction(reservationId: number) {
 
     if (error) throw new Error(error.message);
 
-    // 6. Notify Owner if VIP Override
+    // 6. Notify Owner if VIP Override (Smart Dispatch)
     if (!isOwner && isVip) {
+      // Insert internal notification
       await supabase.from("user_notifications").insert([
         {
           user_id: reservation.user_id,
@@ -75,6 +73,83 @@ export async function cancelReservationAction(reservationId: number) {
           message: `Tu reserva "${reservation.title}" para el ${new Date(reservation.start_time).toLocaleString()} ha sido cancelada por un usuario VIP.`,
         },
       ]);
+
+      // --- EMAIL DISPATCH ---
+      (async () => {
+        try {
+          // Fetch full victim user details
+          const { data: victim } = await supabase
+            .from("users")
+            .select("full_name, email, employment_type, username")
+            .eq("id", reservation.user_id)
+            .single();
+
+          if (victim) {
+            // Determine Recipient (Same Logic)
+            let recipientEmail = victim.email;
+            if (
+              victim.employment_type !== "CONTRATISTA" &&
+              victim.employment_type !== "APRENDIZ"
+            ) {
+              if (!recipientEmail || !recipientEmail.includes("@")) {
+                recipientEmail =
+                  `${victim.username.trim()}@sena.edu.co`.toLowerCase();
+              }
+            }
+
+            if (recipientEmail && recipientEmail.includes("@")) {
+              const dateStr = new Date(
+                reservation.start_time,
+              ).toLocaleDateString("es-CO");
+
+              // 1. Notify Victim
+              await EmailService.send({
+                to: recipientEmail,
+                subject: `⚠️ Cancelación por Prioridad: ${reservation.title}`,
+                react: VipCancellation({
+                  userName: victim.full_name,
+                  eventTitle: reservation.title,
+                  date: dateStr,
+                  cancelledBy: publicUser?.full_name || "Usuario VIP", // Assuming publicUser has full_name, might need fetch
+                }),
+              });
+
+              // 2. Notify Coordinator IF it had Special Requirements (Cleanup)
+              // Need to fetch description from reservation? We queried it in line 31? No, we queried user_id, start_time, title.
+              // Let's optimize: We need description to check this rule.
+              // We'll trust the flow or re-fetch if needed. Ideally line 31 should have select("..., description").
+
+              // Re-fetching strictly for this rule to ensure data integrity
+              const { data: resDetails } = await supabase
+                .from("reservations")
+                .select("description")
+                .eq("id", reservationId)
+                .single();
+
+              if (
+                resDetails?.description &&
+                resDetails.description.trim().length > 0
+              ) {
+                await EmailService.send({
+                  to: "jeavendano@sena.edu.co",
+                  subject: `🚫 Requerimiento Cancelado: ${reservation.title}`,
+                  react: SupportNotification({
+                    requesterName: victim.full_name,
+                    eventTitle: reservation.title,
+                    date: dateStr,
+                    timeRange: "CANCELADO",
+                    specialRequirements: resDetails.description,
+                    type: "CANCELLED_REQUIREMENT",
+                    cancelledBy: publicUser?.full_name || "Prioridad VIP",
+                  }),
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.error("VIP Cancel Email Error: ", e);
+        }
+      })();
     }
 
     revalidatePath("/dashboard");
@@ -114,10 +189,10 @@ export async function createReservationAction(
     } = await supabase.auth.getUser();
     if (!authUser) throw new Error("No autenticado");
 
-    // 2. Permissions Check
+    // 2. Permissions & Identity Check
     const { data: publicUser } = await supabase
       .from("users")
-      .select("id, role")
+      .select("id, role, employment_type, email")
       .eq("auth_id", authUser.id)
       .single();
 
@@ -158,10 +233,94 @@ export async function createReservationAction(
           status: "APPROVED",
         },
       ])
-      .select()
+      .select("*, users(full_name, email, employment_type, username)") // Join to get up-to-date user info for email
       .single();
 
     if (error) throw error;
+
+    // --- NOTIFICATION LOGIC (SMART DISPATCH) ---
+    // Non-blocking catch to prevent transaction failure if email fails
+    (async () => {
+      try {
+        const reservation = result;
+        const user = reservation.users; // joined data
+
+        // A. Determine Recipient Email
+        let recipientEmail = user.email; // Default fallback
+        if (
+          user.employment_type === "CONTRATISTA" ||
+          user.employment_type === "APRENDIZ"
+        ) {
+          // Keep personal email from DB
+        } else {
+          // Planta / Official: Try to construct or use institutional
+          // If the DB email is NOT sena.edu.co, we might want to use the computed one?
+          // For now, let's trust the DB email if valid, or fallback to username schema if missing
+          if (!recipientEmail || !recipientEmail.includes("@")) {
+            recipientEmail =
+              `${user.username.trim()}@sena.edu.co`.toLowerCase();
+          }
+        }
+
+        // Ensure we have a valid email to send to
+        if (recipientEmail && recipientEmail.includes("@")) {
+          const startDate = new Date(reservation.start_time);
+          const endDate = new Date(reservation.end_time);
+          const dateStr = startDate.toLocaleDateString("es-CO", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          });
+          const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
+
+          // Calculate Google Calendar Link (Basic)
+          const gCalStart = startDate
+            .toISOString()
+            .replace(/-|:|\.\d\d\d/g, "");
+          const gCalEnd = endDate.toISOString().replace(/-|:|\.\d\d\d/g, "");
+          const gLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(reservation.title)}&dates=${gCalStart}/${gCalEnd}&details=${encodeURIComponent(reservation.description || "")}&location=Auditorio+SENA`;
+
+          // 1. Send Confirmation to User
+          await EmailService.send({
+            to: recipientEmail,
+            subject: `Reserva Confirmada: ${reservation.title}`,
+            react: ReservationConfirmation({
+              userName: user.full_name,
+              eventTitle: reservation.title,
+              date: dateStr,
+              timeRange: timeStr,
+              location: "Auditorio Principal",
+              resources: reservation.resources || [],
+              calendarLink: gLink,
+            }),
+          });
+
+          // 2. Send Notification to Coordinator IF Special Requirements exist
+          if (
+            reservation.description &&
+            reservation.description.trim().length > 0
+          ) {
+            await EmailService.send({
+              to: "jeavendano@sena.edu.co",
+              subject: `⚠️ Nuevo Requerimiento Especial: ${reservation.title}`,
+              react: SupportNotification({
+                requesterName: user.full_name,
+                requesterEmail: recipientEmail,
+                eventTitle: reservation.title,
+                date: dateStr,
+                timeRange: timeStr,
+                specialRequirements: reservation.description,
+                type: "NEW_REQUIREMENT",
+              }),
+            });
+          }
+        }
+      } catch (emailErr) {
+        console.error("Smart Dispatch Error:", emailErr);
+        // Do not throw, keep reservation success
+      }
+    })();
 
     revalidatePath("/dashboard");
     return { success: true, data: result };
@@ -285,13 +444,14 @@ export async function createReservationBatchAction(
     if (!authUser) throw new Error("No autenticado");
 
     // 2. Permissions Check
-    const { data: publicUser } = await supabase
+    const { data: publicUser, error: userError } = await supabase
       .from("users")
       .select("id, role")
       .eq("auth_id", authUser.id)
       .single();
 
-    if (!publicUser) throw new Error("Usuario no encontrado");
+    if (userError || !publicUser)
+      throw new Error("Usuario no encontrado en base de datos");
 
     // Pre-validate all
     const validReservations = [];
@@ -319,20 +479,24 @@ export async function createReservationBatchAction(
     }
 
     // 3. Global Conflict Check (Atomic-like)
-    // We check ALL ranges before inserting ANY.
+    // We avoid joining users here to prevent RLS/Relation errors causing 500s.
     for (const res of validReservations) {
-      const { data: conflicts } = await supabase
+      const { data: conflicts, error: conflictError } = await supabase
         .from("reservations")
-        .select("id, users(full_name)")
+        .select("id")
         .eq("status", "APPROVED")
         .lt("start_time", res.end_time)
         .gt("end_time", res.start_time);
 
+      if (conflictError) {
+        console.error("Error checking conflicts:", conflictError);
+        throw new Error("Error verificando disponibilidad de horario");
+      }
+
       if (conflicts && conflicts.length > 0) {
-        // @ts-expect-error - users is joined
-        const conflictUser = conflicts[0].users?.full_name || "Otro usuario";
+        // We found a conflict.
         throw new Error(
-          `Conflicto detectado para el ${new Date(res.start_time).toLocaleDateString()} (ocupado por ${conflictUser})`,
+          `Conflicto detectado para el ${new Date(res.start_time).toLocaleDateString()} (se solapa con otra reserva)`,
         );
       }
     }
@@ -344,8 +508,8 @@ export async function createReservationBatchAction(
       end_time: r.end_time,
       user_id: r.user_id,
       auditorium_id: r.auditorium_id || "1",
-      resources: r.resources,
-      description: r.description,
+      resources: r.resources || [], // Ensure array
+      description: r.description || null,
       status: "APPROVED",
     }));
 
@@ -354,11 +518,15 @@ export async function createReservationBatchAction(
       .insert(toInsert)
       .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error inserting reservations:", error);
+      throw new Error(error.message || "Error al insertar reservas");
+    }
 
     revalidatePath("/dashboard");
     return { success: true, data: result };
   } catch (error: unknown) {
+    console.error("Server Action Error (createReservationBatchAction):", error);
     const errorMsg =
       (error as Record<string, unknown>)?.message ||
       (typeof error === "object"

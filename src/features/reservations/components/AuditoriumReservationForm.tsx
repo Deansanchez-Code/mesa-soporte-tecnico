@@ -41,6 +41,7 @@ export default function AuditoriumReservationForm({
   const [description, setDescription] = useState("");
   const [isMultiDay, setIsMultiDay] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   // useReservations Hook
   const {
@@ -104,6 +105,7 @@ export default function AuditoriumReservationForm({
 
   // 2. Detectar conflictos visuales UI
   useEffect(() => {
+    if (isSuccess || isSubmitting) return; // Stop checking if success or submitting
     if (!startTime || !endTime || !startDate) return;
     const start = new Date(`${startDate}T${startTime}`);
     const end = new Date(`${startDate}T${endTime}`);
@@ -115,7 +117,15 @@ export default function AuditoriumReservationForm({
       return start < rEnd && end > rStart;
     });
     setConflict(found || null);
-  }, [startTime, endTime, startDate, reservations, reservationToEdit]);
+  }, [
+    startTime,
+    endTime,
+    startDate,
+    reservations,
+    reservationToEdit,
+    isSuccess,
+    isSubmitting,
+  ]);
 
   // 3. Handle Submit
   const handleSubmit = async (e?: React.FormEvent, isOverride = false) => {
@@ -191,6 +201,7 @@ export default function AuditoriumReservationForm({
       // Execute Batch or Single
       // Note: createBatchReservations handles conflict checking atomically.
       await createBatchReservations(reservationsPayload);
+      setIsSuccess(true); // Mark as success immediately to prevent conflict flash
 
       // Handle Support Tickets (Post-success)
       for (const t of supportTicketsPayload) {
@@ -228,6 +239,7 @@ export default function AuditoriumReservationForm({
 
       onSuccess();
     } catch (error: unknown) {
+      setIsSuccess(false); // Reset success on error just in case
       console.error(error);
       const message =
         error instanceof Error ? error.message : "Error desconocido";

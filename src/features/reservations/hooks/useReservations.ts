@@ -6,8 +6,8 @@ import {
   createReservationAction,
   updateReservationAction,
   createReservationBatchAction,
-  ReservationSchema,
 } from "../actions/reservationActions";
+import { ReservationSchema } from "../schemas";
 import { z } from "zod";
 import { createTicketAction } from "@/features/tickets/actions/ticketActions";
 
