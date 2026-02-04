@@ -11,7 +11,7 @@ UPDATE TO authenticated USING (
             WHERE users.auth_id = auth.uid()
                 AND (
                     users.is_vip = true
-                    OR users.role IN ('admin', 'superadmin')
+                    OR users.role IN ('admin', 'superadmin', 'vip')
                 )
         )
     ) WITH CHECK (
@@ -21,7 +21,7 @@ UPDATE TO authenticated USING (
             WHERE users.auth_id = auth.uid()
                 AND (
                     users.is_vip = true
-                    OR users.role IN ('admin', 'superadmin')
+                    OR users.role IN ('admin', 'superadmin', 'vip')
                 )
         )
     );

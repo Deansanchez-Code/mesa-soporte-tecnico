@@ -110,7 +110,8 @@ export default function CalendarView({
         user?.id &&
         assignment.user_id &&
         user.id.toLowerCase() === assignment.user_id.toLowerCase();
-      if (!canManage && !isOwner && !canDeleteAuditorium && !user?.is_vip) {
+      const isVip = !!user?.is_vip || user?.role?.toLowerCase() === "vip";
+      if (!canManage && !isOwner && !canDeleteAuditorium && !isVip) {
         toast.error("No tienes permisos para eliminar esta reserva");
         return;
       }
@@ -475,6 +476,7 @@ export default function CalendarView({
                               {(canManage ||
                                 canDeleteAuditorium ||
                                 !!user?.is_vip ||
+                                user?.role?.toLowerCase() === "vip" ||
                                 (assign.is_reservation &&
                                   user?.id &&
                                   assign.user_id &&
@@ -651,6 +653,7 @@ export default function CalendarView({
                               {(canManage ||
                                 canDeleteAuditorium ||
                                 !!user?.is_vip ||
+                                user?.role?.toLowerCase() === "vip" ||
                                 (assign.is_reservation &&
                                   user?.id &&
                                   assign.user_id &&
