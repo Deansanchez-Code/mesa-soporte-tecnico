@@ -159,6 +159,7 @@ export default function AssignmentManager({
           <div className="bg-white w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95">
             <AuditoriumReservationForm
               user={user}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               reservationToEdit={editingRes as any}
               onCancel={() => setEditingRes(null)}
               onSuccess={() => {

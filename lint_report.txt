@@ -1,0 +1,34 @@
+
+> mesa-soporte-tecnico@0.1.0 lint
+> eslint
+
+
+D:\mesa-soporte-tecnico\scripts\apply_migration_simple.js
+  1:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  2:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  3:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\scripts\check_db.js
+  1:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  2:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  3:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\scripts\emergency_fix_db.js
+  1:20  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  2:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  3:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\src\components\ErrorBoundary.tsx
+  20:42  warning  '_' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\mesa-soporte-tecnico\src\features\assignments\components\AssignmentManager.tsx
+  162:48  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\mesa-soporte-tecnico\src\features\dashboard\components\DashboardModals.tsx
+  8:18  warning  'Agent' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\mesa-soporte-tecnico\src\lib\api-middleware.ts
+  24:58  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+Ô£û 13 problems (11 errors, 2 warnings)
+
