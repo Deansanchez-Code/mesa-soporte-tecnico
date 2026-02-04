@@ -23,9 +23,10 @@ type ApiHandler = (
 export function withAuth(handler: ApiHandler) {
   return async (
     req: NextRequest,
-    { params }: { params?: Record<string, string> } = {},
+    props: { params?: Promise<Record<string, string>> } = {},
   ) => {
     try {
+      const params = await props.params;
       const supabase = await createClient();
       const {
         data: { session },
