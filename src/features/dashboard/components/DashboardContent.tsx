@@ -14,6 +14,7 @@ interface DashboardContentProps {
   role: string | null;
   profile: UserProfile["profile"];
   tickets: Ticket[];
+  reservationPendingTickets: Ticket[];
   pendingTickets: Ticket[];
   inProgressTickets: Ticket[];
   resolvedTickets: Ticket[];
@@ -41,6 +42,7 @@ export default function DashboardContent({
   role,
   profile,
   tickets,
+  reservationPendingTickets,
   pendingTickets,
   inProgressTickets,
   resolvedTickets,
@@ -84,6 +86,7 @@ export default function DashboardContent({
   return (
     <KanbanBoard
       tickets={tickets} // opcional, pero lo pasamos por si acaso
+      reservationPendingTickets={reservationPendingTickets}
       pendingTickets={pendingTickets}
       inProgressTickets={inProgressTickets}
       resolvedTickets={resolvedTickets}

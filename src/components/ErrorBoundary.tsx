@@ -23,6 +23,21 @@ class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
+
+    // Detección específica para errores de carga de Chunks (versiones desactualizadas)
+    if (
+      error.message?.includes("Loading chunk") ||
+      error.message?.includes("Failed to fetch") ||
+      error.message?.includes("Failed to load chunk") ||
+      error.name === "ChunkLoadError"
+    ) {
+      // Opcional: Forzar recarga si es la primera vez que ocurre en la sesión
+      const isRecovering = sessionStorage.getItem("chunk_reload_recovery");
+      if (!isRecovering) {
+        sessionStorage.setItem("chunk_reload_recovery", "true");
+        window.location.reload();
+      }
+    }
   }
 
   public render() {
@@ -37,11 +52,14 @@ class ErrorBoundary extends Component<Props, State> {
               Algo salió mal
             </h2>
             <p className="text-gray-600 mb-6 max-w-md">
-              Hubo un error al cargar esta sección. Puedes intentar recargar la
-              página.
+              Hemos detectado un error inesperado (posiblemente una
+              actualización pendiente). Por favor recarga la página.
             </p>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                sessionStorage.removeItem("chunk_reload_recovery");
+                window.location.reload();
+              }}
               className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-xl font-bold transition-all"
             >
               <RotateCcw className="w-4 h-4" />

@@ -102,20 +102,48 @@ export default function AgentDashboard() {
   // --- 5. FILTROS Y ORDENAMIENTO VISUAL ---
   const sortTickets = (ticketList: Ticket[]) => {
     return [...ticketList].sort((a, b) => {
-      // 1. Prioridad Tipo: INC > REQ
-      if (a.ticket_type === "INC" && b.ticket_type !== "INC") return -1;
-      if (a.ticket_type !== "INC" && b.ticket_type === "INC") return 1;
+      const getEventDate = (ticket: Ticket) => {
+        // Si es Auditorio, intentamos parsear la fecha de la descripción
+        if (ticket.category?.toLowerCase().includes("auditorio")) {
+          const desc = ticket.description || "";
+          const dateMatch = desc.match(/Fecha: (\d{2}-\d{2}-\d{4})/);
+          const timeMatch = desc.match(/Hora: (\d{2}:\d{2})/);
+          if (dateMatch && timeMatch) {
+            const [d, m, y] = dateMatch[1].split("-");
+            return new Date(`${y}-${m}-${d}T${timeMatch[1]}`);
+          }
+        }
+        // Fallback para soporte regular: SLA > Created
+        return ticket.sla_expected_end_at
+          ? new Date(ticket.sla_expected_end_at)
+          : new Date(ticket.created_at || "");
+      };
 
-      // 2. Prioridad Urgencia: Menor fecha fin = Más urgente
-      const dateA = a.sla_expected_end_at || a.created_at;
-      const dateB = b.sla_expected_end_at || b.created_at || "";
-      return new Date(dateA || "").getTime() - new Date(dateB).getTime();
+      const dateA = getEventDate(a).getTime();
+      const dateB = getEventDate(b).getTime();
+
+      // Priorizar Casos Vencidos o eventos que ya sucedieron (están en el pasado relativo a 'now' pero siguen abiertos)
+      // En realidad, un simple orden ascendente pone lo más antiguo/próximo arriba.
+      return dateA - dateB;
     });
   };
 
   const pendingTickets = sortTickets(
-    tickets.filter((t) => t.status === "PENDIENTE"),
+    tickets.filter(
+      (t) =>
+        t.status === "PENDIENTE" &&
+        !t.category?.toLowerCase().includes("auditorio"),
+    ),
   );
+
+  const reservationPendingTickets = sortTickets(
+    tickets.filter(
+      (t) =>
+        t.status === "PENDIENTE" &&
+        t.category?.toLowerCase().includes("auditorio"),
+    ),
+  );
+
   const inProgressTickets = sortTickets(
     tickets.filter((t) => t.status === "EN_PROGRESO"),
   );
@@ -191,6 +219,7 @@ export default function AgentDashboard() {
               role={role}
               profile={profile}
               tickets={tickets}
+              reservationPendingTickets={reservationPendingTickets}
               pendingTickets={pendingTickets}
               inProgressTickets={inProgressTickets}
               resolvedTickets={resolvedTickets}

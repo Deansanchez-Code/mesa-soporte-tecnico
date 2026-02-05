@@ -18,7 +18,8 @@ import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { safeGetItem } from "@/lib/storage";
 
 interface KanbanBoardProps {
-  tickets: Ticket[]; // Base tickets list if needed for lookups, though filtered lists are passed
+  tickets: Ticket[];
+  reservationPendingTickets: Ticket[];
   pendingTickets: Ticket[];
   inProgressTickets: Ticket[];
   resolvedTickets: Ticket[];
@@ -47,6 +48,7 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({
+  reservationPendingTickets,
   pendingTickets,
   inProgressTickets,
   resolvedTickets,
@@ -217,7 +219,113 @@ export function KanbanBoard({
       )}
 
       {/* --- GRID KANBAN PRINCIPAL --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-auto min-w-[300px]">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 h-auto min-w-[300px]">
+        {/* 0. GESTIÓN AUDITORIO */}
+        <div
+          className="flex flex-col bg-purple-50/20 rounded-xl border border-purple-100 min-h-[500px]"
+          onDragOver={handleDragOver}
+          onDrop={(e) => handleDrop(e, "PENDIENTE")}
+        >
+          <div className="p-4 border-b border-purple-100 bg-purple-50/40 rounded-t-xl flex justify-between items-center sticky top-0 backdrop-blur-sm z-10">
+            <h2 className="font-bold text-gray-700 flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.6)]"></div>
+              Gestión Auditorio
+            </h2>
+            <span className="bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded-full text-xs font-extrabold">
+              {reservationPendingTickets.length}
+            </span>
+          </div>
+
+          <div className="p-3 space-y-3 flex-1">
+            {loading ? (
+              <>
+                <TicketSkeleton />
+                <TicketSkeleton />
+              </>
+            ) : (
+              <>
+                {reservationPendingTickets.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-40 text-gray-400 text-sm opacity-60">
+                    <CheckCircle className="w-8 h-8 mb-2" />
+                    <p>Sin reservas pendientes</p>
+                  </div>
+                )}
+                {reservationPendingTickets.map((ticket) => (
+                  <div
+                    key={ticket.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, ticket.id)}
+                    className={`bg-white p-4 rounded-xl shadow-md border border-gray-200 ${getPriorityColor(
+                      ticket,
+                    )} ${
+                      ticket.is_vip_ticket
+                        ? "ring-2 ring-yellow-400 bg-yellow-50/20 shadow-yellow-100"
+                        : ""
+                    } hover:shadow-lg transition-all duration-200 group animate-in fade-in slide-in-from-bottom-2 cursor-grab active:cursor-grabbing`}
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest("button")) return;
+                      setSelectedTicket(ticket);
+                    }}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex gap-1 items-center">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1 bg-purple-100 text-purple-700 border border-purple-200">
+                            RES
+                            {ticket.ticket_code || `#${ticket.id}`}
+                          </span>
+                          {ticket.is_vip_ticket && (
+                            <span
+                              className="bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-yellow-200"
+                              title="Usuario VIP"
+                            >
+                              <Crown className="w-3 h-3" /> VIP
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-gray-400 font-medium">
+                          {ticket.category}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-1">
+                        <div
+                          className="flex items-center gap-1 text-[10px] text-gray-400"
+                          title={`Actualizado: ${new Date(
+                            ticket.updated_at || ticket.created_at || "",
+                          ).toLocaleString()}`}
+                        >
+                          <Clock className="w-3 h-3" />
+                          {getTimeAgo(
+                            ticket.updated_at || ticket.created_at || undefined,
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <h3 className="font-bold text-gray-800 text-base mb-1">
+                      {ticket.users?.full_name || "Usuario desconocido"}
+                    </h3>
+                    <div className="text-sm text-gray-500 mb-4 flex flex-col gap-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="font-medium text-gray-600">
+                          {ticket.location}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onUpdateStatus(ticket.id, "EN_PROGRESO")}
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-sm"
+                    >
+                      Atender Reserva
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+
         {/* 1. POR ASIGNAR */}
         <div
           className="flex flex-col bg-gray-100/50 rounded-xl border border-gray-200 min-h-[500px]"
