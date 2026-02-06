@@ -57,15 +57,22 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await dbQuery;
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase error in GET /api/knowledge:", error);
+      throw error;
+    }
 
     return NextResponse.json(data);
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Error desconocido";
-    console.error("Error fetching knowledge articles:", error);
+    console.error("Critical error in GET /api/knowledge:", error);
     return NextResponse.json(
-      { error: "Error al obtener artículos de conocimiento", details: message },
+      {
+        error: "Error al obtener artículos de conocimiento",
+        details: message,
+        code: (error as { code?: string })?.code,
+      },
       { status: 500 },
     );
   }

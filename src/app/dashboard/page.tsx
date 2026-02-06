@@ -103,14 +103,26 @@ export default function AgentDashboard() {
   const sortTickets = (ticketList: Ticket[]) => {
     return [...ticketList].sort((a, b) => {
       const getEventDate = (ticket: Ticket) => {
-        // Si es Auditorio, intentamos parsear la fecha de la descripción
+        // Auditorio: Intentar parsear la fecha de la descripción
         if (ticket.category?.toLowerCase().includes("auditorio")) {
           const desc = ticket.description || "";
-          const dateMatch = desc.match(/Fecha: (\d{2}-\d{2}-\d{4})/);
+          // Regex robusta para YYYY-MM-DD y DD-MM-YYYY con - o /
+          const dateMatch = desc.match(/Fecha: (\d{2,4}[-/]\d{2}[-/]\d{2,4})/);
           const timeMatch = desc.match(/Hora: (\d{2}:\d{2})/);
+
           if (dateMatch && timeMatch) {
-            const [d, m, y] = dateMatch[1].split("-");
-            return new Date(`${y}-${m}-${d}T${timeMatch[1]}`);
+            const dateStr = dateMatch[1].replace(/\//g, "-");
+            const [p1, p2, p3] = dateStr.split("-");
+            let normalizedDate;
+
+            if (p1.length === 4) {
+              // YYYY-MM-DD
+              normalizedDate = `${p1}-${p2}-${p3}`;
+            } else {
+              // DD-MM-YYYY
+              normalizedDate = `${p3}-${p2}-${p1}`;
+            }
+            return new Date(`${normalizedDate}T${timeMatch[1]}`);
           }
         }
         // Fallback para soporte regular: SLA > Created

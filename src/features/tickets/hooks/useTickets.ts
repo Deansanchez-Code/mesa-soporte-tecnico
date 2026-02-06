@@ -46,11 +46,22 @@ export function useTickets(currentUser: User | null) {
       const getAuditoriumDate = (ticket: Ticket) => {
         if (!ticket.category?.toLowerCase().includes("auditorio")) return null;
         const desc = ticket.description || "";
-        const dateMatch = desc.match(/Fecha: (\d{2}-\d{2}-\d{4})/);
+        const dateMatch = desc.match(/Fecha: (\d{2,4}[-/]\d{2}[-/]\d{2,4})/);
         const timeMatch = desc.match(/Hora: (\d{2}:\d{2})/);
+
         if (dateMatch && timeMatch) {
-          const [d, m, y] = dateMatch[1].split("-");
-          return new Date(`${y}-${m}-${d}T${timeMatch[1]}`);
+          const dateStr = dateMatch[1].replace(/\//g, "-");
+          const [p1, p2, p3] = dateStr.split("-");
+          let normalizedDate;
+
+          if (p1.length === 4) {
+            // YYYY-MM-DD
+            normalizedDate = `${p1}-${p2}-${p3}`;
+          } else {
+            // DD-MM-YYYY
+            normalizedDate = `${p3}-${p2}-${p1}`;
+          }
+          return new Date(`${normalizedDate}T${timeMatch[1]}`);
         }
         return null;
       };

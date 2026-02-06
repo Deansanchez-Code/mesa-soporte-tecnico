@@ -49,6 +49,7 @@ export async function GET(
           { status: 404 },
         );
       }
+      console.error("Supabase error in GET /api/knowledge/[id]:", error);
       throw error;
     }
 
@@ -56,9 +57,13 @@ export async function GET(
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Error desconocido";
-    console.error("Error fetching article detail:", error);
+    console.error("Critical error in GET /api/knowledge/[id]:", error);
     return NextResponse.json(
-      { error: "Error al obtener el detalle del artículo", details: message },
+      {
+        error: "Error al obtener el detalle del artículo",
+        details: message,
+        code: (error as { code?: string })?.code,
+      },
       { status: 500 },
     );
   }
