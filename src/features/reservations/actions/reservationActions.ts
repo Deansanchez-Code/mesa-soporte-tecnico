@@ -72,110 +72,105 @@ export async function cancelReservationAction(reservationId: number) {
       ]);
 
       // --- EMAIL DISPATCH ---
-      (async () => {
-        try {
-          // Fetch full victim user details
-          const { data: victim } = await supabase
-            .from("users")
-            .select("full_name, email, employment_type, username")
-            .eq("id", reservation.user_id)
-            .single();
+      try {
+        // Fetch full victim user details
+        const { data: victim } = await supabase
+          .from("users")
+          .select("full_name, email, employment_type, username")
+          .eq("id", reservation.user_id)
+          .single();
 
-          if (victim) {
-            let recipientEmail = victim.email;
+        if (victim) {
+          let recipientEmail = victim.email;
 
-            // Regla de Negocio:
-            // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
-            // - Contratistas -> Correo registrado (personal o corporativo)
-            const employmentType = (victim.employment_type || "").toLowerCase();
-            const isOfficial =
-              employmentType.includes("planta") ||
-              employmentType.includes("funcionario") ||
-              employmentType.includes("oficial");
+          // Regla de Negocio:
+          // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
+          // - Contratistas -> Correo registrado (personal o corporativo)
+          const employmentType = (victim.employment_type || "").toLowerCase();
+          const isOfficial =
+            employmentType.includes("planta") ||
+            employmentType.includes("funcionario") ||
+            employmentType.includes("oficial");
 
-            if (isOfficial) {
-              recipientEmail =
-                `${victim.username.trim()}@sena.edu.co`.toLowerCase();
-            }
+          if (isOfficial) {
+            recipientEmail =
+              `${victim.username.trim()}@sena.edu.co`.toLowerCase();
+          }
 
-            if (recipientEmail && recipientEmail.includes("@")) {
-              const dateStr = new Date(
-                reservation.start_time,
-              ).toLocaleDateString("es-CO");
+          if (recipientEmail && recipientEmail.includes("@")) {
+            const dateStr = new Date(reservation.start_time).toLocaleDateString(
+              "es-CO",
+            );
 
-              // 1. Notify Victim
+            // 1. Notify Victim
+            await EmailService.send({
+              to: recipientEmail,
+              subject: `⚠️ Cancelación por Prioridad: ${reservation.title}`,
+              react: VipCancellation({
+                userName: victim.full_name,
+                eventTitle: reservation.title,
+                date: dateStr,
+                cancelledBy: publicUser?.full_name || "Usuario VIP",
+              }),
+            });
+
+            // 2. Notify Coordinator IF it had Special Requirements
+            const { data: resDetails } = await supabase
+              .from("reservations")
+              .select("description")
+              .eq("id", reservationId)
+              .single();
+
+            if (
+              resDetails?.description &&
+              resDetails.description.trim().length > 0
+            ) {
               await EmailService.send({
-                to: recipientEmail,
-                subject: `⚠️ Cancelación por Prioridad: ${reservation.title}`,
-                react: VipCancellation({
-                  userName: victim.full_name,
+                to: "jeavendano@sena.edu.co",
+                subject: `🚫 Requerimiento Cancelado: ${reservation.title}`,
+                react: SupportNotification({
+                  requesterName: victim.full_name,
                   eventTitle: reservation.title,
                   date: dateStr,
-                  cancelledBy: publicUser?.full_name || "Usuario VIP",
+                  timeRange: "CANCELADO",
+                  specialRequirements: resDetails.description,
+                  type: "CANCELLED_REQUIREMENT",
+                  cancelledBy: publicUser?.full_name || "Prioridad VIP",
                 }),
               });
-
-              // 2. Notify Coordinator IF it had Special Requirements
-              const { data: resDetails } = await supabase
-                .from("reservations")
-                .select("description")
-                .eq("id", reservationId)
-                .single();
-
-              if (
-                resDetails?.description &&
-                resDetails.description.trim().length > 0
-              ) {
-                await EmailService.send({
-                  to: "jeavendano@sena.edu.co",
-                  subject: `🚫 Requerimiento Cancelado: ${reservation.title}`,
-                  react: SupportNotification({
-                    requesterName: victim.full_name,
-                    eventTitle: reservation.title,
-                    date: dateStr,
-                    timeRange: "CANCELADO",
-                    specialRequirements: resDetails.description,
-                    type: "CANCELLED_REQUIREMENT",
-                    cancelledBy: publicUser?.full_name || "Prioridad VIP",
-                  }),
-                });
-              }
             }
           }
-        } catch (e) {
-          console.error("VIP Cancel Email Error: ", e);
         }
-      })();
+      } catch (e) {
+        console.error("VIP Cancel Email Error: ", e);
+      }
       // --- AUTOMATIC TICKET RESOLUTION ---
-      (async () => {
-        try {
-          // Identify the associated ticket
-          const { data: tickets } = await supabase
-            .from("tickets")
-            .select("id")
-            .eq("user_id", reservation.user_id)
-            .eq("category", "Reserva Auditorio")
-            .ilike("description", `%${reservation.title}%`)
-            .neq("status", "RESUELTO")
-            .order("created_at", { ascending: false })
-            .limit(1);
+      try {
+        // Identify the associated ticket
+        const { data: tickets } = await supabase
+          .from("tickets")
+          .select("id")
+          .eq("user_id", reservation.user_id)
+          .eq("category", "Reserva Auditorio")
+          .ilike("description", `%${reservation.title}%`)
+          .neq("status", "RESUELTO")
+          .order("created_at", { ascending: false })
+          .limit(1);
 
-          if (tickets && tickets.length > 0) {
-            await supabase
-              .from("tickets")
-              .update({
-                status: "RESUELTO",
-                solution:
-                  "Cancelado por el usuario y resuelto por el Superadmin",
-                sla_status: "completed",
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", tickets[0].id);
-          }
-        } catch (e) {
-          console.error("Auto Ticket Resolution Error: ", e);
+        if (tickets && tickets.length > 0) {
+          await supabase
+            .from("tickets")
+            .update({
+              status: "RESUELTO",
+              solution: "Cancelado por el usuario y resuelto por el Superadmin",
+              sla_status: "completed",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", tickets[0].id);
         }
-      })();
+      } catch (e) {
+        console.error("Auto Ticket Resolution Error: ", e);
+      }
     }
 
     revalidatePath("/dashboard");
@@ -265,71 +260,69 @@ export async function createReservationAction(
     if (error) throw error;
 
     // --- NOTIFICATION LOGIC ---
-    (async () => {
-      try {
-        const reservation = result;
-        const user = reservation.users;
+    try {
+      const reservation = result;
+      const user = reservation.users;
 
-        // Regla de Negocio:
-        // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
-        // - Contratistas -> Correo registrado (personal o corporativo)
-        const employmentType = (user.employment_type || "").toLowerCase();
-        const isOfficial =
-          employmentType.includes("planta") ||
-          employmentType.includes("funcionario") ||
-          employmentType.includes("oficial");
+      // Regla de Negocio:
+      // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
+      // - Contratistas -> Correo registrado (personal o corporativo)
+      const employmentType = (user.employment_type || "").toLowerCase();
+      const isOfficial =
+        employmentType.includes("planta") ||
+        employmentType.includes("funcionario") ||
+        employmentType.includes("oficial");
 
-        let recipientEmail = user.email;
+      let recipientEmail = user.email;
 
-        if (isOfficial) {
-          recipientEmail = `${user.username.trim()}@sena.edu.co`.toLowerCase();
-        }
-        if (recipientEmail && recipientEmail.includes("@")) {
-          const startDate = new Date(reservation.start_time);
-          const endDate = new Date(reservation.end_time);
-          const dateStr = startDate.toLocaleDateString("es-CO", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          });
-          const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
+      if (isOfficial) {
+        recipientEmail = `${user.username.trim()}@sena.edu.co`.toLowerCase();
+      }
+      if (recipientEmail && recipientEmail.includes("@")) {
+        const startDate = new Date(reservation.start_time);
+        const endDate = new Date(reservation.end_time);
+        const dateStr = startDate.toLocaleDateString("es-CO", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
 
+        await EmailService.send({
+          to: recipientEmail,
+          subject: `Reserva Confirmada: ${reservation.title}`,
+          react: ReservationConfirmation({
+            userName: user.full_name,
+            eventTitle: reservation.title,
+            date: dateStr,
+            timeRange: timeStr,
+            location: "Auditorio Principal",
+            resources: reservation.resources || [],
+          }),
+        });
+        if (
+          reservation.description &&
+          reservation.description.trim().length > 0
+        ) {
           await EmailService.send({
-            to: recipientEmail,
-            subject: `Reserva Confirmada: ${reservation.title}`,
-            react: ReservationConfirmation({
-              userName: user.full_name,
+            to: "jeavendano@sena.edu.co",
+            subject: `⚠️ Nuevo Requerimiento Especial: ${reservation.title}`,
+            react: SupportNotification({
+              requesterName: user.full_name,
+              requesterEmail: recipientEmail,
               eventTitle: reservation.title,
               date: dateStr,
               timeRange: timeStr,
-              location: "Auditorio Principal",
-              resources: reservation.resources || [],
+              specialRequirements: reservation.description,
+              type: "NEW_REQUIREMENT",
             }),
           });
-          if (
-            reservation.description &&
-            reservation.description.trim().length > 0
-          ) {
-            await EmailService.send({
-              to: "jeavendano@sena.edu.co",
-              subject: `⚠️ Nuevo Requerimiento Especial: ${reservation.title}`,
-              react: SupportNotification({
-                requesterName: user.full_name,
-                requesterEmail: recipientEmail,
-                eventTitle: reservation.title,
-                date: dateStr,
-                timeRange: timeStr,
-                specialRequirements: reservation.description,
-                type: "NEW_REQUIREMENT",
-              }),
-            });
-          }
         }
-      } catch (emailErr) {
-        console.error("Single Reservation Email Error:", emailErr);
       }
-    })();
+    } catch (emailErr) {
+      console.error("Single Reservation Email Error:", emailErr);
+    }
 
     revalidatePath("/dashboard");
     return { success: true, data: result };
@@ -532,103 +525,100 @@ export async function createReservationBatchAction(
     }
 
     // --- NOTIFICATION LOGIC (BATCH SUMMARY) ---
-    (async () => {
-      try {
-        if (result && result.length > 0) {
-          const { data: user } = await supabase
-            .from("users")
-            .select("full_name, email, employment_type, username")
-            .eq("id", validReservations[0].user_id)
-            .single();
+    try {
+      if (result && result.length > 0) {
+        const { data: user } = await supabase
+          .from("users")
+          .select("full_name, email, employment_type, username")
+          .eq("id", validReservations[0].user_id)
+          .single();
 
-          if (!user) return;
+        if (!user) return;
 
-          // Regla de Negocio:
-          // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
-          // - Contratistas -> Correo registrado (personal o corporativo)
-          const employmentType = (user.employment_type || "").toLowerCase();
-          const isOfficial =
-            employmentType.includes("planta") ||
-            employmentType.includes("funcionario") ||
-            employmentType.includes("oficial");
+        // Regla de Negocio:
+        // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
+        // - Contratistas -> Correo registrado (personal o corporativo)
+        const employmentType = (user.employment_type || "").toLowerCase();
+        const isOfficial =
+          employmentType.includes("planta") ||
+          employmentType.includes("funcionario") ||
+          employmentType.includes("oficial");
 
-          let recipientEmail = user.email;
+        let recipientEmail = user.email;
 
-          if (isOfficial) {
-            recipientEmail =
-              `${user.username.trim()}@sena.edu.co`.toLowerCase();
-          }
+        if (isOfficial) {
+          recipientEmail = `${user.username.trim()}@sena.edu.co`.toLowerCase();
+        }
 
-          if (recipientEmail && recipientEmail.includes("@")) {
-            const titles = [...new Set(validReservations.map((r) => r.title))];
-            const isSingleActivity = titles.length === 1;
+        if (recipientEmail && recipientEmail.includes("@")) {
+          const titles = [...new Set(validReservations.map((r) => r.title))];
+          const isSingleActivity = titles.length === 1;
 
-            if (isSingleActivity) {
-              // GROUPED EMAIL (Multi-day)
-              const sortedRes = [...validReservations].sort(
-                (a, b) =>
-                  new Date(a.start_time).getTime() -
-                  new Date(b.start_time).getTime(),
-              );
+          if (isSingleActivity) {
+            // GROUPED EMAIL (Multi-day)
+            const sortedRes = [...validReservations].sort(
+              (a, b) =>
+                new Date(a.start_time).getTime() -
+                new Date(b.start_time).getTime(),
+            );
 
-              const datesList = sortedRes
-                .map((r) => {
-                  const d = new Date(r.start_time);
-                  return d.toLocaleDateString("es-CO", {
-                    day: "numeric",
-                    month: "short",
-                  });
-                })
-                .join(", ");
+            const datesList = sortedRes
+              .map((r) => {
+                const d = new Date(r.start_time);
+                return d.toLocaleDateString("es-CO", {
+                  day: "numeric",
+                  month: "short",
+                });
+              })
+              .join(", ");
 
-              const first = sortedRes[0];
-              const timeStr = `${new Date(first.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${new Date(first.end_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
+            const first = sortedRes[0];
+            const timeStr = `${new Date(first.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${new Date(first.end_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
 
+            await EmailService.send({
+              to: recipientEmail,
+              subject: `Reserva Grupal Confirmada: ${titles[0]}`,
+              react: ReservationConfirmation({
+                userName: user.full_name,
+                eventTitle: `${titles[0]} (Lote de ${validReservations.length} días)`,
+                date: datesList,
+                timeRange: timeStr,
+                location: "Auditorio Principal",
+                resources: first.resources || [],
+              }),
+            });
+
+            // Coordinator summary - ONLY IF description matches search rule
+            const allDescriptions = validReservations
+              .map((r) => r.description)
+              .filter((d) => d && d.trim().length > 0);
+
+            if (allDescriptions.length > 0) {
               await EmailService.send({
-                to: recipientEmail,
-                subject: `Reserva Grupal Confirmada: ${titles[0]}`,
-                react: ReservationConfirmation({
-                  userName: user.full_name,
-                  eventTitle: `${titles[0]} (Lote de ${validReservations.length} días)`,
+                to: "jeavendano@sena.edu.co",
+                subject: `⚠️ Múltiples Requerimientos: ${titles[0]}`,
+                react: SupportNotification({
+                  requesterName: user.full_name,
+                  requesterEmail: recipientEmail,
+                  eventTitle: titles[0],
                   date: datesList,
                   timeRange: timeStr,
-                  location: "Auditorio Principal",
-                  resources: first.resources || [],
+                  specialRequirements: [...new Set(allDescriptions)].join(
+                    " | ",
+                  ),
+                  type: "NEW_REQUIREMENT",
                 }),
               });
-
-              // Coordinator summary - ONLY IF description matches search rule
-              const allDescriptions = validReservations
-                .map((r) => r.description)
-                .filter((d) => d && d.trim().length > 0);
-
-              if (allDescriptions.length > 0) {
-                await EmailService.send({
-                  to: "jeavendano@sena.edu.co",
-                  subject: `⚠️ Múltiples Requerimientos: ${titles[0]}`,
-                  react: SupportNotification({
-                    requesterName: user.full_name,
-                    requesterEmail: recipientEmail,
-                    eventTitle: titles[0],
-                    date: datesList,
-                    timeRange: timeStr,
-                    specialRequirements: [...new Set(allDescriptions)].join(
-                      " | ",
-                    ),
-                    type: "NEW_REQUIREMENT",
-                  }),
-                });
-              }
-            } else {
-              // Individual fallback (Optional: just in case titles differ in a batch)
-              // For brevity, usually batch reservations from UI have same title.
             }
+          } else {
+            // Individual fallback (Optional: just in case titles differ in a batch)
+            // For brevity, usually batch reservations from UI have same title.
           }
         }
-      } catch (err) {
-        console.error("Batch Email Error:", err);
       }
-    })();
+    } catch (err) {
+      console.error("Batch Email Error:", err);
+    }
 
     revalidatePath("/dashboard");
     return { success: true, data: result };
