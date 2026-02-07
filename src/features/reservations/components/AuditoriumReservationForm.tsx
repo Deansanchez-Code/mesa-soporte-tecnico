@@ -185,6 +185,7 @@ export default function AuditoriumReservationForm({
           date,
           start: startTime,
           end: endTime,
+          isoStart: startIso,
         });
       }
 
@@ -220,6 +221,7 @@ export default function AuditoriumReservationForm({
             description: descriptionText,
             user_id: user?.id || "",
             location: "Auditorio",
+            event_date: t.isoStart,
           });
         }
       }
