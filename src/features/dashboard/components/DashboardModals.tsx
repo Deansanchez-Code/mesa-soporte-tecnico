@@ -5,7 +5,7 @@ import UserProfileModal from "@/components/shared/UserProfileModal";
 import TicketDetailsModal from "@/features/tickets/components/TicketDetailsModal";
 import CreateAssetModal from "@/features/assets/components/CreateAssetModal";
 import { MetricsOverview } from "@/components/dashboard/MetricsOverview";
-import { Ticket, Agent } from "@/app/admin/admin.types";
+import { Ticket } from "@/app/admin/admin.types";
 import { User } from "@supabase/supabase-js";
 import { UserProfile } from "@/features/auth/hooks/useUserProfile";
 
