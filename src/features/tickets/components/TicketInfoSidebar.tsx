@@ -2,6 +2,7 @@ import React from "react";
 import { Monitor, User, MapPin } from "lucide-react";
 import { Ticket } from "@/app/admin/admin.types";
 import { TicketSLAStatus } from "./TicketSLAStatus";
+import { formatName } from "@/lib/utils";
 
 interface TicketInfoSidebarProps {
   ticket: Ticket;
@@ -40,7 +41,7 @@ export const TicketInfoSidebar = ({ ticket }: TicketInfoSidebarProps) => {
           <User className="w-3.5 h-3.5" /> Solicitante
         </h3>
         <p className="font-bold text-gray-800 text-sm">
-          {ticket.users?.full_name}
+          {formatName(ticket.users?.full_name)}
         </p>
         <p className="text-xs text-gray-600 mb-2">{ticket.users?.area}</p>
         <div className="flex items-center gap-1 text-[10px] text-gray-500 bg-gray-100 w-fit px-2 py-0.5 rounded">

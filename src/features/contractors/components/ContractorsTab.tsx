@@ -10,6 +10,7 @@ import {
   ShieldOff,
 } from "lucide-react"; // Added Icons for better visual hierarchy
 import { User } from "@/app/admin/admin.types";
+import { formatName } from "@/lib/utils";
 
 interface ContractorsTabProps {
   users: User[];
@@ -384,7 +385,7 @@ function UserCard({
             user.is_active ? "text-gray-700" : "text-gray-500 line-through"
           }`}
         >
-          {user.full_name}
+          {formatName(user.full_name)}
         </p>
         <p className="text-xs text-gray-400 truncate font-mono">
           @{user.username}

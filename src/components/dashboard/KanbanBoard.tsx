@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { safeGetItem } from "@/lib/storage";
+import { formatName } from "@/lib/utils";
 
 interface KanbanBoardProps {
   tickets: Ticket[];
@@ -182,7 +183,7 @@ export function KanbanBoard({
                 </div>
 
                 <p className="font-bold text-gray-800 text-sm mb-1">
-                  {ticket.users?.full_name}
+                  {formatName(ticket.users?.full_name)}
                 </p>
                 <p className="text-xs text-gray-500 mb-4 flex items-center gap-1">
                   <Monitor className="w-3 h-3" />{" "}
@@ -596,7 +597,7 @@ export function KanbanBoard({
                     </div>
 
                     <h3 className="font-bold text-gray-800 mb-1">
-                      {ticket.users?.full_name}
+                      {formatName(ticket.users?.full_name)}
                     </h3>
                     <p className="text-xs text-gray-500 mb-4 flex items-center gap-1">
                       <MapPin className="w-3 h-3" /> {ticket.location}
@@ -627,7 +628,7 @@ export function KanbanBoard({
                           </option>
                           {agents.map((agent) => (
                             <option key={agent.id} value={agent.id}>
-                              {agent.full_name}
+                              {formatName(agent.full_name)}
                             </option>
                           ))}
                         </select>
@@ -740,7 +741,7 @@ export function KanbanBoard({
                     </div>
                   </div>
                   <h3 className="font-bold text-gray-800 text-sm text-gray-500">
-                    {ticket.users?.full_name}
+                    {formatName(ticket.users?.full_name)}
                   </h3>
                   <p className="text-xs text-gray-400 mt-1 italic">
                     Ticket cerrado

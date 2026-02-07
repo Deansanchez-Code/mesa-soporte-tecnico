@@ -8,6 +8,7 @@ import { User, ConfigItem, StaffUploadRow } from "@/app/admin/admin.types";
 import { useUserManagement } from "../hooks/useUserManagement";
 import UserModal from "./UserModal";
 import { toast } from "sonner";
+import { formatName } from "@/lib/utils";
 
 interface StaffTabProps {
   usersList: User[];
@@ -202,7 +203,7 @@ export default function StaffTab({
                 .map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-3 font-medium text-gray-900">
-                      {user.full_name}
+                      {formatName(user.full_name)}
                     </td>
                     <td className="px-6 py-3 text-gray-600">{user.username}</td>
                     <td className="px-6 py-3 text-gray-600">

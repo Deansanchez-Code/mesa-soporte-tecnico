@@ -5,6 +5,7 @@ import { UserPlus, Search, Edit, Trash2 } from "lucide-react";
 import { Agent, ConfigItem } from "@/app/admin/admin.types";
 import { useUserManagement } from "../hooks/useUserManagement";
 import UserModal from "./UserModal";
+import { formatName } from "@/lib/utils";
 
 interface AgentsTabProps {
   agents: Agent[];
@@ -107,7 +108,7 @@ export default function AgentsTab({
               .map((agent) => (
                 <tr key={agent.id} className="hover:bg-gray-50">
                   <td className="p-4 text-sm font-bold text-gray-800">
-                    {agent.full_name}
+                    {formatName(agent.full_name)}
                     {agent.is_vip && (
                       <span className="ml-2 bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0.5 rounded border border-yellow-200">
                         VIP

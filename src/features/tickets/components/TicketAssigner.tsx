@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { toast } from "sonner";
 import { Ticket } from "@/app/admin/admin.types";
 import Logger from "@/lib/logger";
+import { formatName } from "@/lib/utils";
 
 interface TicketAssignerProps {
   ticket: Ticket;
@@ -53,7 +54,7 @@ export const TicketAssigner = ({
           .filter((a) => a.role === "agent")
           .map((agent) => (
             <option key={agent.id} value={agent.id}>
-              {agent.full_name}
+              {formatName(agent.full_name)}
             </option>
           ))}
       </select>

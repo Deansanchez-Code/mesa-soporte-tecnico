@@ -13,6 +13,7 @@ import {
   Monitor,
 } from "lucide-react";
 import Link from "next/link";
+import { formatName } from "@/lib/utils";
 
 interface DashboardHeaderProps {
   currentUser: User | null;
@@ -52,10 +53,11 @@ export default function DashboardHeader({
           {currentUser && (
             <span className="ml-2 text-sm font-normal text-gray-500">
               |{" "}
-              {(profile?.full_name as string) ||
-                currentUser.user_metadata?.full_name ||
-                currentUser.email ||
-                "Usuario"}
+              {formatName(
+                (profile?.full_name as string) ||
+                  currentUser.user_metadata?.full_name ||
+                  currentUser.email,
+              ) || "Usuario"}
             </span>
           )}
         </h1>
