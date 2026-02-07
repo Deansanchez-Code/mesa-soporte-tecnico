@@ -13,6 +13,7 @@ const TicketSchema = z.object({
   location: z.string().min(1, "La ubicación es requerida"),
   description: z.string().optional(),
   user_id: z.string().optional(), // Optional for admin-created tickets
+  event_date: z.string().optional().nullable(), // ISO String de inicio del evento
 });
 
 export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
@@ -22,8 +23,14 @@ export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
       throw new Error("Datos de ticket inválidos");
     }
 
-    const { category, ticket_type, asset_serial, location, description } =
-      parseResult.data;
+    const {
+      category,
+      ticket_type,
+      asset_serial,
+      location,
+      description,
+      event_date,
+    } = parseResult.data;
     const supabase = await createClient();
 
     // 1. Auth Check
@@ -41,7 +48,27 @@ export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
 
     const isVip = !!publicUser?.is_vip;
 
-    // 2. AUTO-ASSIGNMENT LOGIC
+    // 2. Determine Initial Status (Logic 24h)
+    let initialStatus = "PENDIENTE";
+    let slaStatus: "running" | "paused" = "running";
+
+    if (
+      event_date &&
+      (category.toLowerCase().includes("auditorio") ||
+        category.toLowerCase().includes("reserva"))
+    ) {
+      const now = new Date();
+      const eventStart = new Date(event_date);
+      const hoursDiff =
+        (eventStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      if (hoursDiff > 24) {
+        initialStatus = "EN_ESPERA";
+        slaStatus = "paused";
+      }
+    }
+
+    // 3. AUTO-ASSIGNMENT LOGIC
     let assignedAgentId: string | null = null;
     try {
       // Get all active admins and agents
@@ -83,7 +110,7 @@ export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
       console.error("Auto-assignment failed in Server Action:", e);
     }
 
-    // 3. SLA Calculation
+    // 4. SLA Calculation
     // We create a mock ticket object for the calculator
     const slaHours = getSLAHours({
       is_vip_ticket: isVip,
@@ -92,7 +119,7 @@ export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
     const createdAt = new Date().toISOString();
     const expectedEndAt = calculateSLADueDate(createdAt, slaHours);
 
-    // 4. Insert
+    // 5. Insert
     const { data: result, error } = await supabase
       .from("tickets")
       .insert([
@@ -103,12 +130,12 @@ export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
           location,
           description,
           user_id: data.user_id || authUser.id,
-          status: "PENDIENTE",
+          status: initialStatus,
           assigned_agent_id: assignedAgentId,
           is_vip_ticket: isVip,
           sla_start_at: createdAt,
           sla_expected_end_at: expectedEndAt.toISOString(),
-          sla_status: "running",
+          sla_status: slaStatus,
         },
       ])
       .select()

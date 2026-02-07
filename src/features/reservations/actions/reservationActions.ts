@@ -7,10 +7,7 @@ import { EmailService } from "@/lib/email/email-service";
 import ReservationConfirmation from "@/lib/email/templates/ReservationConfirmation";
 import SupportNotification from "@/lib/email/templates/SupportNotification";
 import VipCancellation from "@/lib/email/templates/VipCancellation";
-
 import { ReservationSchema } from "../schemas";
-
-// Removed inline schema definition to comply with "use server" rules
 
 export async function cancelReservationAction(reservationId: number) {
   try {
@@ -34,7 +31,7 @@ export async function cancelReservationAction(reservationId: number) {
     // 3. Get public profile for VIP/Role check
     const { data: publicUser } = await supabase
       .from("users")
-      .select("id, is_vip, role, full_name") // Added full_name for email
+      .select("id, is_vip, role, full_name")
       .eq("auth_id", user.id)
       .single();
 
@@ -85,16 +82,20 @@ export async function cancelReservationAction(reservationId: number) {
             .single();
 
           if (victim) {
-            // Determine Recipient (Same Logic)
             let recipientEmail = victim.email;
-            if (
-              victim.employment_type !== "CONTRATISTA" &&
-              victim.employment_type !== "APRENDIZ"
-            ) {
-              if (!recipientEmail || !recipientEmail.includes("@")) {
-                recipientEmail =
-                  `${victim.username.trim()}@sena.edu.co`.toLowerCase();
-              }
+
+            // Regla de Negocio:
+            // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
+            // - Contratistas -> Correo registrado (personal o corporativo)
+            const employmentType = (victim.employment_type || "").toLowerCase();
+            const isOfficial =
+              employmentType.includes("planta") ||
+              employmentType.includes("funcionario") ||
+              employmentType.includes("oficial");
+
+            if (isOfficial) {
+              recipientEmail =
+                `${victim.username.trim()}@sena.edu.co`.toLowerCase();
             }
 
             if (recipientEmail && recipientEmail.includes("@")) {
@@ -110,16 +111,11 @@ export async function cancelReservationAction(reservationId: number) {
                   userName: victim.full_name,
                   eventTitle: reservation.title,
                   date: dateStr,
-                  cancelledBy: publicUser?.full_name || "Usuario VIP", // Assuming publicUser has full_name, might need fetch
+                  cancelledBy: publicUser?.full_name || "Usuario VIP",
                 }),
               });
 
-              // 2. Notify Coordinator IF it had Special Requirements (Cleanup)
-              // Need to fetch description from reservation? We queried it in line 31? No, we queried user_id, start_time, title.
-              // Let's optimize: We need description to check this rule.
-              // We'll trust the flow or re-fetch if needed. Ideally line 31 should have select("..., description").
-
-              // Re-fetching strictly for this rule to ensure data integrity
+              // 2. Notify Coordinator IF it had Special Requirements
               const { data: resDetails } = await supabase
                 .from("reservations")
                 .select("description")
@@ -148,6 +144,36 @@ export async function cancelReservationAction(reservationId: number) {
           }
         } catch (e) {
           console.error("VIP Cancel Email Error: ", e);
+        }
+      })();
+      // --- AUTOMATIC TICKET RESOLUTION ---
+      (async () => {
+        try {
+          // Identify the associated ticket
+          const { data: tickets } = await supabase
+            .from("tickets")
+            .select("id")
+            .eq("user_id", reservation.user_id)
+            .eq("category", "Reserva Auditorio")
+            .ilike("description", `%${reservation.title}%`)
+            .neq("status", "RESUELTO")
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          if (tickets && tickets.length > 0) {
+            await supabase
+              .from("tickets")
+              .update({
+                status: "RESUELTO",
+                solution:
+                  "Cancelado por el usuario y resuelto por el Superadmin",
+                sla_status: "completed",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", tickets[0].id);
+          }
+        } catch (e) {
+          console.error("Auto Ticket Resolution Error: ", e);
         }
       })();
     }
@@ -192,7 +218,7 @@ export async function createReservationAction(
     // 2. Permissions & Identity Check
     const { data: publicUser } = await supabase
       .from("users")
-      .select("id, role, employment_type, email")
+      .select("id, role, employment_type, email, username")
       .eq("auth_id", authUser.id)
       .single();
 
@@ -233,36 +259,31 @@ export async function createReservationAction(
           status: "APPROVED",
         },
       ])
-      .select("*, users(full_name, email, employment_type, username)") // Join to get up-to-date user info for email
+      .select("*, users(full_name, email, employment_type, username)")
       .single();
 
     if (error) throw error;
 
-    // --- NOTIFICATION LOGIC (SMART DISPATCH) ---
-    // Non-blocking catch to prevent transaction failure if email fails
+    // --- NOTIFICATION LOGIC ---
     (async () => {
       try {
         const reservation = result;
-        const user = reservation.users; // joined data
+        const user = reservation.users;
 
-        // A. Determine Recipient Email
-        let recipientEmail = user.email; // Default fallback
-        if (
-          user.employment_type === "CONTRATISTA" ||
-          user.employment_type === "APRENDIZ"
-        ) {
-          // Keep personal email from DB
-        } else {
-          // Planta / Official: Try to construct or use institutional
-          // If the DB email is NOT sena.edu.co, we might want to use the computed one?
-          // For now, let's trust the DB email if valid, or fallback to username schema if missing
-          if (!recipientEmail || !recipientEmail.includes("@")) {
-            recipientEmail =
-              `${user.username.trim()}@sena.edu.co`.toLowerCase();
-          }
+        // Regla de Negocio:
+        // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
+        // - Contratistas -> Correo registrado (personal o corporativo)
+        const employmentType = (user.employment_type || "").toLowerCase();
+        const isOfficial =
+          employmentType.includes("planta") ||
+          employmentType.includes("funcionario") ||
+          employmentType.includes("oficial");
+
+        let recipientEmail = user.email;
+
+        if (isOfficial) {
+          recipientEmail = `${user.username.trim()}@sena.edu.co`.toLowerCase();
         }
-
-        // Ensure we have a valid email to send to
         if (recipientEmail && recipientEmail.includes("@")) {
           const startDate = new Date(reservation.start_time);
           const endDate = new Date(reservation.end_time);
@@ -274,14 +295,6 @@ export async function createReservationAction(
           });
           const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
 
-          // Calculate Google Calendar Link (Basic)
-          const gCalStart = startDate
-            .toISOString()
-            .replace(/-|:|\.\d\d\d/g, "");
-          const gCalEnd = endDate.toISOString().replace(/-|:|\.\d\d\d/g, "");
-          const gLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(reservation.title)}&dates=${gCalStart}/${gCalEnd}&details=${encodeURIComponent(reservation.description || "")}&location=Auditorio+SENA`;
-
-          // 1. Send Confirmation to User
           await EmailService.send({
             to: recipientEmail,
             subject: `Reserva Confirmada: ${reservation.title}`,
@@ -292,11 +305,8 @@ export async function createReservationAction(
               timeRange: timeStr,
               location: "Auditorio Principal",
               resources: reservation.resources || [],
-              calendarLink: gLink,
             }),
           });
-
-          // 2. Send Notification to Coordinator IF Special Requirements exist
           if (
             reservation.description &&
             reservation.description.trim().length > 0
@@ -317,8 +327,7 @@ export async function createReservationAction(
           }
         }
       } catch (emailErr) {
-        console.error("Smart Dispatch Error:", emailErr);
-        // Do not throw, keep reservation success
+        console.error("Single Reservation Email Error:", emailErr);
       }
     })();
 
@@ -478,8 +487,7 @@ export async function createReservationBatchAction(
       validReservations.push(data);
     }
 
-    // 3. Global Conflict Check (Atomic-like)
-    // We avoid joining users here to prevent RLS/Relation errors causing 500s.
+    // 3. Global Conflict Check
     for (const res of validReservations) {
       const { data: conflicts, error: conflictError } = await supabase
         .from("reservations")
@@ -522,6 +530,105 @@ export async function createReservationBatchAction(
       console.error("Error inserting reservations:", error);
       throw new Error(error.message || "Error al insertar reservas");
     }
+
+    // --- NOTIFICATION LOGIC (BATCH SUMMARY) ---
+    (async () => {
+      try {
+        if (result && result.length > 0) {
+          const { data: user } = await supabase
+            .from("users")
+            .select("full_name, email, employment_type, username")
+            .eq("id", validReservations[0].user_id)
+            .single();
+
+          if (!user) return;
+
+          // Regla de Negocio:
+          // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
+          // - Contratistas -> Correo registrado (personal o corporativo)
+          const employmentType = (user.employment_type || "").toLowerCase();
+          const isOfficial =
+            employmentType.includes("planta") ||
+            employmentType.includes("funcionario") ||
+            employmentType.includes("oficial");
+
+          let recipientEmail = user.email;
+
+          if (isOfficial) {
+            recipientEmail =
+              `${user.username.trim()}@sena.edu.co`.toLowerCase();
+          }
+
+          if (recipientEmail && recipientEmail.includes("@")) {
+            const titles = [...new Set(validReservations.map((r) => r.title))];
+            const isSingleActivity = titles.length === 1;
+
+            if (isSingleActivity) {
+              // GROUPED EMAIL (Multi-day)
+              const sortedRes = [...validReservations].sort(
+                (a, b) =>
+                  new Date(a.start_time).getTime() -
+                  new Date(b.start_time).getTime(),
+              );
+
+              const datesList = sortedRes
+                .map((r) => {
+                  const d = new Date(r.start_time);
+                  return d.toLocaleDateString("es-CO", {
+                    day: "numeric",
+                    month: "short",
+                  });
+                })
+                .join(", ");
+
+              const first = sortedRes[0];
+              const timeStr = `${new Date(first.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${new Date(first.end_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
+
+              await EmailService.send({
+                to: recipientEmail,
+                subject: `Reserva Grupal Confirmada: ${titles[0]}`,
+                react: ReservationConfirmation({
+                  userName: user.full_name,
+                  eventTitle: `${titles[0]} (Lote de ${validReservations.length} días)`,
+                  date: datesList,
+                  timeRange: timeStr,
+                  location: "Auditorio Principal",
+                  resources: first.resources || [],
+                }),
+              });
+
+              // Coordinator summary - ONLY IF description matches search rule
+              const allDescriptions = validReservations
+                .map((r) => r.description)
+                .filter((d) => d && d.trim().length > 0);
+
+              if (allDescriptions.length > 0) {
+                await EmailService.send({
+                  to: "jeavendano@sena.edu.co",
+                  subject: `⚠️ Múltiples Requerimientos: ${titles[0]}`,
+                  react: SupportNotification({
+                    requesterName: user.full_name,
+                    requesterEmail: recipientEmail,
+                    eventTitle: titles[0],
+                    date: datesList,
+                    timeRange: timeStr,
+                    specialRequirements: [...new Set(allDescriptions)].join(
+                      " | ",
+                    ),
+                    type: "NEW_REQUIREMENT",
+                  }),
+                });
+              }
+            } else {
+              // Individual fallback (Optional: just in case titles differ in a batch)
+              // For brevity, usually batch reservations from UI have same title.
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Batch Email Error:", err);
+      }
+    })();
 
     revalidatePath("/dashboard");
     return { success: true, data: result };

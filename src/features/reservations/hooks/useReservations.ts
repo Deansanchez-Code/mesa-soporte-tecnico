@@ -137,6 +137,7 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
     description: string;
     user_id: string;
     location: string;
+    event_date?: string | null;
   }) => {
     const result = await createTicketAction(data);
     if (result.error) throw new Error(result.error);
