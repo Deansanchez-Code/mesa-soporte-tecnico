@@ -533,7 +533,7 @@ export async function createReservationBatchAction(
           .eq("id", validReservations[0].user_id)
           .single();
 
-        if (!user) return;
+        if (!user) throw new Error("Usuario no encontrado para notificación");
 
         // Regla de Negocio:
         // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
