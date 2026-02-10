@@ -144,25 +144,79 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
     return result.data;
   };
 
-  const updateSupportTicketByDescriptionMatch = async (
-    oldDescriptionSubstring: string,
-    newDescription: string,
+  const syncTicketWithReservation = async (
+    oldTitle: string,
+    newDetails: {
+      title: string;
+      date: string;
+      start: string;
+      end: string;
+      resources: string[];
+      description: string;
+      isoStart: string;
+    },
   ) => {
+    // 1. Buscar el ticket por descripción antigua (título) y usuario
+    const oldDescSubstring = `Reserva de Auditorio: ${oldTitle}`;
+
     const { data: tickets, error: searchError } = await supabase
       .from("tickets")
-      .select("id")
+      .select("*")
       .eq("user_id", userId)
       .eq("category", "Reserva Auditorio")
-      .ilike("description", `%${oldDescriptionSubstring}%`)
+      .ilike("description", `%${oldDescSubstring}%`)
       .order("created_at", { ascending: false })
       .limit(1);
 
-    if (searchError || !tickets?.length) return;
+    if (searchError || !tickets?.length) {
+      console.warn("No se encontró ticket para sincronizar con la reserva.");
+      return;
+    }
 
-    await supabase
+    const ticket = tickets[0];
+
+    // 2. Lógica de Activación/Pausa (Regla 24h)
+    const now = new Date();
+    const eventStart = new Date(newDetails.isoStart);
+    const hoursDiff = (eventStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    let newStatus = ticket.status;
+    let slaStatus = ticket.sla_status;
+
+    // Solo cambiar estado si el ticket aún no ha sido atendido (está en cola)
+    if (["PENDIENTE", "EN_ESPERA"].includes(ticket.status)) {
+      if (hoursDiff > 24) {
+        newStatus = "EN_ESPERA";
+        slaStatus = "paused";
+      } else {
+        newStatus = "PENDIENTE";
+        slaStatus = "running";
+      }
+    }
+
+    // 3. Formatear nueva descripción
+    const formattedDate = newDetails.date.split("-").reverse().join("-");
+    const newDescription = `Reserva de Auditorio: ${newDetails.title}\nFecha: ${formattedDate}\nHora: ${newDetails.start} - ${newDetails.end}\nRecursos: ${newDetails.resources.join(
+      ", ",
+    )}\nDetalles: ${newDetails.description}\n(ACTUALIZADO)`;
+
+    // 4. Actualizar Ticket con sincronización total
+    const { error: updateError } = await supabase
       .from("tickets")
-      .update({ description: newDescription })
-      .eq("id", tickets[0].id);
+      .update({
+        description: newDescription,
+        event_date: newDetails.isoStart,
+        status: newStatus,
+        sla_status: slaStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", ticket.id);
+
+    if (updateError) {
+      console.error("Error al sincronizar ticket:", updateError);
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["dashboard-tickets"] });
+    }
   };
 
   return {
@@ -174,6 +228,6 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
     createOrUpdateReservation,
     createBatchReservations,
     createSupportTicket,
-    updateSupportTicketByDescriptionMatch,
+    syncTicketWithReservation,
   };
 }

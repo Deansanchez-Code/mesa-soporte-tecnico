@@ -51,7 +51,7 @@ export default function AuditoriumReservationForm({
     cancelReservation,
     createBatchReservations,
     createSupportTicket,
-    updateSupportTicketByDescriptionMatch,
+    syncTicketWithReservation,
   } = useReservations({
     userId: user?.id || "",
     startDate,
@@ -207,17 +207,16 @@ export default function AuditoriumReservationForm({
       // Handle Support Tickets (Post-success)
       for (const t of supportTicketsPayload) {
         if (reservationToEdit && !isMultiDay) {
-          // Only update ticket if single edit
-          const oldDescSubstring = `Reserva de Auditorio: ${reservationToEdit.title}`;
-          const formattedDate = t.date.split("-").reverse().join("-");
-          const newDesc = `Reserva de Auditorio: ${title}\nFecha: ${formattedDate}\nHora: ${t.start} - ${t.end}\nRecursos: ${selectedResources.join(
-            ", ",
-          )}\nDetalles: ${description}\n(ACTUALIZADO)`;
-
-          await updateSupportTicketByDescriptionMatch(
-            oldDescSubstring,
-            newDesc,
-          );
+          // Sync Ticket with new full logic
+          await syncTicketWithReservation(reservationToEdit.title || "", {
+            title,
+            date: t.date,
+            start: t.start,
+            end: t.end,
+            resources: selectedResources,
+            description,
+            isoStart: t.isoStart,
+          });
         } else {
           // Create new tickets for all (or just one summary? Per requirements, usually one case per event, but multi-day might imply multiple?
           // Logic in original code created one ticket PER loop iteration. Keeping that behavior.)
