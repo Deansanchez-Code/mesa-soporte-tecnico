@@ -84,7 +84,11 @@ export function useTicketDetails({
   }, [ticket.id, fetchDetails]);
 
   // Handle Pause
-  const handlePause = async (selectedReason: string, customReason: string) => {
+  const handlePause = async (
+    selectedReason: string,
+    customReason: string,
+    moveToFreezer = true,
+  ) => {
     if (!selectedReason) return;
     setProcessingAction(true);
 
@@ -102,9 +106,7 @@ export function useTicketDetails({
           sla_status: "paused",
           sla_last_paused_at: new Date().toISOString(),
           sla_pause_reason: finalReason,
-          status: /repuesto|garant|proveedor|compra/i.test(finalReason)
-            ? "EN_ESPERA" // Automático a En Espera
-            : "EN_PROGRESO", // Se mantiene activo (ej. Usuario no responde) pero Sla Pausado
+          status: moveToFreezer ? "EN_ESPERA" : ticket.status,
         })
         .eq("id", ticket.id);
 
@@ -116,10 +118,8 @@ export function useTicketDetails({
           ticket_id: ticket.id,
           actor_id: currentUser.id,
           action_type: "PAUSED",
-          comment: `Pausado por: ${finalReason}. (Estado: ${
-            /repuesto|garant|proveedor|compra/i.test(finalReason)
-              ? "En Espera"
-              : "Operativo"
+          comment: `Pausado por: ${finalReason}. (Mover a Repuestos: ${
+            moveToFreezer ? "Sí" : "No"
           })`,
         });
       }

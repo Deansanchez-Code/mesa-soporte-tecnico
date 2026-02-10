@@ -6,7 +6,11 @@ interface TicketHeaderProps {
   ticket: Ticket;
   onClose: () => void;
   onResume: () => Promise<void>;
-  onPause: (reason: string, customReason: string) => Promise<void>;
+  onPause: (
+    reason: string,
+    customReason: string,
+    moveToFreezer?: boolean,
+  ) => Promise<void>;
   processingAction: boolean;
   pauseReasons: { id: number; description: string }[];
 }
@@ -22,12 +26,16 @@ export function TicketHeader({
   const [showPauseInput, setShowPauseInput] = useState(false);
   const [selectedReason, setSelectedReason] = useState("");
   const [customReason, setCustomReason] = useState("");
+  const [moveToFreezer, setMoveToFreezer] = useState(true);
+
+  const isAuditorio = ticket.category?.toLowerCase().includes("auditorio");
 
   const handleConfirmPause = async () => {
-    await onPause(selectedReason, customReason);
+    await onPause(selectedReason, customReason, moveToFreezer);
     setShowPauseInput(false);
     setSelectedReason("");
     setCustomReason("");
+    setMoveToFreezer(true);
   };
 
   return (
@@ -75,72 +83,102 @@ export function TicketHeader({
 
       <div className="flex items-center gap-2">
         {/* PAUSE / RESUME CONTROLS */}
-        {ticket.status !== "RESUELTO" && ticket.status !== "CERRADO" && (
-          <>
-            {ticket.sla_status === "paused" ? (
-              <button
-                onClick={onResume}
-                disabled={processingAction}
-                className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-              >
-                <PlayCircle className="w-4 h-4" /> Reanudar SLA
-              </button>
-            ) : (
-              <div className="relative">
+        {ticket.status !== "RESUELTO" &&
+          ticket.status !== "CERRADO" &&
+          !isAuditorio && (
+            <>
+              {ticket.sla_status === "paused" ? (
                 <button
-                  onClick={() => setShowPauseInput(!showPauseInput)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition-all"
+                  onClick={onResume}
+                  disabled={processingAction}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
                 >
-                  <PauseCircle className="w-4 h-4" /> Pausar / Congelar
+                  <PlayCircle className="w-4 h-4" /> Reanudar SLA
                 </button>
-                {showPauseInput && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 text-gray-800 p-3 z-50">
-                    <label className="text-xs font-bold block mb-2">
-                      Motivo de Pausa
-                    </label>
-                    <select
-                      className="w-full text-xs border rounded p-1.5 mb-2 bg-gray-50"
-                      value={selectedReason}
-                      onChange={(e) => setSelectedReason(e.target.value)}
-                    >
-                      <option value="">Seleccione...</option>
-                      {pauseReasons.map((r) => (
-                        <option key={r.id} value={r.description}>
-                          {r.description}
-                        </option>
-                      ))}
-                      <option value="OTHER">Otro...</option>
-                    </select>
-                    {selectedReason === "OTHER" && (
-                      <input
-                        type="text"
-                        placeholder="Especifique motivo..."
-                        className="w-full text-xs border rounded p-1.5 mb-2"
-                        value={customReason}
-                        onChange={(e) => setCustomReason(e.target.value)}
-                      />
-                    )}
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => setShowPauseInput(false)}
-                        className="text-xs text-gray-500 hover:text-gray-700"
+              ) : (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowPauseInput(!showPauseInput)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition-all"
+                  >
+                    <PauseCircle className="w-4 h-4" /> Pausar / Congelar
+                  </button>
+                  {showPauseInput && (
+                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 text-gray-800 p-4 z-50">
+                      <label className="text-xs font-bold block mb-2">
+                        Motivo de Pausa
+                      </label>
+                      <select
+                        className="w-full text-xs border rounded p-1.5 mb-2 bg-gray-50"
+                        value={selectedReason}
+                        onChange={(e) => setSelectedReason(e.target.value)}
                       >
-                        Cancelar
-                      </button>
-                      <button
-                        onClick={handleConfirmPause}
-                        disabled={processingAction || !selectedReason}
-                        className="text-xs bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700 disabled:opacity-50"
-                      >
-                        Confirmar
-                      </button>
+                        <option value="">Seleccione...</option>
+                        {pauseReasons.map((r) => (
+                          <option key={r.id} value={r.description}>
+                            {r.description}
+                          </option>
+                        ))}
+                        <option value="OTHER">Otro...</option>
+                      </select>
+                      {selectedReason === "OTHER" && (
+                        <input
+                          type="text"
+                          placeholder="Especifique motivo..."
+                          className="w-full text-xs border rounded p-1.5 mb-3"
+                          value={customReason}
+                          onChange={(e) => setCustomReason(e.target.value)}
+                        />
+                      )}
+
+                      {/* MOVER AL CONGELADOR OPTION */}
+                      <div className="flex items-start gap-2 p-2 bg-purple-50 rounded border border-purple-100 mb-3">
+                        <input
+                          type="checkbox"
+                          id="moveToFreezer"
+                          className="mt-1"
+                          checked={moveToFreezer}
+                          onChange={(e) => setMoveToFreezer(e.target.checked)}
+                        />
+                        <label
+                          htmlFor="moveToFreezer"
+                          className="text-[10px] text-purple-800 font-medium cursor-pointer"
+                        >
+                          ¿Deseas mover este caso a la card de Repuestos y
+                          Garantías?
+                        </label>
+                      </div>
+
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => setShowPauseInput(false)}
+                          className="text-xs text-gray-500 hover:text-gray-700"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={handleConfirmPause}
+                          disabled={processingAction || !selectedReason}
+                          className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded hover:bg-purple-700 disabled:opacity-50 font-bold"
+                        >
+                          Confirmar
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+        {/* MENSAJE PARA COMPENSAR ESPACIO SI ES AUDITORIO */}
+        {isAuditorio &&
+          ticket.status !== "RESUELTO" &&
+          ticket.status !== "CERRADO" && (
+            <span className="text-[10px] text-gray-400 italic bg-white/5 px-2 py-1 rounded">
+              Pausa no disponible para reservas
+            </span>
+          )}
 
         <button
           onClick={onClose}

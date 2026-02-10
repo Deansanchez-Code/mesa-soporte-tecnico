@@ -47,20 +47,35 @@ export default function NotificationManager({
       }
     };
 
+    // Helper: Format minutes to readable time
+    const formatSlaTime = (minutes: number): string => {
+      if (minutes < 60) return `${minutes} min`;
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+      if (hours < 24) {
+        return `${hours}h ${remainingMinutes > 0 ? `${remainingMinutes}m` : ""}`.trim();
+      }
+      const days = Math.floor(hours / 24);
+      const remainingHours = hours % 24;
+      return `${days}d ${remainingHours > 0 ? `${remainingHours}h` : ""} ${remainingMinutes > 0 ? `${remainingMinutes}m` : ""}`.trim();
+    };
+
     // Helper: Send Notification
     const sendNotification = (
       ticket: Ticket,
       title: string,
       minutes: number,
     ) => {
+      const timeStr = formatSlaTime(minutes);
+
       // 1. Notificación del Navegador (Sistema)
       if (Notification.permission === "granted") {
         try {
           new Notification(title, {
-            body: `#${ticket.ticket_code || ticket.id} lleva ${minutes} mins sin resolver.`,
-            icon: "/web-app-manifest-192x192.png", // Usar el icono de la PWA si existe
-            tag: `ticket-${ticket.id}`, // Reemplaza notificaciones previas del mismo ticket
-            requireInteraction: true, // Se queda hasta que el usuario la cierre
+            body: `#${ticket.ticket_code || ticket.id} lleva ${timeStr} sin resolver.`,
+            icon: "/web-app-manifest-192x192.png",
+            tag: `ticket-${ticket.id}`,
+            requireInteraction: true,
           });
         } catch (e) {
           console.error("System notification error:", e);
@@ -69,13 +84,11 @@ export default function NotificationManager({
 
       // 2. Notificación In-App (Toast)
       toast.error(`${title}: Ticket #${ticket.id}`, {
-        description: `Tiempo excedido: ${minutes} minutos.`,
-        duration: 10000,
+        description: `Tiempo excedido: ${timeStr}.`,
+        duration: 12000,
         action: {
           label: "Ver",
           onClick: () => {
-            // Podríamos navegar al ticket, pero este componente es headless por ahora
-            // Idealmente usaríamos router para ir al hash o abrir modal
             window.location.hash = `ticket-${ticket.id}`;
           },
         },
@@ -113,7 +126,11 @@ export default function NotificationManager({
           ticket.status === "CERRADO" ||
           ticket.status === "EN_ESPERA"
         ) {
-          // Si el ticket se resuelva, podríamos limpiar su rastro, pero no es crítico
+          return;
+        }
+
+        // Ignorar Reservas de Auditorio (SLA se maneja por evento, no por ticket de soporte)
+        if (ticket.category === "Reserva Auditorio") {
           return;
         }
 

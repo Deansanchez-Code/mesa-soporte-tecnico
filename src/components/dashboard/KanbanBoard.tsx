@@ -643,14 +643,18 @@ export function KanbanBoard({
                         Resolver Caso
                       </button>
 
-                      {/* BOTÓN PARA CONGELAR/PAUSAR */}
-                      <button
-                        onClick={() => onToggleHold(ticket)}
-                        className="w-full border border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300 text-xs py-2 rounded-lg font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                      >
-                        <PauseCircle className="w-3.5 h-3.5" />
-                        Esperar Repuesto (Pausar)
-                      </button>
+                      {/* BOTÓN PARA CONGELAR/PAUSAR (Solo para INC/REQ) */}
+                      {!ticket.category
+                        ?.toLowerCase()
+                        .includes("auditorio") && (
+                        <button
+                          onClick={() => onToggleHold(ticket)}
+                          className="w-full border border-purple-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300 text-xs py-2 rounded-lg font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <PauseCircle className="w-3.5 h-3.5" />
+                          Esperar Repuesto (Pausar)
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

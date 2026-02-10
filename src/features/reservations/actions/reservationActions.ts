@@ -482,12 +482,19 @@ export async function createReservationBatchAction(
 
     // 3. Global Conflict Check
     for (const res of validReservations) {
-      const { data: conflicts, error: conflictError } = await supabase
+      let query = supabase
         .from("reservations")
         .select("id")
         .eq("status", "APPROVED")
         .lt("start_time", res.end_time)
         .gt("end_time", res.start_time);
+
+      // If we are updating (id exists), exclude current reservation from conflict check
+      if (res.id) {
+        query = query.neq("id", res.id);
+      }
+
+      const { data: conflicts, error: conflictError } = await query;
 
       if (conflictError) {
         console.error("Error checking conflicts:", conflictError);
@@ -502,8 +509,9 @@ export async function createReservationBatchAction(
       }
     }
 
-    // 4. Batch Insert
+    // 4. Batch Upsert (Insert or Update)
     const toInsert = validReservations.map((r) => ({
+      id: r.id, // Include ID if it exists for upsert
       title: r.title,
       start_time: r.start_time,
       end_time: r.end_time,
@@ -516,7 +524,7 @@ export async function createReservationBatchAction(
 
     const { data: result, error } = await supabase
       .from("reservations")
-      .insert(toInsert)
+      .upsert(toInsert, { onConflict: "id" })
       .select();
 
     if (error) {

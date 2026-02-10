@@ -151,7 +151,7 @@ export default function AgentDashboard() {
   const reservationPendingTickets = sortTickets(
     tickets.filter(
       (t) =>
-        t.status === "PENDIENTE" &&
+        (t.status === "PENDIENTE" || t.status === "EN_ESPERA") &&
         t.category?.toLowerCase().includes("auditorio"),
     ),
   );
@@ -159,8 +159,11 @@ export default function AgentDashboard() {
   const inProgressTickets = sortTickets(
     tickets.filter((t) => t.status === "EN_PROGRESO"),
   );
+
   const waitingTickets = tickets.filter(
-    (t) => t.status === "EN_ESPERA" || t.status === "WAITING_PARTS",
+    (t) =>
+      (t.status === "EN_ESPERA" || t.status === "WAITING_PARTS") &&
+      !t.category?.toLowerCase().includes("auditorio"),
   );
 
   const resolvedTickets = tickets.filter((t) => {
