@@ -52,18 +52,28 @@ export default function ArticleEditor({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const token = session?.access_token;
+
+      if (!session || !session.access_token) {
+        toast.error("No hay sesión activa. Recarga la página.");
+        return;
+      }
+
+      const token = session.access_token;
 
       const response = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(formData),
       });
 
-      if (!response.ok) throw new Error("Error al guardar");
+      if (!response.ok) {
+        if (response.status === 401) throw new Error("No autorizado");
+        if (response.status === 403) throw new Error("Permisos insuficientes");
+        throw new Error("Error al guardar");
+      }
 
       toast.success(
         article?.id ? "Solución actualizada" : "Solución creada con éxito",
@@ -72,7 +82,8 @@ export default function ArticleEditor({
       onClose();
     } catch (error: unknown) {
       console.error(error);
-      toast.error("Ocurrió un error al guardar los cambios");
+      const msg = error instanceof Error ? error.message : "Error desconocido";
+      toast.error(`Error: ${msg}`);
     } finally {
       setIsSubmitting(false);
     }

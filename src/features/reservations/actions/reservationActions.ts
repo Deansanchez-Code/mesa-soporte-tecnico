@@ -8,6 +8,7 @@ import ReservationConfirmation from "@/lib/email/templates/ReservationConfirmati
 import SupportNotification from "@/lib/email/templates/SupportNotification";
 import VipCancellation from "@/lib/email/templates/VipCancellation";
 import { ReservationSchema } from "../schemas";
+import Logger from "@/lib/logger";
 
 export async function cancelReservationAction(reservationId: number) {
   try {
@@ -178,6 +179,10 @@ export async function cancelReservationAction(reservationId: number) {
   } catch (error: unknown) {
     const errorMsg =
       error instanceof Error ? error.message : "Error al cancelar la reserva";
+    await Logger.error(`Reservation Cancellation Failed: ${errorMsg}`, {
+      reservationId,
+      error,
+    });
     return { error: errorMsg };
   }
 }
@@ -332,6 +337,7 @@ export async function createReservationAction(
       (typeof error === "object"
         ? JSON.stringify(error)
         : String(error || "Error al crear reserva"));
+    await Logger.error(`Reservation Creation Failed: ${errorMsg}`, { error });
     return { error: String(errorMsg) };
   }
 }
@@ -429,6 +435,7 @@ export async function updateReservationAction(
       (typeof error === "object"
         ? JSON.stringify(error)
         : String(error || "Error al actualizar reserva"));
+    await Logger.error(`Reservation Update Failed: ${errorMsg}`, { error });
     return { error: String(errorMsg) };
   }
 }
@@ -633,12 +640,12 @@ export async function createReservationBatchAction(
     revalidatePath("/dashboard");
     return { success: true, data: result };
   } catch (error: unknown) {
-    console.error("Server Action Error (createReservationBatchAction):", error);
     const errorMsg =
       (error as Record<string, unknown>)?.message ||
       (typeof error === "object"
         ? JSON.stringify(error)
         : String(error || "Error en creación masiva"));
+    await Logger.error("Batch Reservation Creation Failed", { error });
     return { error: String(errorMsg) };
   }
 }

@@ -31,6 +31,10 @@ interface Article {
   };
 }
 
+import { supabase } from "@/lib/supabase/cliente";
+
+// ... existing interfaces ...
+
 export default function KnowledgeBasePage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,7 +50,27 @@ export default function KnowledgeBasePage() {
       if (selectedCategory !== "Todos")
         params.append("category", selectedCategory);
 
-      const response = await fetch(`/api/knowledge?${params.toString()}`);
+      // Get session for token
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        // Optionally handle no-session state, though middleware usually protects dashboard
+        console.warn("No active session found for knowledge base fetch");
+      }
+
+      const response = await fetch(`/api/knowledge?${params.toString()}`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (response.status === 401) {
+        throw new Error("Sesión expirada o no autorizada");
+      }
+
       if (!response.ok) throw new Error("Error fetching articles");
       const data = await response.json();
       setArticles(data);

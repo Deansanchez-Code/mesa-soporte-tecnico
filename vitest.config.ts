@@ -9,10 +9,11 @@ export default defineConfig({
     globals: true,
     setupFiles: [],
     include: ["**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
+    exclude: ["**/node_modules/**", "**/dist/**", "**/tests/e2e/**"],
   },
   resolve: {
     alias: {
-      "@": resolve(__dirname, "./"),
+      "@": resolve(__dirname, "./src"),
     },
   },
 });
