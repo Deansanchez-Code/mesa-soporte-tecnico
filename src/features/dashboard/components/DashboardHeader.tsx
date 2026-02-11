@@ -11,9 +11,17 @@ import {
   CalendarRange,
   BookOpen,
   Monitor,
+  RefreshCw,
+  Clock,
 } from "lucide-react";
 import Link from "next/link";
 import { formatName } from "@/lib/utils";
+import { checkAndActivateTicketsAction } from "@/features/tickets/actions/slaActions";
+import { toast } from "sonner";
+import { useState } from "react";
+import { useSlaStatus } from "@/features/tickets/hooks/useSlaStatus";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface DashboardHeaderProps {
   currentUser: User | null;
@@ -42,6 +50,32 @@ export default function DashboardHeader({
   setShowProfileModal,
   setShowMetricsModal,
 }: DashboardHeaderProps) {
+  const [isSyncing, setIsSyncing] = useState(false);
+  const { lastRunAt } = useSlaStatus();
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const result = await checkAndActivateTicketsAction();
+      if (result.success) {
+        const count =
+          (result.data as { activatedCount: number })?.activatedCount || 0;
+        if (count > 0) {
+          toast.success(`Se activaron ${count} tickets correctamente`);
+        } else {
+          toast.info("No hay tickets pendientes por activar en este momento");
+        }
+      } else {
+        toast.error(result.error || "Error al sincronizar tickets");
+      }
+    } catch (error) {
+      console.error("Manual sync error:", error);
+      toast.error("Error inesperado en la sincronización");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center justify-between sticky top-0 z-10 shadow-sm">
       <div className="flex items-center gap-3">
@@ -122,6 +156,37 @@ export default function DashboardHeader({
           <BookOpen className="w-5 h-5 text-sena-green" />
           <span className="hidden sm:inline">Repositorio</span>
         </Link>
+
+        {/* BOTÓN SINCRONIZACIÓN MANUAL */}
+        <button
+          onClick={handleSync}
+          disabled={isSyncing}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold transition-all border ${
+            isSyncing
+              ? "bg-gray-100 text-gray-400"
+              : "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"
+          }`}
+          title="Sincronizar Tickets (Activar Pendientes)"
+        >
+          <RefreshCw className={`w-5 h-5 ${isSyncing ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">Sincronizar</span>
+        </button>
+
+        {/* INDICADOR DE ÚLTIMA SINCRONIZACIÓN (El reloj solicitado) */}
+        <div
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 border border-gray-200 text-[11px] font-medium text-gray-500 whitespace-nowrap"
+          title="Última comprobación automática de SLAs"
+        >
+          <Clock className="w-3.5 h-3.5 text-blue-500" />
+          <span className="hidden lg:inline">Última act:</span>
+          {lastRunAt ? (
+            <span className="text-gray-700">
+              Hace {formatDistanceToNow(lastRunAt, { locale: es })}
+            </span>
+          ) : (
+            <span className="animate-pulse">Sincronizando...</span>
+          )}
+        </div>
 
         <button
           onClick={() => setShowProfileModal(true)}

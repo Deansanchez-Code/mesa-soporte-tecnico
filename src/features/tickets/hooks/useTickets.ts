@@ -123,51 +123,6 @@ export function useTickets(currentUser: User | null) {
     staleTime: 1000 * 60 * 5,
   });
 
-  // 4. Auto-Activación de Tickets EN_ESPERA
-  useEffect(() => {
-    if (!rawTickets || rawTickets.length === 0) return;
-
-    const now = new Date();
-    const ticketsToActivate = rawTickets.filter((t) => {
-      if (t.status !== "EN_ESPERA") return false;
-
-      // Extraer fecha del evento de la descripción
-      const desc = t.description || "";
-      const dateMatch = desc.match(/Fecha: (\d{2}-\d{2}-\d{4})/);
-      const timeMatch = desc.match(/Hora: (\d{2}:\d{2})/);
-
-      if (dateMatch && timeMatch) {
-        const [d, m, y] = dateMatch[1].split("-");
-        const eventDate = new Date(`${y}-${m}-${d}T${timeMatch[1]}`);
-        const hoursDiff =
-          (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-        // Si falta menos de 24h, activar
-        return hoursDiff < 24;
-      }
-      return false;
-    });
-
-    if (ticketsToActivate.length > 0) {
-      const activate = async () => {
-        const ids = ticketsToActivate.map((t) => t.id);
-        const { error } = await supabase
-          .from("tickets")
-          .update({
-            status: "PENDIENTE",
-            sla_status: "running",
-            sla_start_at: new Date().toISOString(), // Reiniciar SLA al activar
-          })
-          .in("id", ids);
-
-        if (!error) {
-          queryClient.invalidateQueries({ queryKey: ["dashboard-tickets"] });
-        }
-      };
-      activate();
-    }
-  }, [rawTickets, queryClient]);
-
   // 5. Realtime Subscription
   useEffect(() => {
     if (!currentUser) return;
