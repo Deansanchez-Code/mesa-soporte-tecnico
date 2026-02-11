@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/servidor";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import {
   TicketService,
   TicketSchema,
@@ -11,6 +12,8 @@ import {
   handleActionError,
   createActionResponse,
 } from "@/lib/server-action-utils";
+import { getSLAHours, calculateSLADueDate } from "@/lib/domain/sla-calculator";
+import { Ticket } from "@/app/admin/admin.types";
 
 export async function createTicketAction(data: CreateTicketInput) {
   try {
