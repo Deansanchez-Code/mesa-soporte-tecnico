@@ -136,7 +136,6 @@ export default function AssetHistoryModal({
           <AssetActionModal
             asset={assetDetails}
             action="TRANSFER"
-            currentUserId={currentUser.id}
             onClose={() => setShowTransferModal(false)}
             onSuccess={() => {
               setShowTransferModal(false);
