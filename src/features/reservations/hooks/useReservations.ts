@@ -9,7 +9,10 @@ import {
 } from "../actions/reservationActions";
 import { ReservationSchema } from "../schemas";
 import { z } from "zod";
-import { createTicketAction } from "@/features/tickets/actions/ticketActions";
+import {
+  createTicketAction,
+  createTicketsBatchAction,
+} from "@/features/tickets/actions/ticketActions";
 
 interface UseReservationsProps {
   userId: string;
@@ -144,6 +147,14 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
     return result.data;
   };
 
+  const createBatchTickets = async (
+    data: Parameters<typeof createTicketsBatchAction>[0],
+  ) => {
+    const result = await createTicketsBatchAction(data);
+    if (result.error) throw new Error(String(result.error));
+    return result.data;
+  };
+
   const syncTicketWithReservation = async (
     oldTitle: string,
     newDetails: {
@@ -228,6 +239,7 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
     createOrUpdateReservation,
     createBatchReservations,
     createSupportTicket,
+    createBatchTickets,
     syncTicketWithReservation,
   };
 }

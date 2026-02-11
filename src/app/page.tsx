@@ -14,6 +14,7 @@ import {
 import UserRequestForm from "@/features/requests/components/UserRequestForm";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useUserNotifications } from "@/hooks/useUserNotifications";
 
 interface UserData {
   id: string;
@@ -44,6 +45,9 @@ function HomeContent() {
 
   // Datos de Usuario (Compartido)
   const [userData, setUserData] = useState<UserData | null>(null);
+
+  // Notificaciones en tiempo real
+  useUserNotifications(userData?.id);
 
   const [availableAreas, setAvailableAreas] = useState<string[]>([]);
   const [contractorLocation, setContractorLocation] = useState("");

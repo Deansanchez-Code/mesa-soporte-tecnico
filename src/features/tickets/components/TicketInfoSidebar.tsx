@@ -1,5 +1,5 @@
 import React from "react";
-import { Monitor, User, MapPin } from "lucide-react";
+import { Monitor, User, MapPin, Tag } from "lucide-react";
 import { Ticket } from "@/app/admin/admin.types";
 import { TicketSLAStatus } from "./TicketSLAStatus";
 import { formatName } from "@/lib/utils";
@@ -33,6 +33,16 @@ export const TicketInfoSidebar = ({ ticket }: TicketInfoSidebarProps) => {
         ) : (
           <p className="text-xs text-gray-400 italic">No especificado</p>
         )}
+      </div>
+
+      {/* Category / Affectation Info */}
+      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+        <h3 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-2">
+          <Tag className="w-3.5 h-3.5" /> Tipo de Afectación
+        </h3>
+        <p className="font-bold text-sena-blue text-sm">
+          {ticket.category || "No especificada"}
+        </p>
       </div>
 
       {/* User Info */}

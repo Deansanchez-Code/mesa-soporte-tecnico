@@ -15,6 +15,7 @@ import {
   Check,
   X,
   CalendarRange,
+  MessageSquare,
 } from "lucide-react";
 import PanicButtonModal from "./PanicButtonModal";
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
@@ -93,6 +94,8 @@ export default function UserRequestForm({
     setSelectedAsset,
     manualSerial,
     setManualSerial,
+    description,
+    setDescription,
     location,
     setLocation,
     isSubmitting,
@@ -524,6 +527,35 @@ export default function UserRequestForm({
                 </div>
               </div>
 
+              {/* DESCRIPCIÓN */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-3">
+                  4. Describe detalladamente el problema{" "}
+                  <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute left-4 top-3.5 text-gray-400">
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Ej: El equipo no enciende después de un bajón de energía, o el internet está intermitente..."
+                    rows={4}
+                    className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-4 focus:ring-green-50 outline-none transition-all font-medium text-gray-700 bg-white resize-none ${
+                      !description && isSubmitting
+                        ? "border-red-300"
+                        : "border-gray-200 focus:border-sena-green hover:border-sena-green"
+                    }`}
+                  />
+                  {description.length > 0 && description.length < 10 && (
+                    <p className="text-[10px] text-orange-500 mt-1 font-bold">
+                      Mínimo 10 caracteres para una mejor atención.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               {/* UBICACIÓN */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-3">
@@ -596,6 +628,7 @@ export default function UserRequestForm({
                   disabled={
                     isSubmitting ||
                     !location ||
+                    description.length < 10 ||
                     (user.employment_type === "planta" &&
                       !selectedAsset &&
                       !isValidSerial)

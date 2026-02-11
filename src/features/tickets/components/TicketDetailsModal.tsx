@@ -82,7 +82,7 @@ export default function TicketDetailsModal({
                     Descripción del Problema
                   </h3>
                   <div className="bg-gray-50 p-3 rounded text-sm text-gray-700 border border-gray-100 leading-relaxed whitespace-pre-wrap">
-                    {ticket.description?.split("\n\n[")[0] || "Sin descripción"}
+                    {ticket.description || "Sin descripción"}
                   </div>
                 </div>
 

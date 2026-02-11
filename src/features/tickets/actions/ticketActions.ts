@@ -156,3 +156,99 @@ export async function createTicketAction(data: z.infer<typeof TicketSchema>) {
     };
   }
 }
+export async function createTicketsBatchAction(
+  ticketsData: z.infer<typeof TicketSchema>[],
+) {
+  try {
+    const supabase = await createClient();
+
+    // 1. Auth Check
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    if (!authUser) throw new Error("No autenticado");
+
+    // 1.1 Get Public User Profile
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select("id, is_vip")
+      .eq("auth_id", authUser.id)
+      .single();
+
+    const isVip = !!publicUser?.is_vip;
+    const createdAt = new Date().toISOString();
+
+    // 2. Prepare Batch
+    const ticketsToInsert = ticketsData.map((data) => {
+      const parseResult = TicketSchema.safeParse(data);
+      if (!parseResult.success) {
+        throw new Error("Datos de ticket inválidos en lote");
+      }
+
+      const {
+        category,
+        ticket_type,
+        asset_serial,
+        location,
+        description,
+        event_date,
+      } = parseResult.data;
+
+      // Determine Status/SLA (Logic 24h)
+      let initialStatus = "PENDIENTE";
+      let slaStatus: "running" | "paused" = "running";
+
+      if (
+        event_date &&
+        (category.toLowerCase().includes("auditorio") ||
+          category.toLowerCase().includes("reserva"))
+      ) {
+        const now = new Date();
+        const eventStart = new Date(event_date);
+        const hoursDiff =
+          (eventStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+        if (hoursDiff > 24) {
+          initialStatus = "EN_ESPERA";
+          slaStatus = "paused";
+        }
+      }
+
+      const slaHours = getSLAHours({
+        is_vip_ticket: isVip,
+        ticket_type: ticket_type,
+      } as Ticket);
+      const expectedEndAt = calculateSLADueDate(createdAt, slaHours);
+
+      return {
+        category,
+        ticket_type,
+        asset_serial,
+        location,
+        description,
+        user_id: data.user_id || authUser.id,
+        status: initialStatus,
+        is_vip_ticket: isVip,
+        sla_start_at: createdAt,
+        sla_expected_end_at: expectedEndAt.toISOString(),
+        sla_status: slaStatus,
+      };
+    });
+
+    // 3. Batch Insert
+    const { data: result, error } = await supabase
+      .from("tickets")
+      .insert(ticketsToInsert)
+      .select();
+
+    if (error) throw error;
+
+    revalidatePath("/dashboard");
+    return { success: true, data: result };
+  } catch (error: unknown) {
+    console.error("Batch Ticket Creation Error:", error);
+    const errorMsg =
+      (error as Record<string, unknown>)?.message || String(error);
+    return { error: errorMsg };
+  }
+}

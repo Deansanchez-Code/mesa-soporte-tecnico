@@ -50,7 +50,7 @@ export default function AuditoriumReservationForm({
     loading,
     cancelReservation,
     createBatchReservations,
-    createSupportTicket,
+    createBatchTickets,
     syncTicketWithReservation,
   } = useReservations({
     userId: user?.id || "",
@@ -204,36 +204,31 @@ export default function AuditoriumReservationForm({
       await createBatchReservations(reservationsPayload);
       setIsSuccess(true); // Mark as success immediately to prevent conflict flash
 
-      // Handle Support Tickets (Post-success)
-      for (const t of supportTicketsPayload) {
-        if (reservationToEdit && !isMultiDay) {
-          // Sync Ticket with new full logic
-          await syncTicketWithReservation(reservationToEdit.title || "", {
-            title,
-            date: t.date,
-            start: t.start,
-            end: t.end,
-            resources: selectedResources,
-            description,
-            isoStart: t.isoStart,
-          });
-        } else {
-          // Create new tickets for all (or just one summary? Per requirements, usually one case per event, but multi-day might imply multiple?
-          // Logic in original code created one ticket PER loop iteration. Keeping that behavior.)
-          const formattedDate = t.date.split("-").reverse().join("-");
-          const descriptionText = `Reserva de Auditorio: ${title}\nFecha: ${formattedDate}\nHora: ${t.start} - ${t.end}\nRecursos: ${selectedResources.join(
-            ", ",
-          )}\nDetalles: ${description}`;
+      // Handle Support Tickets (Optimized Batch)
+      if (reservationToEdit && !isMultiDay) {
+        // Sync Single
+        const t = supportTicketsPayload[0];
+        await syncTicketWithReservation(reservationToEdit.title || "", {
+          title,
+          date: t.date,
+          start: t.start,
+          end: t.end,
+          resources: selectedResources,
+          description,
+          isoStart: t.isoStart,
+        });
+      } else {
+        // Create Batch (New or Multi-day Edit)
+        const ticketsData = supportTicketsPayload.map((t) => ({
+          category: "Reserva Auditorio",
+          ticket_type: "REQ" as const,
+          description: `Reserva de Auditorio: ${title}\nFecha: ${t.date.split("-").reverse().join("-")}\nHora: ${t.start} - ${t.end}\nRecursos: ${selectedResources.join(", ")}\nDetalles: ${description}`,
+          user_id: user?.id || "",
+          location: "Auditorio",
+          event_date: t.isoStart,
+        }));
 
-          await createSupportTicket({
-            category: "Reserva Auditorio",
-            ticket_type: "REQ",
-            description: descriptionText,
-            user_id: user?.id || "",
-            location: "Auditorio",
-            event_date: t.isoStart,
-          });
-        }
+        await createBatchTickets(ticketsData);
       }
 
       toast.success("Reserva(s) confirmada(s) con éxito.");

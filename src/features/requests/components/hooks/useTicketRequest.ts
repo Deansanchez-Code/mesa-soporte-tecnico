@@ -27,6 +27,7 @@ export function useTicketRequest({
   const [category, setCategory] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<string>("");
   const [manualSerial, setManualSerial] = useState("");
+  const [description, setDescription] = useState("");
   const [location, setLocation] = useState(initialLocation || user.area || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -211,7 +212,7 @@ export function useTicketRequest({
         ticket_type: "REQ",
         asset_serial: selectedAsset || manualSerial || null,
         location: location,
-        description: `Ticket creado desde formulario de usuario.`,
+        description: description,
       });
 
       if (result.error) throw new Error(result.error);
@@ -247,6 +248,8 @@ export function useTicketRequest({
     setSelectedAsset,
     manualSerial,
     setManualSerial,
+    description,
+    setDescription,
     location,
     setLocation,
     isSubmitting,
