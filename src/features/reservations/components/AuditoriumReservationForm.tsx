@@ -54,6 +54,7 @@ export default function AuditoriumReservationForm({
   } = useReservations({
     userId: user?.id || "",
     startDate,
+    finalDate: isMultiDay ? finalDate : startDate,
   });
 
   const [conflicts, setConflicts] = useState<Reservation[]>([]);
@@ -102,24 +103,44 @@ export default function AuditoriumReservationForm({
     }
   }, [reservationToEdit]);
 
-  // 2. Detectar conflictos visuales UI (Múltiples)
+  // 2. Detectar conflictos visuales UI (Múltiples días)
   useEffect(() => {
-    if (isSuccess || isSubmitting) return; // Stop checking if success or submitting
+    if (isSuccess || isSubmitting) return;
     if (!startTime || !endTime || !startDate) return;
-    const start = new Date(`${startDate}T${startTime}`);
-    const end = new Date(`${startDate}T${endTime}`);
 
+    // Detectar conflictos en el rango de fechas
     const foundConflicts = reservations.filter((r) => {
       if (reservationToEdit && r.id === reservationToEdit.id) return false;
+
       const rStart = new Date(r.start_time);
       const rEnd = new Date(r.end_time);
-      return start < rEnd && end > rStart;
+
+      // Si es multi-día, debemos verificar si las HORAS chocan en CUALQUIERA de los días reservados
+      // Como el backend crea una reserva por día, simplemente comparamos los intervalos de tiempo.
+      // Primero, normalizamos el conflicto potencial a las mismas horas pero comparando con el rango del backend.
+
+      const [sH, sM] = startTime.split(":").map(Number);
+      const [eH, eM] = endTime.split(":").map(Number);
+
+      // Verificamos si las horas de 'r' se solapan con las horas seleccionadas [startTime, endTime]
+      const rStartHours = rStart.getHours() + rStart.getMinutes() / 60;
+      const rEndHours = rEnd.getHours() + rEnd.getMinutes() / 60;
+      const selectedStartHours = sH + sM / 60;
+      const selectedEndHours = eH + eM / 60;
+
+      const hoursOverlap =
+        selectedStartHours < rEndHours && selectedEndHours > rStartHours;
+
+      return hoursOverlap;
     });
+
     setConflicts(foundConflicts);
   }, [
     startTime,
     endTime,
     startDate,
+    finalDate,
+    isMultiDay,
     reservations,
     reservationToEdit,
     isSuccess,
@@ -131,15 +152,19 @@ export default function AuditoriumReservationForm({
     if (e) e.preventDefault();
     if (!user?.id) return;
 
-    if (conflicts.length > 0 && !isMultiDay && !isOverride) {
+    if (conflicts.length > 0 && !isOverride) {
       // Check if ANY conflict is from a VIP user
-      const hasVipConflict = conflicts.some((c) => c.users?.is_vip);
+      const hasVipConflict = conflicts.some(
+        (c) => c.users?.is_vip || c.users?.role?.toLowerCase() === "vip",
+      );
 
       if (currentUserVip && !hasVipConflict) {
         setShowOverrideConfirm(true);
         return;
       } else {
-        toast.error("El horario no está disponible.");
+        toast.error(
+          "El horario no está disponible en las fechas seleccionadas.",
+        );
         return;
       }
     }
