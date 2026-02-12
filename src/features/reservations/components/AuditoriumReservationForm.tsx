@@ -48,7 +48,6 @@ export default function AuditoriumReservationForm({
     reservations,
     currentUserVip,
     loading,
-    cancelReservation,
     createBatchReservations,
     createBatchTickets,
     syncTicketWithReservation,
@@ -148,13 +147,8 @@ export default function AuditoriumReservationForm({
     setIsSubmitting(true);
 
     try {
-      if (isOverride && conflicts.length > 0) {
-        // Cancel ALL conflicts
-        await Promise.all(conflicts.map((c) => cancelReservation(c.id)));
-        toast.info(
-          `Se han cancelado ${conflicts.length} reserva(s) anterior(es) por privilegio VIP.`,
-        );
-      }
+      // NOTE: We no longer manually cancel conflicts here.
+      // We pass the isOverride flag to the backend to handle it atomically.
 
       const datesToReserve: string[] = [];
       if (isMultiDay) {
@@ -207,7 +201,8 @@ export default function AuditoriumReservationForm({
 
       // Execute Batch or Single
       // Note: createBatchReservations handles conflict checking atomically.
-      await createBatchReservations(reservationsPayload);
+      // We accept `isOverride` to force VIP override on the server.
+      await createBatchReservations(reservationsPayload, isOverride);
       setIsSuccess(true); // Mark as success immediately to prevent conflict flash
 
       // Handle Support Tickets (Optimized Batch)

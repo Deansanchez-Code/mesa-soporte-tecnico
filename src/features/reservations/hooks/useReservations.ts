@@ -127,8 +127,9 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
 
   const createBatchReservations = async (
     data: z.infer<typeof ReservationSchema>[],
+    forceVipOverride: boolean = false,
   ) => {
-    const result = await createReservationBatchAction(data);
+    const result = await createReservationBatchAction(data, forceVipOverride);
     if (result.error) throw new Error(result.error);
     queryClient.invalidateQueries({ queryKey: ["reservations"] });
     return result.data;

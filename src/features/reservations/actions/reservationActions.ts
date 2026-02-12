@@ -442,6 +442,7 @@ export async function updateReservationAction(
 
 export async function createReservationBatchAction(
   reservations: z.infer<typeof ReservationSchema>[],
+  forceVipOverride: boolean = false,
 ) {
   try {
     const supabase = await createClient();
@@ -452,15 +453,21 @@ export async function createReservationBatchAction(
     } = await supabase.auth.getUser();
     if (!authUser) throw new Error("No autenticado");
 
-    // 2. Permissions Check
+    // 2. Permissions & VIP Check
     const { data: publicUser, error: userError } = await supabase
       .from("users")
-      .select("id, role")
+      .select("id, role, is_vip, full_name") // Added full_name for logging/notifications if needed
       .eq("auth_id", authUser.id)
       .single();
 
     if (userError || !publicUser)
       throw new Error("Usuario no encontrado en base de datos");
+
+    const isVip =
+      !!publicUser.is_vip || publicUser.role?.toLowerCase() === "vip";
+    const isAdmin = ["admin", "superadmin"].includes(
+      publicUser.role?.toLowerCase() || "",
+    );
 
     // Pre-validate all
     const validReservations = [];
@@ -476,9 +483,6 @@ export async function createReservationBatchAction(
 
       // Identity check
       if (publicUser.id !== data.user_id) {
-        const isAdmin = ["admin", "superadmin"].includes(
-          publicUser.role?.toLowerCase() || "",
-        );
         if (!isAdmin)
           throw new Error(
             "No tienes permisos para crear reservas a nombre de otros",
@@ -488,35 +492,57 @@ export async function createReservationBatchAction(
     }
 
     // 3. Global Conflict Check
-    await Promise.all(
-      validReservations.map(async (res) => {
-        let query = supabase
-          .from("reservations")
-          .select("id")
-          .eq("status", "APPROVED")
-          .lt("start_time", res.end_time)
-          .gt("end_time", res.start_time);
+    for (const res of validReservations) {
+      // Changed to sequential loop for easier handling
+      let query = supabase
+        .from("reservations")
+        .select("*, users(full_name, is_vip, role)") // Select user details to check their status
+        .eq("status", "APPROVED")
+        .lt("start_time", res.end_time)
+        .gt("end_time", res.start_time);
 
-        // If we are updating (id exists), exclude current reservation from conflict check
-        if (res.id) {
-          query = query.neq("id", res.id);
-        }
+      // If we are updating (id exists), exclude current reservation from conflict check
+      if (res.id) {
+        query = query.neq("id", res.id);
+      }
 
-        const { data: conflicts, error: conflictError } = await query;
+      const { data: conflicts, error: conflictError } = await query;
 
-        if (conflictError) {
-          console.error("Error checking conflicts:", conflictError);
-          throw new Error("Error verificando disponibilidad de horario");
-        }
+      if (conflictError) {
+        console.error("Error checking conflicts:", conflictError);
+        throw new Error("Error verificando disponibilidad de horario");
+      }
 
-        if (conflicts && conflicts.length > 0) {
-          // We found a conflict.
+      if (conflicts && conflicts.length > 0) {
+        // Conflict Detected
+        if (forceVipOverride && (isVip || isAdmin)) {
+          // Validate that NONE of the conflicts are from another VIP (unless Admin)
+          const hasVipConflict = conflicts.some((c) => {
+            const conflictUser = c.users;
+            return (
+              !!conflictUser?.is_vip ||
+              conflictUser?.role?.toLowerCase() === "vip"
+            );
+          });
+
+          if (hasVipConflict && !isAdmin) {
+            throw new Error(
+              "No puedes sobrescribir una reserva de otro usuario VIP.",
+            );
+          }
+
+          // Atomic Cancellation of Conflicts
+          for (const conflict of conflicts) {
+            await cancelReservationAction(conflict.id); // Re-use existing action to handle notifications/emails
+          }
+        } else {
+          // Standard Conflict Error
           throw new Error(
             `Conflicto detectado para el ${new Date(res.start_time).toLocaleDateString()} (se solapa con otra reserva)`,
           );
         }
-      }),
-    );
+      }
+    }
 
     // 4. Batch Upsert (Insert or Update)
     const toInsert = validReservations.map((r) => ({
