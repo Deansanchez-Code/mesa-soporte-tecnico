@@ -57,7 +57,7 @@ export default function AuditoriumReservationForm({
     startDate,
   });
 
-  const [conflict, setConflict] = useState<Reservation | null>(null);
+  const [conflicts, setConflicts] = useState<Reservation[]>([]);
   const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
 
   // Initialize form if editing
@@ -103,20 +103,20 @@ export default function AuditoriumReservationForm({
     }
   }, [reservationToEdit]);
 
-  // 2. Detectar conflictos visuales UI
+  // 2. Detectar conflictos visuales UI (Múltiples)
   useEffect(() => {
     if (isSuccess || isSubmitting) return; // Stop checking if success or submitting
     if (!startTime || !endTime || !startDate) return;
     const start = new Date(`${startDate}T${startTime}`);
     const end = new Date(`${startDate}T${endTime}`);
 
-    const found = reservations.find((r) => {
+    const foundConflicts = reservations.filter((r) => {
       if (reservationToEdit && r.id === reservationToEdit.id) return false;
       const rStart = new Date(r.start_time);
       const rEnd = new Date(r.end_time);
       return start < rEnd && end > rStart;
     });
-    setConflict(found || null);
+    setConflicts(foundConflicts);
   }, [
     startTime,
     endTime,
@@ -132,8 +132,11 @@ export default function AuditoriumReservationForm({
     if (e) e.preventDefault();
     if (!user?.id) return;
 
-    if (conflict && !isMultiDay && !isOverride) {
-      if (currentUserVip && !conflict.users?.is_vip) {
+    if (conflicts.length > 0 && !isMultiDay && !isOverride) {
+      // Check if ANY conflict is from a VIP user
+      const hasVipConflict = conflicts.some((c) => c.users?.is_vip);
+
+      if (currentUserVip && !hasVipConflict) {
         setShowOverrideConfirm(true);
         return;
       } else {
@@ -145,9 +148,12 @@ export default function AuditoriumReservationForm({
     setIsSubmitting(true);
 
     try {
-      if (isOverride && conflict) {
-        await cancelReservation(conflict.id);
-        toast.info("Reserva anterior cancelada por privilegio VIP.");
+      if (isOverride && conflicts.length > 0) {
+        // Cancel ALL conflicts
+        await Promise.all(conflicts.map((c) => cancelReservation(c.id)));
+        toast.info(
+          `Se han cancelado ${conflicts.length} reserva(s) anterior(es) por privilegio VIP.`,
+        );
       }
 
       const datesToReserve: string[] = [];
@@ -515,7 +521,7 @@ export default function AuditoriumReservationForm({
         </div>
 
         {/* Conflicto Msg */}
-        {conflict && (
+        {conflicts.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 animate-in fade-in slide-in-from-bottom-2">
             <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
             <div>
@@ -523,9 +529,22 @@ export default function AuditoriumReservationForm({
                 Horario No Disponible
               </h4>
               <p className="text-xs text-red-600 mt-1">
-                Ya existe una reserva de{" "}
-                <strong>{conflict.users?.full_name}</strong>.
-                {currentUserVip && !conflict.users?.is_vip && (
+                {conflicts.length === 1 ? (
+                  <>
+                    Ya existe una reserva de{" "}
+                    <strong>{conflicts[0].users?.full_name}</strong>.
+                  </>
+                ) : (
+                  <>
+                    Ya existen {conflicts.length} reservas en este horario
+                    (Usuarios:{" "}
+                    <strong>
+                      {conflicts.map((c) => c.users?.full_name).join(", ")}
+                    </strong>
+                    ).
+                  </>
+                )}
+                {currentUserVip && !conflicts.some((c) => c.users?.is_vip) && (
                   <span className="block mt-1 font-bold text-sena-orange">
                     Como usuario VIP, puedes tomar este horario.
                   </span>
@@ -547,9 +566,11 @@ export default function AuditoriumReservationForm({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || loading || (!title && !conflict)}
+            disabled={
+              isSubmitting || loading || (!title && conflicts.length === 0)
+            }
             className={`flex-1 py-3 rounded-xl font-bold text-white shadow-lg shadow-green-900/20 transition-all flex items-center justify-center gap-2 ${
-              isSubmitting || loading || (!title && !conflict)
+              isSubmitting || loading || (!title && conflicts.length === 0)
                 ? "bg-gray-300 cursor-not-allowed shadow-none"
                 : "bg-sena-green hover:bg-green-700 hover:scale-[1.02]"
             }`}
@@ -567,7 +588,7 @@ export default function AuditoriumReservationForm({
           onClose={() => setShowOverrideConfirm(false)}
           onConfirm={() => handleSubmit(undefined, true)}
           title="Confirmar Sobrescritura VIP"
-          message={`Existe una reserva de ${conflict?.users?.full_name}. Al ser usuario VIP, puedes tomar este horario. Se cancelará la reserva anterior. ¿Deseas continuar?`}
+          message={`Existen ${conflicts.length} reservas en este horario (${conflicts.map((c) => c.users?.full_name).join(", ")}). Al ser usuario VIP, puedes tomar este horario. Se cancelarán las reservas anteriores. ¿Deseas continuar?`}
           confirmText="Confirmar y Sobrescribir"
           variant="warning"
           isLoading={isSubmitting}
