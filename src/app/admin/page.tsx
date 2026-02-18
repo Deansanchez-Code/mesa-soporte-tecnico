@@ -642,7 +642,6 @@ export default function AdminDashboard() {
                 selectedAssetForAction.assigned_to_user_id || "",
             }}
             action={actionType}
-            currentUserId={currentUser.id}
             onClose={() => {
               setShowActionModal(false);
               setSelectedAssetForAction(null);
@@ -1423,7 +1422,6 @@ export default function AdminDashboard() {
                   selectedAssetForAction.assigned_to_user_id || "",
               }}
               action={actionType}
-              currentUserId={currentUser?.id || ""}
               onClose={() => setShowActionModal(false)}
               onSuccess={() => {
                 setShowActionModal(false);

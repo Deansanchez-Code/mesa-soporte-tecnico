@@ -11,5 +11,6 @@ export interface Reservation {
   users?: {
     full_name: string;
     is_vip: boolean;
+    role?: string;
   };
 }

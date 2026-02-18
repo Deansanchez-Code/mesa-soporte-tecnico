@@ -53,16 +53,16 @@ export default function AuditoriumReservationForm({
     reservations,
     currentUserVip,
     loading,
-    cancelReservation,
     createBatchReservations,
     createBatchTickets,
     syncTicketWithReservation,
   } = useReservations({
     userId: user?.id || "",
     startDate,
+    finalDate: isMultiDay ? finalDate : startDate,
   });
 
-  const [conflict, setConflict] = useState<Reservation | null>(null);
+  const [conflicts, setConflicts] = useState<Reservation[]>([]);
   const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
 
   // Initialize form if editing
@@ -109,27 +109,45 @@ export default function AuditoriumReservationForm({
     }
   }, [reservationToEdit]);
 
-  // 2. Detectar conflictos visuales UI
+  // 2. Detectar conflictos visuales UI (Múltiples días)
   useEffect(() => {
-    if (isSuccess || isSubmitting) return; // Stop checking if success or submitting
+    if (isSuccess || isSubmitting) return;
     if (!startTime || !endTime || !startDate) return;
-    const start = new Date(`${startDate}T${startTime}`);
-    const end = new Date(`${startDate}T${endTime}`);
 
     // Detectar conflictos en el rango de fechas para el ESPACIO SELECCIONADO
-    const foundConflict = reservations.find((r) => {
+    const foundConflicts = reservations.filter((r) => {
       if (reservationToEdit && r.id === reservationToEdit.id) return false;
       if (r.auditorium_id !== selectedSpace) return false;
 
       const rStart = new Date(r.start_time);
       const rEnd = new Date(r.end_time);
-      return start < rEnd && end > rStart;
+
+      // Si es multi-día, debemos verificar si las HORAS chocan en CUALQUIERA de los días reservados
+      // Como el backend crea una reserva por día, simplemente comparamos los intervalos de tiempo.
+      // Primero, normalizamos el conflicto potencial a las mismas horas pero comparando con el rango del backend.
+
+      const [sH, sM] = startTime.split(":").map(Number);
+      const [eH, eM] = endTime.split(":").map(Number);
+
+      // Verificamos si las horas de 'r' se solapan con las horas seleccionadas [startTime, endTime]
+      const rStartHours = rStart.getHours() + rStart.getMinutes() / 60;
+      const rEndHours = rEnd.getHours() + rEnd.getMinutes() / 60;
+      const selectedStartHours = sH + sM / 60;
+      const selectedEndHours = eH + eM / 60;
+
+      const hoursOverlap =
+        selectedStartHours < rEndHours && selectedEndHours > rStartHours;
+
+      return hoursOverlap;
     });
-    setConflict(foundConflict || null);
+
+    setConflicts(foundConflicts);
   }, [
     startTime,
     endTime,
     startDate,
+    finalDate,
+    isMultiDay,
     reservations,
     reservationToEdit,
     selectedSpace,
@@ -142,12 +160,19 @@ export default function AuditoriumReservationForm({
     if (e) e.preventDefault();
     if (!user?.id) return;
 
-    if (conflict && !isMultiDay && !isOverride) {
-      if (currentUserVip && !conflict.users?.is_vip) {
+    if (conflicts.length > 0 && !isOverride) {
+      // Check if ANY conflict is from a VIP user
+      const hasVipConflict = conflicts.some(
+        (c) => c.users?.is_vip || c.users?.role?.toLowerCase() === "vip",
+      );
+
+      if (currentUserVip && !hasVipConflict) {
         setShowOverrideConfirm(true);
         return;
       } else {
-        toast.error("El horario no está disponible.");
+        toast.error(
+          "El horario no está disponible en las fechas seleccionadas.",
+        );
         return;
       }
     }
@@ -155,10 +180,8 @@ export default function AuditoriumReservationForm({
     setIsSubmitting(true);
 
     try {
-      if (isOverride && conflict) {
-        await cancelReservation(conflict.id);
-        toast.info("Reserva anterior cancelada por privilegio VIP.");
-      }
+      // NOTE: We no longer manually cancel conflicts here.
+      // We pass the isOverride flag to the backend to handle it atomically.
 
       const datesToReserve: string[] = [];
       if (isMultiDay) {
@@ -211,7 +234,8 @@ export default function AuditoriumReservationForm({
 
       // Execute Batch or Single
       // Note: createBatchReservations handles conflict checking atomically.
-      await createBatchReservations(reservationsPayload);
+      // We accept `isOverride` to force VIP override on the server.
+      await createBatchReservations(reservationsPayload, isOverride);
       setIsSuccess(true); // Mark as success immediately to prevent conflict flash
 
       // Handle Support Tickets (Optimized Batch)
@@ -595,7 +619,7 @@ export default function AuditoriumReservationForm({
         </div>
 
         {/* Conflicto Msg */}
-        {conflict && (
+        {conflicts.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 animate-in fade-in slide-in-from-bottom-2">
             <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
             <div>
@@ -603,9 +627,22 @@ export default function AuditoriumReservationForm({
                 Horario No Disponible
               </h4>
               <p className="text-xs text-red-600 mt-1">
-                Ya existe una reserva de{" "}
-                <strong>{conflict.users?.full_name}</strong>.
-                {currentUserVip && !conflict.users?.is_vip && (
+                {conflicts.length === 1 ? (
+                  <>
+                    Ya existe una reserva de{" "}
+                    <strong>{conflicts[0].users?.full_name}</strong>.
+                  </>
+                ) : (
+                  <>
+                    Ya existen {conflicts.length} reservas en este horario
+                    (Usuarios:{" "}
+                    <strong>
+                      {conflicts.map((c) => c.users?.full_name).join(", ")}
+                    </strong>
+                    ).
+                  </>
+                )}
+                {currentUserVip && !conflicts.some((c) => c.users?.is_vip) && (
                   <span className="block mt-1 font-bold text-sena-orange">
                     Como usuario VIP, puedes tomar este horario.
                   </span>
@@ -660,17 +697,24 @@ export default function AuditoriumReservationForm({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !!conflict}
+              disabled={
+                isSubmitting || loading || (!title && conflicts.length === 0)
+              }
               className={`flex-1 px-4 py-4 rounded-2xl font-bold text-white shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2 ${
-                isSubmitting || conflict
+                isSubmitting || loading || (!title && conflicts.length === 0)
                   ? "bg-gray-300 cursor-not-allowed shadow-none"
-                  : "bg-sena-green hover:bg-green-700 shadow-green-900/20"
+                  : "bg-sena-green hover:bg-green-700 shadow-green-900/20 shadow-lg hover:scale-[1.02]"
               }`}
             >
               {isSubmitting ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Procesando...
+                </>
+              ) : reservationToEdit ? (
+                <>
+                  <CheckCircle className="w-5 h-5" />
+                  Guardar Cambios
                 </>
               ) : (
                 <>
@@ -687,7 +731,7 @@ export default function AuditoriumReservationForm({
           onClose={() => setShowOverrideConfirm(false)}
           onConfirm={() => handleSubmit(undefined, true)}
           title="Confirmar Sobrescritura VIP"
-          message={`Existe una reserva de ${conflict?.users?.full_name}. Al ser usuario VIP, puedes tomar este horario. Se cancelará la reserva anterior. ¿Deseas continuar?`}
+          message={`Existen ${conflicts.length} reservas en este horario (${conflicts.map((c) => c.users?.full_name).join(", ")}). Al ser usuario VIP, puedes tomar este horario. Se cancelarán las reservas anteriores. ¿Deseas continuar?`}
           confirmText="Confirmar y Sobrescribir"
           variant="warning"
           isLoading={isSubmitting}

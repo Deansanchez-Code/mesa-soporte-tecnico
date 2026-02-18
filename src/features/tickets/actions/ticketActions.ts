@@ -14,6 +14,7 @@ import {
 } from "@/lib/server-action-utils";
 import { getSLAHours, calculateSLADueDate } from "@/lib/domain/sla-calculator";
 import { Ticket } from "@/app/admin/admin.types";
+import Logger from "@/lib/logger";
 
 export async function createTicketAction(data: CreateTicketInput) {
   try {
@@ -37,6 +38,7 @@ export async function createTicketAction(data: CreateTicketInput) {
     revalidatePath("/dashboard");
     return createActionResponse(newTicket);
   } catch (error: unknown) {
+    await Logger.error("Error creating ticket", { error });
     return handleActionError(error);
   }
 }
@@ -131,6 +133,7 @@ export async function createTicketsBatchAction(
     return { success: true, data: result };
   } catch (error: unknown) {
     console.error("Batch Ticket Creation Error:", error);
+    await Logger.error("Batch Ticket Creation Error", { error });
     const errorMsg =
       (error as Record<string, unknown>)?.message || String(error);
     return { error: errorMsg };

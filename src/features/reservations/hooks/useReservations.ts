@@ -17,25 +17,30 @@ import {
 interface UseReservationsProps {
   userId: string;
   startDate: string;
+  finalDate?: string;
 }
 
-export function useReservations({ userId, startDate }: UseReservationsProps) {
+export function useReservations({
+  userId,
+  startDate,
+  finalDate,
+}: UseReservationsProps) {
   const queryClient = useQueryClient();
 
-  // 1. Query para Reservas (Filtrado por fecha)
+  // 1. Query para Reservas (Filtrado por rango de fecha)
   const {
     data: reservations = [],
     isLoading: loadingReservations,
     refetch: refetchReservations,
   } = useQuery<Reservation[]>({
-    queryKey: ["reservations", startDate],
+    queryKey: ["reservations", startDate, finalDate],
     queryFn: async () => {
       const startOfDay = `${startDate}T00:00:00`;
-      const endOfDay = `${startDate}T23:59:59`;
+      const endOfDay = `${finalDate || startDate}T23:59:59`;
 
       const { data, error } = await supabase
         .from("reservations")
-        .select("*, users(full_name, is_vip)")
+        .select("*, users(full_name, is_vip, role)")
         .eq("status", "APPROVED")
         .gte("start_time", startOfDay)
         .lte("start_time", endOfDay)
@@ -127,8 +132,9 @@ export function useReservations({ userId, startDate }: UseReservationsProps) {
 
   const createBatchReservations = async (
     data: z.infer<typeof ReservationSchema>[],
+    forceVipOverride: boolean = false,
   ) => {
-    const result = await createReservationBatchAction(data);
+    const result = await createReservationBatchAction(data, forceVipOverride);
     if (result.error) throw new Error(result.error);
     queryClient.invalidateQueries({ queryKey: ["reservations"] });
     return result.data;

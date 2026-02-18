@@ -8,6 +8,7 @@ import ReservationConfirmation from "@/lib/email/templates/ReservationConfirmati
 import SupportNotification from "@/lib/email/templates/SupportNotification";
 import VipCancellation from "@/lib/email/templates/VipCancellation";
 import { ReservationSchema } from "../schemas";
+import Logger from "@/lib/logger";
 
 export async function cancelReservationAction(reservationId: number) {
   try {
@@ -178,6 +179,10 @@ export async function cancelReservationAction(reservationId: number) {
   } catch (error: unknown) {
     const errorMsg =
       error instanceof Error ? error.message : "Error al cancelar la reserva";
+    await Logger.error(`Reservation Cancellation Failed: ${errorMsg}`, {
+      reservationId,
+      error,
+    });
     return { error: errorMsg };
   }
 }
@@ -369,6 +374,7 @@ export async function createReservationAction(
       (typeof error === "object"
         ? JSON.stringify(error)
         : String(error || "Error al crear reserva"));
+    await Logger.error(`Reservation Creation Failed: ${errorMsg}`, { error });
     return { error: String(errorMsg) };
   }
 }
@@ -493,12 +499,14 @@ export async function updateReservationAction(
       (typeof error === "object"
         ? JSON.stringify(error)
         : String(error || "Error al actualizar reserva"));
+    await Logger.error(`Reservation Update Failed: ${errorMsg}`, { error });
     return { error: String(errorMsg) };
   }
 }
 
 export async function createReservationBatchAction(
   reservations: z.infer<typeof ReservationSchema>[],
+  forceVipOverride: boolean = false,
 ) {
   try {
     const supabase = await createClient();
@@ -509,7 +517,7 @@ export async function createReservationBatchAction(
     } = await supabase.auth.getUser();
     if (!authUser) throw new Error("No autenticado");
 
-    // 2. Permissions Check
+    // 2. Permissions & VIP Check
     const { data: publicUser, error: userError } = await supabase
       .from("users")
       .select("id, role, is_vip, full_name, employment_type, email")
@@ -518,6 +526,12 @@ export async function createReservationBatchAction(
 
     if (userError || !publicUser)
       throw new Error("Usuario no encontrado en base de datos");
+
+    const isVip =
+      !!publicUser.is_vip || publicUser.role?.toLowerCase() === "vip";
+    const isAdmin = ["admin", "superadmin"].includes(
+      publicUser.role?.toLowerCase() || "",
+    );
 
     // Pre-validate all
     const validReservations = [];
@@ -533,9 +547,6 @@ export async function createReservationBatchAction(
 
       // Identity check
       if (publicUser.id !== data.user_id) {
-        const isAdmin = ["admin", "superadmin"].includes(
-          publicUser.role?.toLowerCase() || "",
-        );
         if (!isAdmin)
           throw new Error(
             "No tienes permisos para crear reservas a nombre de otros",
@@ -545,10 +556,6 @@ export async function createReservationBatchAction(
     }
 
     // 3. Global Conflict Check and RBAC
-    const isAdmin = ["admin", "superadmin"].includes(
-      publicUser.role?.toLowerCase() || "",
-    );
-
     for (const res of validReservations) {
       const targetSpace = res.auditorium_id || "1";
 
@@ -582,7 +589,7 @@ export async function createReservationBatchAction(
       // Conflict Check (Scoped to space)
       let query = supabase
         .from("reservations")
-        .select("id")
+        .select("*, users(id, full_name, is_vip, role)") // Select user details to check their status
         .eq("status", "APPROVED")
         .eq("auditorium_id", targetSpace)
         .lt("start_time", res.end_time)
@@ -601,9 +608,33 @@ export async function createReservationBatchAction(
       }
 
       if (conflicts && conflicts.length > 0) {
-        throw new Error(
-          `Conflicto detectado para el ${new Date(res.start_time).toLocaleDateString()} (se solapa con otra reserva en el mismo espacio)`,
-        );
+        // Conflict Detected
+        if (forceVipOverride && (isVip || isAdmin)) {
+          // Validate that NONE of the conflicts are from another VIP (unless Admin)
+          const hasVipConflict = conflicts.some((c) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const conflictUser = (c as any).users;
+            return (
+              !!conflictUser?.is_vip ||
+              conflictUser?.role?.toLowerCase() === "vip"
+            );
+          });
+
+          if (hasVipConflict && !isAdmin) {
+            throw new Error(
+              "No puedes sobrescribir una reserva de otro usuario VIP.",
+            );
+          }
+
+          // Atomic Cancellation of Conflicts
+          for (const conflict of conflicts) {
+            await cancelReservationAction(conflict.id); // Re-use existing action to handle notifications/emails
+          }
+        } else {
+          throw new Error(
+            `Conflicto detectado para el ${new Date(res.start_time).toLocaleDateString()} (se solapa con otra reserva en el mismo espacio)`,
+          );
+        }
       }
     }
 
@@ -729,12 +760,12 @@ export async function createReservationBatchAction(
     revalidatePath("/dashboard");
     return { success: true, data: result };
   } catch (error: unknown) {
-    console.error("Server Action Error (createReservationBatchAction):", error);
     const errorMsg =
       (error as Record<string, unknown>)?.message ||
       (typeof error === "object"
         ? JSON.stringify(error)
         : String(error || "Error en creación masiva"));
+    await Logger.error("Batch Reservation Creation Failed", { error });
     return { error: String(errorMsg) };
   }
 }

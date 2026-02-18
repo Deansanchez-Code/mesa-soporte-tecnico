@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/cliente";
+import { processAssetAction } from "../actions/assetActions";
 import {
   Upload,
   AlertTriangle,
@@ -11,6 +12,7 @@ import {
   Loader2,
   User,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface AssetActionModalProps {
   asset: {
@@ -22,7 +24,6 @@ interface AssetActionModalProps {
   action: "TRANSFER" | "DECOMMISSION";
   onClose: () => void;
   onSuccess: () => void;
-  currentUserId: string;
 }
 
 export default function AssetActionModal({
@@ -30,7 +31,6 @@ export default function AssetActionModal({
   action,
   onClose,
   onSuccess,
-  currentUserId,
 }: AssetActionModalProps) {
   const [targetUserId, setTargetUserId] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -56,14 +56,14 @@ export default function AssetActionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) return alert("Debes adjuntar el soporte de autorización.");
+    if (!file) return toast.error("Debes adjuntar el soporte de autorización.");
     if (action === "TRANSFER" && !targetUserId)
-      return alert("Debes seleccionar el nuevo responsable.");
+      return toast.error("Debes seleccionar el nuevo responsable.");
 
     setLoading(true);
 
     try {
-      // 1. Subir archivo
+      // 1. Subir archivo (Mantenemos esto en cliente por ahora)
       const fileExt = file.name.split(".").pop();
       const fileName = `${asset.serial_number}_${Date.now()}.${fileExt}`;
       const filePath = `${action.toLowerCase()}/${fileName}`;
@@ -74,40 +74,28 @@ export default function AssetActionModal({
 
       if (uploadError) throw uploadError;
 
-      // 2. Determinar nuevo usuario
-      // Si es BAJA, usamos el ID fijo del usuario "Equipos de Baja"
-      // ID Fijo: 00000000-0000-0000-0000-000000000000
-      const newOwnerId =
-        action === "DECOMMISSION"
-          ? "00000000-0000-0000-0000-000000000000"
-          : targetUserId;
-
-      // 3. Registrar Log
-      const { error: logError } = await supabase.from("asset_logs").insert({
-        asset_id: asset.id,
-        action_type: action,
-        previous_user_id: asset.assigned_to_user_id,
-        new_user_id: newOwnerId,
-        performed_by_user_id: currentUserId,
-        authorization_file_url: filePath,
+      // 2. Procesar Acción en Servidor
+      const result = await processAssetAction({
+        assetId: asset.id,
+        actionType: action,
+        targetUserId: targetUserId || undefined,
         comments: comments,
+        fileUrl: filePath,
       });
 
-      if (logError) throw logError;
+      if (!result.success) {
+        throw new Error(result.error || "Error desconocido en el servidor");
+      }
 
-      // 4. Actualizar Activo
-      const { error: updateError } = await supabase
-        .from("assets")
-        .update({ assigned_to_user_id: newOwnerId })
-        .eq("id", asset.id);
-
-      if (updateError) throw updateError;
-
-      alert("✅ Acción realizada correctamente.");
+      toast.success("Acción realizada correctamente.");
       onSuccess();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
-      alert("Error al procesar la solicitud.");
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Error al procesar la solicitud.";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
