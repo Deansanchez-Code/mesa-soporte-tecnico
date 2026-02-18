@@ -22,7 +22,47 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  return await updateSession(request);
+  const response = await updateSession(request);
+
+  // Security Headers
+  // Content Security Policy (CSP)
+  // Note: 'unsafe-inline' and 'unsafe-eval' are currently allowed for Next.js hydration and some libraries.
+  // Ideally, we would use nonces, but that requires more complex setup with Next.js App Router.
+  const cspHeader = `
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com;
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' blob: data: https://*.supabase.co https://*.supabase.in;
+    font-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+    frame-ancestors 'none';
+    block-all-mixed-content;
+    upgrade-insecure-requests;
+  `;
+
+  // Apply headers to the response (whether it came from updateSession or next())
+  const finalResponse = response || NextResponse.next();
+
+  finalResponse.headers.set(
+    "Content-Security-Policy",
+    cspHeader.replace(/\s{2,}/g, " ").trim(),
+  );
+
+  finalResponse.headers.set("X-Content-Type-Options", "nosniff");
+  finalResponse.headers.set("X-Frame-Options", "DENY");
+  finalResponse.headers.set("X-XSS-Protection", "1; mode=block");
+  finalResponse.headers.set(
+    "Referrer-Policy",
+    "strict-origin-when-cross-origin",
+  );
+  finalResponse.headers.set(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=()",
+  );
+
+  return finalResponse;
 }
 
 export const config = {

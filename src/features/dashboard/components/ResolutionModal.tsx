@@ -7,7 +7,7 @@ import {
   Loader2,
   Search,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import KnowledgeSearchModal from "@/features/knowledge/components/KnowledgeSearchModal";
 import ArticleEditor, {

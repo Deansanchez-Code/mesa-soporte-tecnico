@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { env } from "@/env";
 
 // Helper to create a response with a JSON error
 export function unauthorized(message = "Unauthorized") {
@@ -24,8 +25,8 @@ export async function getUserFromRequest(req: NextRequest) {
   // Verify token using a fresh client or just getUser which verifies the JWT signature
   // We use a clean client to ensure we aren't using the Admin Service Role for verification
   const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   );
 
   const {
@@ -51,8 +52,8 @@ export async function verifyUserPermissions(
   // We need the admin client to check public.users permissions reliably
   // (since RLS might restrict what a user can see about themselves if not careful, though usually they can see self)
   const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.SUPABASE_SERVICE_ROLE_KEY,
   );
 
   const query = supabaseAdmin

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import { AlertTriangle, User, Users, Loader2 } from "lucide-react";
 
 interface User {

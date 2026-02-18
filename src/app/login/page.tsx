@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { safeSetItem } from "@/lib/storage";
 import {

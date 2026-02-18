@@ -1,6 +1,8 @@
 type LogLevel = "info" | "warn" | "error" | "debug";
 
-const isProduction = process.env.NODE_ENV === "production";
+import { env } from "@/env";
+
+const isProduction = env.NODE_ENV === "production";
 
 class Logger {
   static log(level: LogLevel, message: string, data?: unknown) {
@@ -17,21 +19,41 @@ class Logger {
           : data,
     };
 
-    // In production, this would send to Sentry/Datadog
-    // For now, we sanitize console output
-    switch (level) {
-      case "error":
-        console.error(JSON.stringify(payload));
-        break;
-      case "warn":
-        console.warn(JSON.stringify(payload));
-        break;
-      case "info":
-        console.info(`[INFO] ${message}`, data || "");
-        break;
-      case "debug":
-        console.debug(`[DEBUG] ${message}`, data || "");
-        break;
+    // In production, use structured JSON logging
+    // In development, keep readable console output
+    if (isProduction) {
+      const logEntry = JSON.stringify(payload);
+      switch (level) {
+        case "error":
+          console.error(logEntry);
+          break;
+        case "warn":
+          console.warn(logEntry);
+          break;
+        case "info":
+        case "debug":
+          console.log(logEntry);
+          break;
+      }
+    } else {
+      // Development readable format
+      const prefix = `[${level.toUpperCase()}]`;
+      const args = data ? [message, data] : [message];
+
+      switch (level) {
+        case "error":
+          console.error(prefix, ...args);
+          break;
+        case "warn":
+          console.warn(prefix, ...args);
+          break;
+        case "info":
+          console.info(prefix, ...args);
+          break;
+        case "debug":
+          console.debug(prefix, ...args);
+          break;
+      }
     }
   }
 

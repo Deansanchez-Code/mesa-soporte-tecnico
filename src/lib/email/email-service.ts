@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import { Resend } from "resend";
 
 export interface EmailPayload {
@@ -13,17 +14,7 @@ export class EmailService {
    */
   static async send(payload: EmailPayload) {
     try {
-      const apiKey = process.env.RESEND_API_KEY;
-
-      if (!apiKey) {
-        console.error(
-          "❌ ERROR CRÍTICO: RESEND_API_KEY no está definida en las variables de entorno.",
-        );
-        return {
-          success: false,
-          error: "Server Configuration Error: Missing Email API Key",
-        };
-      }
+      const apiKey = env.RESEND_API_KEY;
 
       const resend = new Resend(apiKey);
 

@@ -1,8 +1,10 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { safeGetItem, safeSetItem, safeRemoveItem } from "../storage";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+import { env } from "@/env";
+
+const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const createSupabaseClient = () =>
   createBrowserClient(supabaseUrl, supabaseKey, {

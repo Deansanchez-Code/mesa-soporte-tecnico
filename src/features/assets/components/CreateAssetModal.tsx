@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import { Upload, X, Loader2, Save } from "lucide-react";
 
 interface CreateAssetModalProps {

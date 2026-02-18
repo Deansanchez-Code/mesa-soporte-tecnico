@@ -2,7 +2,7 @@
 
 import AuthGuard from "@/components/AuthGuard";
 import { useState } from "react";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import { safeGetItem, safeRemoveItem } from "@/lib/storage";
 import { useRouter } from "next/navigation";
 import NotificationManager from "@/components/NotificationManager";

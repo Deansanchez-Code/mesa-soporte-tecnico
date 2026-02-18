@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import { User, Asset, Outage } from "../types";
 import { createTicketAction } from "@/features/tickets/actions/ticketActions";
 import { toast } from "sonner";

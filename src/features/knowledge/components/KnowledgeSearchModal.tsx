@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Search, Loader2, BookOpen, ChevronRight, X, Copy } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 
 interface Article {
   id: string;

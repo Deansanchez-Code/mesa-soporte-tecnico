@@ -17,7 +17,7 @@ import {
   TIME_BLOCKS,
 } from "@/lib/scheduling";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 
 interface Props {
   isOpen: boolean;

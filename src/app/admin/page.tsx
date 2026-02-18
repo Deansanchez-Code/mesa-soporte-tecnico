@@ -3,7 +3,7 @@
 import AuthGuard from "@/components/AuthGuard";
 import { useEffect, useState, useMemo } from "react";
 import React from "react";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import { safeRemoveItem } from "@/lib/storage";
 import {
   Shield,
