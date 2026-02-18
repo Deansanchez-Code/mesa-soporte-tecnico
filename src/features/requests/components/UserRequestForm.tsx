@@ -16,6 +16,7 @@ import {
   X,
   CalendarRange,
   MessageSquare,
+  Book, // Added Book icon
 } from "lucide-react";
 import PanicButtonModal from "./PanicButtonModal";
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
@@ -142,6 +143,21 @@ export default function UserRequestForm({
   };
 
   const [showPanicModal, setShowPanicModal] = useState(false);
+  const [selectedReservationSpace, setSelectedReservationSpace] = useState<
+    "1" | "2" | "3"
+  >("1");
+
+  const isAdmin = ["admin", "superadmin"].includes(
+    ((user?.role as string) || "").toLowerCase(),
+  );
+  const isVip = !!(user as never as { is_vip?: boolean })?.is_vip;
+  const canSeeSubdireccion = isVip || isAdmin;
+
+  const userEmail = ((user?.email as string) || "").toLowerCase();
+  const canSeeBiblioteca =
+    ["egutierrezn@sistema.local", "rbiblioteca@sistema.local"].includes(
+      userEmail,
+    ) || isAdmin;
 
   // --- VISTA DE SELECCIÓN (CARDS) ---
   if (view === "SELECTION") {
@@ -170,7 +186,10 @@ export default function UserRequestForm({
 
           {/* CARD 2: RESERVA AUDITORIO */}
           <button
-            onClick={() => handleViewChange("RESERVATION")}
+            onClick={() => {
+              setSelectedReservationSpace("1");
+              handleViewChange("RESERVATION");
+            }}
             className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-sena-blue transition-all duration-300 flex flex-col items-center text-center gap-2"
           >
             <div className="bg-blue-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
@@ -186,16 +205,62 @@ export default function UserRequestForm({
             </div>
           </button>
 
-          {/* CARD 3: CONSULTAR DISPONIBILIDAD */}
+          {/* CARD 2.5: RESERVA SUBDIRECCIÓN (Only for official personnel) */}
+          {canSeeSubdireccion && (
+            <button
+              onClick={() => {
+                setSelectedReservationSpace("2");
+                handleViewChange("RESERVATION");
+              }}
+              className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-sena-orange transition-all duration-300 flex flex-col items-center text-center gap-2"
+            >
+              <div className="bg-orange-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
+                <Calendar className="w-8 h-8 text-sena-orange" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-800 group-hover:text-sena-orange transition-colors">
+                  Reserva Subdirección
+                </h3>
+                <p className="text-sm text-gray-500 leading-relaxed mt-1">
+                  Espacio exclusivo para reuniones de subdirección y planta.
+                </p>
+              </div>
+            </button>
+          )}
+
+          {/* CARD 3: RESERVA BIBLIOTECA (Only for authorized personnel) */}
+          {canSeeBiblioteca && (
+            <button
+              onClick={() => {
+                setSelectedReservationSpace("3");
+                handleViewChange("RESERVATION");
+              }}
+              className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-purple-500 transition-all duration-300 flex flex-col items-center text-center gap-2"
+            >
+              <div className="bg-purple-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
+                <Book className="w-8 h-8 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-800 group-hover:text-purple-600 transition-colors">
+                  Reserva Biblioteca
+                </h3>
+                <p className="text-sm text-gray-500 leading-relaxed mt-1">
+                  Solicita el préstamo de la biblioteca para tus actividades.
+                </p>
+              </div>
+            </button>
+          )}
+
+          {/* CARD 4: CONSULTAR DISPONIBILIDAD */}
           <button
             onClick={() => handleViewChange("AVAILABILITY")}
-            className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-purple-500 transition-all duration-300 flex flex-col items-center text-center gap-2"
+            className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-pink-500 transition-all duration-300 flex flex-col items-center text-center gap-2"
           >
-            <div className="bg-purple-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
-              <CalendarRange className="w-8 h-8 text-purple-600" />
+            <div className="bg-pink-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
+              <CalendarRange className="w-8 h-8 text-pink-600" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-800 group-hover:text-purple-600 transition-colors">
+              <h3 className="text-lg font-bold text-gray-800 group-hover:text-pink-600 transition-colors">
                 Consultar Disponibilidad
               </h3>
               <p className="text-sm text-gray-500 leading-relaxed mt-1">
@@ -253,15 +318,19 @@ export default function UserRequestForm({
                 ? "bg-green-100 text-sena-green"
                 : view === "RESERVATION"
                   ? "bg-blue-100 text-sena-blue"
-                  : "bg-purple-100 text-purple-600"
+                  : view === "AVAILABILITY"
+                    ? "bg-pink-100 text-pink-600"
+                    : "bg-purple-100 text-purple-600"
             }`}
           >
             {view === "TICKET" ? (
               <Monitor className="w-6 h-6" />
             ) : view === "RESERVATION" ? (
               <Calendar className="w-6 h-6" />
-            ) : (
+            ) : view === "AVAILABILITY" ? (
               <CalendarRange className="w-6 h-6" />
+            ) : (
+              <Book className="w-6 h-6" />
             )}
           </div>
           <div>
@@ -269,7 +338,9 @@ export default function UserRequestForm({
               {view === "TICKET"
                 ? "Servicio Técnico"
                 : view === "RESERVATION"
-                  ? "Reservar Auditorio"
+                  ? selectedReservationSpace === "1"
+                    ? "Reservar Auditorio"
+                    : "Reservar Subdirección"
                   : "Disponibilidad de Ambientes"}
             </h2>
             <p className="text-sm text-gray-500">
@@ -286,6 +357,7 @@ export default function UserRequestForm({
           {view === "RESERVATION" ? (
             <AuditoriumReservationForm
               user={user}
+              initialSpace={selectedReservationSpace}
               onCancel={() => handleViewChange("SELECTION")}
               onSuccess={onCancel}
             />

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/cliente";
 import { Plus, MapPin } from "lucide-react";
+import { toast } from "sonner";
 import BulkAssignmentModal from "./BulkAssignmentModal";
 import CalendarView from "./CalendarView";
 import { Assignment } from "../types";
@@ -33,25 +34,45 @@ export default function AssignmentManager({
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isReservationModalOpen, setIsReservationModalOpen] = useState(false);
 
   const fetchEnvironments = async () => {
     setLoading(true);
-    // Fetch AMBIENTE and AUDITORIO, excluding KIOSKO
+    // Fetch AMBIENTE, AUDITORIO, SUBDIRECCIÓN and BIBLIOTECA, excluding KIOSKO
     const { data } = await supabase
       .from("areas")
       .select("id, name")
-      .or("name.ilike.%AMBIENTE%,name.ilike.%AUDITORIO%")
+      .or(
+        "name.ilike.%AMBIENTE%,name.ilike.%AUDITORIO%,name.ilike.%SUBDIRECCIÓN%,name.ilike.%BIBLIOTECA%",
+      )
       .not("name", "ilike", "%KIOSKO%")
       .order("name");
 
     if (data) {
-      // Prioritize AUDITORIO to be the first option
       // Filter out "AMBIENTE DE INSTRUCTORES"
       const filtered = data.filter(
         (d) => !d.name.toUpperCase().includes("AMBIENTE DE INSTRUCTORES"),
       );
 
-      const mapped = filtered
+      // --- RBAC Filter for Subdirección ---
+      const u = user as { employment_type?: string; role?: string };
+      const empType = (u?.employment_type || "").toLowerCase();
+      const isOfficial =
+        empType.includes("planta") ||
+        empType.includes("funcionario") ||
+        empType.includes("oficial");
+      const isAdmin = ["admin", "superadmin"].includes(
+        (u?.role || "").toLowerCase(),
+      );
+
+      const rbacFiltered = filtered.filter((d) => {
+        if (d.name.toUpperCase().includes("SUBDIRECCIÓN")) {
+          return isOfficial || isAdmin;
+        }
+        return true;
+      });
+
+      const mapped = rbacFiltered
         .map((d: { id: number; name: string }) => ({
           id: d.id,
           name: d.name,
@@ -59,8 +80,23 @@ export default function AssignmentManager({
           capacity: 0,
         }))
         .sort((a, b) => {
-          if (a.name.toUpperCase().includes("AUDITORIO")) return -1;
-          if (b.name.toUpperCase().includes("AUDITORIO")) return 1;
+          // Prioritize AUDITORIO, BIBLIOTECA and SUBDIRECCIÓN
+          const aPriority = a.name.toUpperCase().includes("AUDITORIO")
+            ? 1
+            : a.name.toUpperCase().includes("BIBLIOTECA")
+              ? 2
+              : a.name.toUpperCase().includes("SUBDIRECCIÓN")
+                ? 3
+                : 4;
+          const bPriority = b.name.toUpperCase().includes("AUDITORIO")
+            ? 1
+            : b.name.toUpperCase().includes("BIBLIOTECA")
+              ? 2
+              : b.name.toUpperCase().includes("SUBDIRECCIÓN")
+                ? 3
+                : 4;
+
+          if (aPriority !== bPriority) return aPriority - bPriority;
           return a.name.localeCompare(b.name);
         });
 
@@ -88,13 +124,72 @@ export default function AssignmentManager({
             <MapPin className="text-sena-green" />
             Gestión de Ambientes
           </h2>
-          {canManage && selectedEnv && (
+          {(canManage ||
+            (selectedEnv &&
+              (selectedEnv.name.toUpperCase().includes("AUDITORIO") ||
+                selectedEnv.name.toUpperCase().includes("SUBDIRECCIÓN") ||
+                selectedEnv.name.toUpperCase().includes("BIBLIOTECA")))) && (
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+                if (
+                  selectedEnv?.name.toUpperCase().includes("AUDITORIO") ||
+                  selectedEnv?.name.toUpperCase().includes("SUBDIRECCIÓN") ||
+                  selectedEnv?.name.toUpperCase().includes("BIBLIOTECA")
+                ) {
+                  // Specific RBAC for Subdirección Button (VIP/Admin only)
+                  if (
+                    selectedEnv?.name.toUpperCase().includes("SUBDIRECCIÓN")
+                  ) {
+                    const isVip = !!(user as never as { is_vip?: boolean })
+                      ?.is_vip;
+                    const userRole = (
+                      (user?.role as string) || ""
+                    ).toLowerCase();
+                    const isAdmin = ["admin", "superadmin"].includes(userRole);
+
+                    if (!isVip && !isAdmin) {
+                      toast.error(
+                        "Solo el personal VIP puede realizar reservas en Subdirección.",
+                      );
+                      return;
+                    }
+                  }
+
+                  // Specific RBAC for Biblioteca Button
+                  if (selectedEnv?.name.toUpperCase().includes("BIBLIOTECA")) {
+                    const userEmail = (
+                      (user?.email as string) || ""
+                    ).toLowerCase();
+                    const userRole = (
+                      (user?.role as string) || ""
+                    ).toLowerCase();
+                    const isAdmin = ["admin", "superadmin"].includes(userRole);
+                    const isAllowed = [
+                      "egutierrezn@sistema.local",
+                      "rbiblioteca@sistema.local",
+                    ].includes(userEmail);
+
+                    if (!isAllowed && !isAdmin) {
+                      toast.error(
+                        "Solo los encargados de Biblioteca pueden realizar reservas.",
+                      );
+                      return;
+                    }
+                  }
+
+                  setIsReservationModalOpen(true);
+                } else {
+                  setIsModalOpen(true);
+                }
+              }}
               className="bg-sena-green text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-green-700 transition shadow-lg shadow-green-900/20"
             >
               <Plus className="w-4 h-4" />
-              Nueva Asignación
+              {selectedEnv?.name.toUpperCase().includes("AUDITORIO") ||
+              selectedEnv?.name.toUpperCase().includes("SUBDIRECCIÓN") ||
+              selectedEnv?.name.toUpperCase().includes("BIBLIOTECA")
+                ? "Nueva Reserva"
+                : "Nueva Asignación"}
             </button>
           )}
         </div>
@@ -153,6 +248,29 @@ export default function AssignmentManager({
         />
       )}
 
+      {/* NEW RESERVATION MODAL */}
+      {isReservationModalOpen && selectedEnv && user && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in">
+          <div className="bg-white w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95">
+            <AuditoriumReservationForm
+              user={user}
+              initialSpace={
+                selectedEnv.name.toUpperCase().includes("AUDITORIO")
+                  ? "1"
+                  : selectedEnv.name.toUpperCase().includes("SUBDIRECCIÓN")
+                    ? "2"
+                    : "3"
+              }
+              onCancel={() => setIsReservationModalOpen(false)}
+              onSuccess={() => {
+                setIsReservationModalOpen(false);
+                setRefreshTrigger((prev) => prev + 1);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* EDIT MODAL FOR RESERVATIONS */}
       {editingRes && user && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in">
@@ -161,6 +279,13 @@ export default function AssignmentManager({
               user={user}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               reservationToEdit={editingRes as any}
+              initialSpace={
+                selectedEnv?.name.toUpperCase().includes("AUDITORIO")
+                  ? "1"
+                  : selectedEnv?.name.toUpperCase().includes("SUBDIRECCIÓN")
+                    ? "2"
+                    : "3"
+              }
               onCancel={() => setEditingRes(null)}
               onSuccess={() => {
                 setEditingRes(null);

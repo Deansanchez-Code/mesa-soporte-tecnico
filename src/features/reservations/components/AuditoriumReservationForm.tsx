@@ -16,6 +16,7 @@ interface AuditoriumReservationFormProps {
   onCancel: () => void;
   onSuccess: () => void;
   reservationToEdit?: Reservation;
+  initialSpace?: string;
 }
 
 // Helper to get local date string YYYY-MM-DD
@@ -31,6 +32,7 @@ export default function AuditoriumReservationForm({
   onCancel,
   onSuccess,
   reservationToEdit,
+  initialSpace,
 }: AuditoriumReservationFormProps) {
   const [startDate, setStartDate] = useState(getLocalDateString());
   const [finalDate, setFinalDate] = useState(getLocalDateString());
@@ -40,6 +42,9 @@ export default function AuditoriumReservationForm({
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [isMultiDay, setIsMultiDay] = useState(false);
+  const [selectedSpace, setSelectedSpace] = useState(
+    reservationToEdit?.auditorium_id || initialSpace || "1",
+  ); // 1: Auditorio, 2: Subdirección
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -97,6 +102,7 @@ export default function AuditoriumReservationForm({
         setSelectedResources(reservationToEdit.resources || []);
         setDescription(reservationToEdit.description || "");
         setIsMultiDay(sDate !== eDate);
+        setSelectedSpace(reservationToEdit.auditorium_id || "1");
       } catch (e) {
         console.error("Error parsing reservation dates:", e);
       }
@@ -110,19 +116,23 @@ export default function AuditoriumReservationForm({
     const start = new Date(`${startDate}T${startTime}`);
     const end = new Date(`${startDate}T${endTime}`);
 
-    const found = reservations.find((r) => {
+    // Detectar conflictos en el rango de fechas para el ESPACIO SELECCIONADO
+    const foundConflict = reservations.find((r) => {
       if (reservationToEdit && r.id === reservationToEdit.id) return false;
+      if (r.auditorium_id !== selectedSpace) return false;
+
       const rStart = new Date(r.start_time);
       const rEnd = new Date(r.end_time);
       return start < rEnd && end > rStart;
     });
-    setConflict(found || null);
+    setConflict(foundConflict || null);
   }, [
     startTime,
     endTime,
     startDate,
     reservations,
     reservationToEdit,
+    selectedSpace,
     isSuccess,
     isSubmitting,
   ]);
@@ -186,7 +196,7 @@ export default function AuditoriumReservationForm({
           start_time: startIso,
           end_time: endIso,
           user_id: user?.id || "",
-          auditorium_id: "1",
+          auditorium_id: selectedSpace,
           resources: selectedResources,
           description,
         });
@@ -222,9 +232,9 @@ export default function AuditoriumReservationForm({
         const ticketsData = supportTicketsPayload.map((t) => ({
           category: "Reserva Auditorio",
           ticket_type: "REQ" as const,
-          description: `Reserva de Auditorio: ${title}\nFecha: ${t.date.split("-").reverse().join("-")}\nHora: ${t.start} - ${t.end}\nRecursos: ${selectedResources.join(", ")}\nDetalles: ${description}`,
+          description: `Reserva de ${selectedSpace === "1" ? "Auditorio" : "Subdirección de Centro"}: ${title}\nFecha: ${t.date.split("-").reverse().join("-")}\nHora: ${t.start} - ${t.end}\nRecursos: ${selectedResources.join(", ")}\nDetalles: ${description}`,
           user_id: user?.id || "",
-          location: "Auditorio",
+          location: selectedSpace === "1" ? "Auditorio" : "Subdirección",
           event_date: t.isoStart,
         }));
 
@@ -273,6 +283,75 @@ export default function AuditoriumReservationForm({
               </span>
             </>
           )}
+        </div>
+
+        {/* Selección de Espacio */}
+        <div className="space-y-3">
+          <label className="block text-sm font-bold text-gray-700">
+            Seleccionar Espacio
+          </label>
+          <div className="flex gap-4">
+            <button
+              type="button"
+              onClick={() => setSelectedSpace("1")}
+              className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                selectedSpace === "1"
+                  ? "border-sena-green bg-sena-green/5 text-sena-green"
+                  : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
+              }`}
+            >
+              <div className="w-10 h-10 rounded-full bg-sena-green/10 flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-sena-green" />
+              </div>
+              <span className="font-bold text-sm">Auditorio Principal</span>
+              <span className="text-[10px] opacity-70">Uso General</span>
+            </button>
+
+            {(() => {
+              const u = user as { employment_type?: string; role?: string };
+              const empType = (u?.employment_type || "").toLowerCase();
+              const isOfficial =
+                empType.includes("planta") ||
+                empType.includes("funcionario") ||
+                empType.includes("oficial");
+              const isAdmin = ["admin", "superadmin"].includes(
+                (u?.role || "").toLowerCase(),
+              );
+              return isOfficial || isAdmin;
+            })() && (
+              <button
+                type="button"
+                onClick={() => setSelectedSpace("2")}
+                className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                  selectedSpace === "2"
+                    ? "border-sena-orange bg-sena-orange/5 text-sena-orange"
+                    : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
+                }`}
+              >
+                <div className="w-10 h-10 rounded-full bg-sena-orange/10 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-sena-orange" />
+                </div>
+                <span className="font-bold text-sm">Subdirección</span>
+                <span className="text-[10px] opacity-70">Privado</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setSelectedSpace("3")}
+              className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                selectedSpace === "3"
+                  ? "border-purple-500 bg-purple-50 text-purple-700"
+                  : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
+              }`}
+            >
+              <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-purple-600" />
+              </div>
+              <span className="font-bold text-sm">Biblioteca</span>
+              <span className="text-[10px] opacity-70">Exclusivo</span>
+            </button>
+          </div>
         </div>
 
         {/* Título */}
@@ -482,6 +561,7 @@ export default function AuditoriumReservationForm({
                   );
 
                   const isOccupied = reservations.some((r) => {
+                    if (r.auditorium_id !== selectedSpace) return false;
                     const rStart = new Date(r.start_time);
                     const rEnd = new Date(r.end_time);
                     return (
@@ -536,31 +616,71 @@ export default function AuditoriumReservationForm({
         )}
 
         {/* Botones */}
-        <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 py-3 border-2 border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition"
+        {(selectedSpace === "3" &&
+          (() => {
+            const userEmail = ((user?.email as string) || "").toLowerCase();
+            const userRole = ((user?.role as string) || "").toLowerCase();
+            const isAdmin = ["admin", "superadmin"].includes(userRole);
+            const isAllowed = [
+              "egutierrezn@sistema.local",
+              "rbiblioteca@sistema.local",
+            ].includes(userEmail);
+            return !isAllowed && !isAdmin;
+          })()) ||
+        (selectedSpace === "2" &&
+          (() => {
+            const isVip = !!(user as never as { is_vip?: boolean })?.is_vip;
+            const userRole = ((user?.role as string) || "").toLowerCase();
+            const isAdmin = ["admin", "superadmin"].includes(userRole);
+            return !isVip && !isAdmin;
+          })()) ? (
+          <div
+            className={`${selectedSpace === "3" ? "bg-purple-50 border-purple-200 text-purple-800" : "bg-orange-50 border-orange-200 text-orange-800"} border p-4 rounded-xl flex items-start gap-3`}
           >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting || loading || (!title && !conflict)}
-            className={`flex-1 py-3 rounded-xl font-bold text-white shadow-lg shadow-green-900/20 transition-all flex items-center justify-center gap-2 ${
-              isSubmitting || loading || (!title && !conflict)
-                ? "bg-gray-300 cursor-not-allowed shadow-none"
-                : "bg-sena-green hover:bg-green-700 hover:scale-[1.02]"
-            }`}
-          >
-            {isSubmitting
-              ? "Procesando..."
-              : reservationToEdit
-                ? "Guardar Cambios"
-                : "Confirmar Reserva"}
-          </button>
-        </div>
+            <AlertTriangle
+              className={`w-5 h-5 mt-0.5 shrink-0 ${selectedSpace === "3" ? "text-purple-600" : "text-orange-600"}`}
+            />
+            <div className="text-sm">
+              <p className="font-bold">Acceso Restringido</p>
+              <p>
+                {selectedSpace === "3"
+                  ? "Solo los encargados de Biblioteca están autorizados para realizar estas reservas."
+                  : "Solo el personal VIP está autorizado para reservar la Subdirección."}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-4 pt-4">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 px-4 py-4 border-2 border-gray-100 rounded-2xl font-bold text-gray-500 hover:bg-gray-50 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting || !!conflict}
+              className={`flex-1 px-4 py-4 rounded-2xl font-bold text-white shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2 ${
+                isSubmitting || conflict
+                  ? "bg-gray-300 cursor-not-allowed shadow-none"
+                  : "bg-sena-green hover:bg-green-700 shadow-green-900/20"
+              }`}
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Procesando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-5 h-5" />
+                  Confirmar Reserva
+                </>
+              )}
+            </button>
+          </div>
+        )}
 
         <ConfirmationDialog
           isOpen={showOverrideConfirm}

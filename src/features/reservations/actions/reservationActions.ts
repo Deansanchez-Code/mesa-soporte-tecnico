@@ -227,19 +227,56 @@ export async function createReservationAction(
         );
     }
 
-    // 3. Conflict Check
+    // 3. Conflict Check (Scoped to specific space)
     const { data: conflicts } = await supabase
       .from("reservations")
       .select("id")
       .eq("status", "APPROVED")
+      .eq("auditorium_id", auditorium_id || "1")
       .lt("start_time", end_time)
       .gt("end_time", start_time);
 
     if (conflicts && conflicts.length > 0) {
-      throw new Error("Horario no disponible (conflicto detectado)");
+      throw new Error(
+        "Horario no disponible (conflicto detectado en este espacio)",
+      );
     }
 
-    // 4. Insert
+    // 4. RBAC Check for Subdirección (ID 2) and Biblioteca (ID 3)
+    const currentSpace = auditorium_id || "1";
+    if (currentSpace === "2") {
+      const employmentType = (publicUser?.employment_type || "").toLowerCase();
+      const isOfficial =
+        employmentType.includes("planta") ||
+        employmentType.includes("funcionario") ||
+        employmentType.includes("oficial");
+      const isAdmin = ["admin", "superadmin"].includes(
+        publicUser?.role?.toLowerCase() || "",
+      );
+
+      if (!isOfficial && !isAdmin) {
+        throw new Error(
+          "Solo el personal de planta o administradores pueden reservar la Subdirección de Centro.",
+        );
+      }
+    } else if (currentSpace === "3") {
+      const userEmail = (publicUser?.email || "").toLowerCase();
+      const isAdmin = ["admin", "superadmin"].includes(
+        publicUser?.role?.toLowerCase() || "",
+      );
+      const isAllowed = [
+        "egutierrezn@sistema.local",
+        "rbiblioteca@sistema.local",
+      ].includes(userEmail);
+
+      if (!isAllowed && !isAdmin) {
+        throw new Error(
+          "Solo los encargados de Biblioteca o administradores pueden realizar esta reserva.",
+        );
+      }
+    }
+
+    // 5. Insert
     const { data: result, error } = await supabase
       .from("reservations")
       .insert([
@@ -376,7 +413,7 @@ export async function updateReservationAction(
 
     const { data: publicUser } = await supabase
       .from("users")
-      .select("id, is_vip, role")
+      .select("id, is_vip, role, employment_type, email")
       .eq("auth_id", authUser.id)
       .single();
 
@@ -391,20 +428,47 @@ export async function updateReservationAction(
       throw new Error("No tienes permisos para modificar esta reserva");
     }
 
-    // 3. Conflict Check (excluding current ID)
+    // 3. Conflict Check (excluding current ID, scoped to space)
     const { data: conflicts } = await supabase
       .from("reservations")
       .select("id")
       .eq("status", "APPROVED")
+      .eq("auditorium_id", auditorium_id || "1")
       .neq("id", id)
       .lt("start_time", end_time)
       .gt("end_time", start_time);
 
     if (conflicts && conflicts.length > 0) {
-      throw new Error("Horario no disponible (conflicto detectado)");
+      throw new Error(
+        "Horario no disponible (conflicto detectado en este espacio)",
+      );
     }
 
-    // 4. Update
+    // 4. RBAC Check for Subdirección (ID 2) and Biblioteca (ID 3)
+    const currentSpace = auditorium_id || "1";
+    if (currentSpace === "2") {
+      const isVip = !!publicUser?.is_vip;
+
+      if (!isVip && !isAdmin) {
+        throw new Error(
+          "Solo el personal VIP o administradores pueden reservar la Subdirección de Centro.",
+        );
+      }
+    } else if (currentSpace === "3") {
+      const userEmail = (publicUser?.email || "").toLowerCase();
+      const isAllowed = [
+        "egutierrezn@sistema.local",
+        "rbiblioteca@sistema.local",
+      ].includes(userEmail);
+
+      if (!isAllowed && !isAdmin) {
+        throw new Error(
+          "Solo los encargados de Biblioteca o administradores pueden realizar esta reserva.",
+        );
+      }
+    }
+
+    // 5. Update
     const { data: result, error } = await supabase
       .from("reservations")
       .update({
@@ -448,7 +512,7 @@ export async function createReservationBatchAction(
     // 2. Permissions Check
     const { data: publicUser, error: userError } = await supabase
       .from("users")
-      .select("id, role")
+      .select("id, role, is_vip, full_name, employment_type, email")
       .eq("auth_id", authUser.id)
       .single();
 
@@ -480,36 +544,68 @@ export async function createReservationBatchAction(
       validReservations.push(data);
     }
 
-    // 3. Global Conflict Check
-    await Promise.all(
-      validReservations.map(async (res) => {
-        let query = supabase
-          .from("reservations")
-          .select("id")
-          .eq("status", "APPROVED")
-          .lt("start_time", res.end_time)
-          .gt("end_time", res.start_time);
+    // 3. Global Conflict Check and RBAC
+    const isAdmin = ["admin", "superadmin"].includes(
+      publicUser.role?.toLowerCase() || "",
+    );
 
-        // If we are updating (id exists), exclude current reservation from conflict check
-        if (res.id) {
-          query = query.neq("id", res.id);
-        }
+    for (const res of validReservations) {
+      const targetSpace = res.auditorium_id || "1";
 
-        const { data: conflicts, error: conflictError } = await query;
+      // RBAC Check for Subdirección (ID 2)
+      if (targetSpace === "2") {
+        const employmentType = (publicUser.employment_type || "").toLowerCase();
+        const isOfficial =
+          employmentType.includes("planta") ||
+          employmentType.includes("funcionario") ||
+          employmentType.includes("oficial");
 
-        if (conflictError) {
-          console.error("Error checking conflicts:", conflictError);
-          throw new Error("Error verificando disponibilidad de horario");
-        }
-
-        if (conflicts && conflicts.length > 0) {
-          // We found a conflict.
+        if (!isOfficial && !isAdmin) {
           throw new Error(
-            `Conflicto detectado para el ${new Date(res.start_time).toLocaleDateString()} (se solapa con otra reserva)`,
+            `No tienes permisos para reservar la Subdirección de Centro (detectado en fecha ${new Date(res.start_time).toLocaleDateString()}).`,
           );
         }
-      }),
-    );
+      } else if (targetSpace === "3") {
+        const userEmail = (publicUser.email || "").toLowerCase();
+        const isAllowed = [
+          "egutierrezn@sistema.local",
+          "rbiblioteca@sistema.local",
+        ].includes(userEmail);
+
+        if (!isAllowed && !isAdmin) {
+          throw new Error(
+            `No tienes permisos para reservar la Biblioteca (detectado en fecha ${new Date(res.start_time).toLocaleDateString()}).`,
+          );
+        }
+      }
+
+      // Conflict Check (Scoped to space)
+      let query = supabase
+        .from("reservations")
+        .select("id")
+        .eq("status", "APPROVED")
+        .eq("auditorium_id", targetSpace)
+        .lt("start_time", res.end_time)
+        .gt("end_time", res.start_time);
+
+      // If we are updating (id exists), exclude current reservation from conflict check
+      if (res.id) {
+        query = query.neq("id", res.id);
+      }
+
+      const { data: conflicts, error: conflictError } = await query;
+
+      if (conflictError) {
+        console.error("Error checking conflicts:", conflictError);
+        throw new Error("Error verificando disponibilidad de horario");
+      }
+
+      if (conflicts && conflicts.length > 0) {
+        throw new Error(
+          `Conflicto detectado para el ${new Date(res.start_time).toLocaleDateString()} (se solapa con otra reserva en el mismo espacio)`,
+        );
+      }
+    }
 
     // 4. Batch Upsert (Insert or Update)
     const toInsert = validReservations.map((r) => ({

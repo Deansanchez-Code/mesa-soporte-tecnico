@@ -68,14 +68,26 @@ export function useAssignments({
         }));
       }
 
-      // 3. Fetch Reservations if it's the Auditorium
-      if (areaName.toUpperCase().includes("AUDITORIO")) {
+      // 3. Fetch Reservations if it's a Special Area (Auditorio, Subdirección or Biblioteca)
+      const isAuditorio = areaName.toUpperCase().includes("AUDITORIO");
+      const isSubdireccion = areaName.toUpperCase().includes("SUBDIRECCIÓN");
+      const isBiblioteca = areaName.toUpperCase().includes("BIBLIOTECA");
+
+      if (isAuditorio || isSubdireccion || isBiblioteca) {
+        // ID Mapping: 39 -> '1', 47 -> '2', 19 -> '3'
+        const targetAuditoriumId = isAuditorio
+          ? "1"
+          : isSubdireccion
+            ? "2"
+            : "3";
+
         const { data: resData, error: resError } = await supabase
           .from("reservations")
           .select(
             "id, title, start_time, end_time, resources, user_id, status, users(full_name, is_vip)",
           )
           .eq("status", "APPROVED")
+          .eq("auditorium_id", targetAuditoriumId)
           .gte("start_time", startStr + "T00:00:00")
           .lte("start_time", endStr + "T23:59:59");
 

@@ -243,8 +243,10 @@ export default function CalendarView({
 
                 {/* Visual Indicators (The "3 dots" user mentioned) Or Single Bar for Auditorium */}
                 <div className="flex gap-0.5 mt-1">
-                  {areaName.toUpperCase().includes("AUDITORIO") ? (
-                    // Single indicator for Auditorium
+                  {areaName.toUpperCase().includes("AUDITORIO") ||
+                  areaName.toUpperCase().includes("SUBDIRECCIÓN") ||
+                  areaName.toUpperCase().includes("BIBLIOTECA") ? (
+                    // Single indicator for Auditorium / Subdirección / Biblioteca
                     <div
                       className={`w-full h-1.5 rounded-full ${
                         dayAssignments.length > 0
@@ -273,7 +275,9 @@ export default function CalendarView({
 
               {/* ASSIGNMENTS LIST */}
               <div className="flex-1 flex flex-col gap-2 mt-2">
-                {areaName.toUpperCase().includes("AUDITORIO")
+                {areaName.toUpperCase().includes("AUDITORIO") ||
+                areaName.toUpperCase().includes("SUBDIRECCIÓN") ||
+                areaName.toUpperCase().includes("BIBLIOTECA")
                   ? dayAssignments
                       .sort(
                         (a, b) =>
@@ -433,8 +437,10 @@ export default function CalendarView({
               </button>
             </div>
             <div className="p-4 space-y-3">
-              {areaName.toUpperCase().includes("AUDITORIO")
-                ? // AUDITORIUM: Render by Assignment directly (sorted by time)
+              {areaName.toUpperCase().includes("AUDITORIO") ||
+              areaName.toUpperCase().includes("SUBDIRECCIÓN") ||
+              areaName.toUpperCase().includes("BIBLIOTECA")
+                ? // AUDITORIUM / SUBDIRECCION / BIBLIOTECA: Render by Assignment directly (sorted by time)
                   assignments
                     .filter(
                       (a) => a.assignment_date === formatDateForDB(selectedDay),
