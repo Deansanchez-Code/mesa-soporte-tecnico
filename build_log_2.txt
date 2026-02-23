@@ -1,0 +1,24 @@
+
+> mesa-soporte-tecnico@0.1.0 build
+> next build
+
+Ôû▓ Next.js 16.1.1 (Turbopack)
+- Environments: .env.local
+
+ÔÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+Ô£ô Compiled successfully in 6.4s
+  Running TypeScript ...
+Failed to compile.
+
+./src/features/tickets/actions/testEmailAction.ts:5:10
+Type error: '"@/lib/server-action-utils"' has no exported member named 'handleActionResponse'. Did you mean 'createActionResponse'?
+
+  3 | import { EmailService } from "@/lib/email/email-service";
+  4 | import { TicketNotification } from "@/lib/email/templates/TicketNotification";
+> 5 | import { handleActionResponse } from "@/lib/server-action-utils";
+    |          ^
+  6 |
+  7 | /**
+  8 |  * Acci├│n de servidor para enviar un correo de prueba.
+Next.js build worker exited with code: 1 and signal: null

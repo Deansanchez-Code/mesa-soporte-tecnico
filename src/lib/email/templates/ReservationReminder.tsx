@@ -7,12 +7,11 @@ import {
   Preview,
   Section,
   Text,
-  Button,
   Hr,
 } from "@react-email/components";
 import * as React from "react";
 
-interface ReservationConfirmationProps {
+interface ReservationReminderProps {
   userName: string;
   eventTitle: string;
   date: string;
@@ -20,10 +19,10 @@ interface ReservationConfirmationProps {
   location: string;
   resources: string[];
   specialRequirements?: string | null;
-  calendarLink?: string;
+  reminderType: "ONE_DAY" | "FIFTEEN_MIN";
 }
 
-export const ReservationConfirmation = ({
+export const ReservationReminder = ({
   userName,
   eventTitle,
   date,
@@ -31,31 +30,38 @@ export const ReservationConfirmation = ({
   location,
   resources,
   specialRequirements,
-  calendarLink,
-}: ReservationConfirmationProps) => {
+  reminderType,
+}: ReservationReminderProps) => {
+  const isOneDay = reminderType === "ONE_DAY";
+  const previewText = isOneDay
+    ? `Recordatorio: Tu evento "${eventTitle}" es mañana`
+    : `¡Atención! Tu evento "${eventTitle}" comienza en 15 minutos`;
+
   return (
     <Html>
       <Head />
-      <Preview>Reserva Confirmada: {eventTitle}</Preview>
+      <Preview>{previewText}</Preview>
       <Body style={main}>
         <Container style={container}>
           {/* HEADER INSTITUCIONAL */}
           <Section style={headerBar} />
           <Section style={logoSection}>
-            {/* Placeholder for Logo - In prod use clearbit or hosted URL */}
             <Heading style={senaLogoText}>SENA</Heading>
             <Text style={subLogoText}>Mesa de Ayuda TIC</Text>
           </Section>
 
           {/* CONTENIDO PRINCIPAL */}
           <Section style={content}>
-            <Heading style={h1}>Reserva Confirmada</Heading>
+            <Heading style={h1}>
+              {isOneDay ? "Recordatorio de Evento" : "Comienza en 15 Minutos"}
+            </Heading>
             <Text style={text}>
               Hola <strong>{userName}</strong>,
             </Text>
             <Text style={text}>
-              Tu solicitud de espacio en el auditorio ha sido procesada
-              exitosamente. A continuación los detalles de tu evento:
+              {isOneDay
+                ? "Te recordamos que tienes una reserva programada para el día de mañana. Aquí tienes los detalles:"
+                : "Tu evento está por comenzar. Te compartimos un resumen de la reserva:"}
             </Text>
 
             {/* DATA CARD */}
@@ -77,7 +83,7 @@ export const ReservationConfirmation = ({
               {resources && resources.length > 0 && (
                 <>
                   <Hr style={divider} />
-                  <Text style={cardLabel}>RECURSOS SOLICITADOS</Text>
+                  <Text style={cardLabel}>RECURSOS</Text>
                   <Text style={cardValue}>{resources.join(", ")}</Text>
                 </>
               )}
@@ -91,18 +97,9 @@ export const ReservationConfirmation = ({
               )}
             </Section>
 
-            {/* CTA ACCIONES */}
-            <Section style={buttonContainer}>
-              {calendarLink && (
-                <Button style={button} href={calendarLink}>
-                  Agregar a mi Calendario
-                </Button>
-              )}
-            </Section>
-
             <Text style={footerText}>
-              Si necesitas realizar cambios o cancelaciones, ingresa a la
-              plataforma o contacta a soporte.
+              Por favor, asegúrate de llegar con anticipación para la
+              preparación técnica si es necesario.
             </Text>
           </Section>
 
@@ -111,7 +108,8 @@ export const ReservationConfirmation = ({
             <Text style={footerLegal}>
               Servicio Nacional de Aprendizaje - SENA
               <br />
-              Este es un correo automático, por favor no responder.
+              Este es un correo automático de recordatorio, por favor no
+              responder.
             </Text>
           </Section>
         </Container>
@@ -120,9 +118,9 @@ export const ReservationConfirmation = ({
   );
 };
 
-export default ReservationConfirmation;
+export default ReservationReminder;
 
-// STYLES
+// STYLES (Consistentes con ReservationConfirmation para uniformidad)
 const main = {
   backgroundColor: "#f6f9fc",
   fontFamily:
@@ -221,23 +219,6 @@ const cardSubValue = {
 const divider = {
   borderColor: "#e6ebf1",
   margin: "12px 0",
-};
-
-const buttonContainer = {
-  textAlign: "center" as const,
-  marginTop: "24px",
-};
-
-const button = {
-  backgroundColor: "#39A900",
-  borderRadius: "6px",
-  color: "#fff",
-  fontSize: "16px",
-  fontWeight: "bold",
-  textDecoration: "none",
-  textAlign: "center" as const,
-  display: "inline-block",
-  padding: "12px 24px",
 };
 
 const footerText = {

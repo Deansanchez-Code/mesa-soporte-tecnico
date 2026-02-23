@@ -7,102 +7,93 @@ import {
   Preview,
   Section,
   Text,
-  Button,
   Hr,
+  Link,
 } from "@react-email/components";
 import * as React from "react";
 
-interface ReservationConfirmationProps {
+interface TicketNotificationProps {
   userName: string;
-  eventTitle: string;
-  date: string;
-  timeRange: string;
+  ticketId: string | number;
+  category: string;
+  description?: string;
   location: string;
-  resources: string[];
-  specialRequirements?: string | null;
-  calendarLink?: string;
+  priority?: string;
 }
 
-export const ReservationConfirmation = ({
+export const TicketNotification = ({
   userName,
-  eventTitle,
-  date,
-  timeRange,
+  ticketId,
+  category,
+  description,
   location,
-  resources,
-  specialRequirements,
-  calendarLink,
-}: ReservationConfirmationProps) => {
+  priority,
+}: TicketNotificationProps) => {
   return (
     <Html>
       <Head />
-      <Preview>Reserva Confirmada: {eventTitle}</Preview>
+      <Preview>
+        Solicitud de Soporte Recibida: Ticket #{String(ticketId)}
+      </Preview>
       <Body style={main}>
         <Container style={container}>
           {/* HEADER INSTITUCIONAL */}
           <Section style={headerBar} />
           <Section style={logoSection}>
-            {/* Placeholder for Logo - In prod use clearbit or hosted URL */}
             <Heading style={senaLogoText}>SENA</Heading>
             <Text style={subLogoText}>Mesa de Ayuda TIC</Text>
           </Section>
 
           {/* CONTENIDO PRINCIPAL */}
           <Section style={content}>
-            <Heading style={h1}>Reserva Confirmada</Heading>
+            <Heading style={h1}>Solicitud Recibida</Heading>
             <Text style={text}>
               Hola <strong>{userName}</strong>,
             </Text>
             <Text style={text}>
-              Tu solicitud de espacio en el auditorio ha sido procesada
-              exitosamente. A continuación los detalles de tu evento:
+              Hemos recibido tu solicitud de soporte técnico. Se ha generado un
+              ticket con la siguiente información:
             </Text>
 
-            {/* DATA CARD */}
+            {/* TICKET CARD */}
             <Section style={card}>
-              <Text style={cardLabel}>EVENTO</Text>
-              <Text style={cardValue}>{eventTitle}</Text>
+              <Text style={cardLabel}>TICKET ID</Text>
+              <Text style={cardValue}>#{String(ticketId)}</Text>
 
               <Hr style={divider} />
 
-              <Text style={cardLabel}>CUÁNDO</Text>
-              <Text style={cardValue}>{date}</Text>
-              <Text style={cardSubValue}>{timeRange}</Text>
+              <Text style={cardLabel}>CATEGORÍA</Text>
+              <Text style={cardValue}>{category}</Text>
 
               <Hr style={divider} />
 
-              <Text style={cardLabel}>DÓNDE</Text>
+              <Text style={cardLabel}>UBICACIÓN</Text>
               <Text style={cardValue}>{location}</Text>
 
-              {resources && resources.length > 0 && (
+              {priority && (
                 <>
                   <Hr style={divider} />
-                  <Text style={cardLabel}>RECURSOS SOLICITADOS</Text>
-                  <Text style={cardValue}>{resources.join(", ")}</Text>
-                </>
-              )}
-
-              {specialRequirements && (
-                <>
-                  <Hr style={divider} />
-                  <Text style={cardLabel}>REQUERIMIENTOS ESPECIALES</Text>
-                  <Text style={cardValue}>{specialRequirements}</Text>
+                  <Text style={cardLabel}>PRIORIDAD</Text>
+                  <Text style={cardValue}>{priority}</Text>
                 </>
               )}
             </Section>
 
-            {/* CTA ACCIONES */}
-            <Section style={buttonContainer}>
-              {calendarLink && (
-                <Button style={button} href={calendarLink}>
-                  Agregar a mi Calendario
-                </Button>
-              )}
-            </Section>
+            {description && (
+              <>
+                <Heading style={h2}>Descripción del Problema</Heading>
+                <Section style={descriptionBox}>
+                  <Text style={descriptionText}>{description}</Text>
+                </Section>
+              </>
+            )}
 
-            <Text style={footerText}>
-              Si necesitas realizar cambios o cancelaciones, ingresa a la
-              plataforma o contacta a soporte.
+            <Text style={paragraph}>
+              Puedes seguir el estado de tu solicitud ingresando a nuestro{" "}
+              <Link href="https://mesasoporte.sena.edu.co" style={link}>
+                Portal de Mesa de Ayuda
+              </Link>
+              .
             </Text>
           </Section>
 
@@ -120,7 +111,7 @@ export const ReservationConfirmation = ({
   );
 };
 
-export default ReservationConfirmation;
+export default TicketNotification;
 
 // STYLES
 const main = {
@@ -181,11 +172,32 @@ const h1 = {
   textAlign: "center" as const,
 };
 
+const h2 = {
+  fontSize: "14px",
+  fontWeight: "bold",
+  color: "#555",
+  textTransform: "uppercase" as const,
+  marginTop: "24px",
+  marginBottom: "12px",
+};
+
 const text = {
   color: "#525f7f",
   fontSize: "16px",
   lineHeight: "24px",
   textAlign: "left" as const,
+};
+
+const paragraph = {
+  fontSize: "14px",
+  lineHeight: "22px",
+  color: "#525f7f",
+  marginTop: "24px",
+};
+
+const link = {
+  color: "#39A900",
+  textDecoration: "underline",
 };
 
 const card = {
@@ -212,40 +224,24 @@ const cardValue = {
   margin: "0",
 };
 
-const cardSubValue = {
+const descriptionBox = {
+  backgroundColor: "#f4f7f6",
+  padding: "16px",
+  borderRadius: "4px",
+  border: "1px solid #e6ebf1",
+};
+
+const descriptionText = {
   color: "#525f7f",
   fontSize: "14px",
-  margin: "2px 0 0",
+  lineHeight: "20px",
+  margin: "0",
+  whiteSpace: "pre-wrap" as const,
 };
 
 const divider = {
   borderColor: "#e6ebf1",
   margin: "12px 0",
-};
-
-const buttonContainer = {
-  textAlign: "center" as const,
-  marginTop: "24px",
-};
-
-const button = {
-  backgroundColor: "#39A900",
-  borderRadius: "6px",
-  color: "#fff",
-  fontSize: "16px",
-  fontWeight: "bold",
-  textDecoration: "none",
-  textAlign: "center" as const,
-  display: "inline-block",
-  padding: "12px 24px",
-};
-
-const footerText = {
-  color: "#8898aa",
-  fontSize: "12px",
-  lineHeight: "16px",
-  textAlign: "center" as const,
-  marginTop: "32px",
 };
 
 const footer = {

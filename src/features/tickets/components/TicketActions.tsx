@@ -99,9 +99,18 @@ export function TicketActions({
     if (!onUpdateStatus || !onAddComment) return;
     setSubmittingComment(true);
     try {
+      const { resolveTicketAction } = await import("../actions/ticketActions");
       const finalComment = newComment;
-      await onUpdateStatus(ticket.id, "RESUELTO");
-      await onAddComment(ticket.id, finalComment);
+
+      // Intentar resolución oficial con correo
+      const resolutionResult = await resolveTicketAction(
+        ticket.id,
+        finalComment,
+      );
+
+      if (resolutionResult.error) {
+        throw new Error(resolutionResult.error);
+      }
 
       if (saveToKb) {
         // Collect evidence URLs from description

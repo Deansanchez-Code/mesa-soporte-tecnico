@@ -139,3 +139,26 @@ export async function createTicketsBatchAction(
     return { error: errorMsg };
   }
 }
+
+export async function resolveTicketAction(ticketId: number, solution: string) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) throw new Error("No autenticado");
+
+    const result = await TicketService.resolveTicket(
+      ticketId,
+      solution,
+      user.id,
+    );
+
+    revalidatePath("/dashboard");
+    return createActionResponse(result);
+  } catch (error: unknown) {
+    await Logger.error("Error resolving ticket", { error, ticketId });
+    return handleActionError(error);
+  }
+}

@@ -341,6 +341,7 @@ export async function createReservationAction(
             timeRange: timeStr,
             location: "Auditorio Principal",
             resources: reservation.resources || [],
+            specialRequirements: reservation.description,
           }),
         });
         if (
@@ -722,6 +723,7 @@ export async function createReservationBatchAction(
                 timeRange: timeStr,
                 location: "Auditorio Principal",
                 resources: first.resources || [],
+                specialRequirements: first.description,
               }),
             });
 

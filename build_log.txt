@@ -1,0 +1,23 @@
+
+> mesa-soporte-tecnico@0.1.0 build
+> next build
+
+Ôû▓ Next.js 16.1.1 (Turbopack)
+- Environments: .env.local
+
+ÔÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+Ô£ô Compiled successfully in 6.1s
+  Running TypeScript ...
+Failed to compile.
+
+./check_areas.ts:2:25
+Type error: Cannot find module 'dotenv' or its corresponding type declarations.
+
+  1 | import { createClient } from "@supabase/supabase-js";
+> 2 | import * as dotenv from "dotenv";
+    |                         ^
+  3 | dotenv.config({ path: ".env.local" });
+  4 |
+  5 | const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+Next.js build worker exited with code: 1 and signal: null

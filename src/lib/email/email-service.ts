@@ -1,4 +1,6 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
+import { render } from "@react-email/render";
+import React from "react";
 
 export interface EmailPayload {
   to: string | string[];
@@ -8,40 +10,50 @@ export interface EmailPayload {
 
 export class EmailService {
   /**
-   * Envía un correo electrónico utilizando Resend.
-   * Maneja errores y retorna el resultado de la operación.
+   * Envía un correo electrónico utilizando Nodemailer (Gmail SMTP).
    */
   static async send(payload: EmailPayload) {
     try {
-      const apiKey = process.env.RESEND_API_KEY;
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
 
-      if (!apiKey) {
+      if (!smtpUser || !smtpPass) {
         console.error(
-          "❌ ERROR CRÍTICO: RESEND_API_KEY no está definida en las variables de entorno.",
+          "❌ ERROR CRÍTICO: SMTP_USER o SMTP_PASS no están definidos en las variables de entorno.",
         );
         return {
           success: false,
-          error: "Server Configuration Error: Missing Email API Key",
+          error: "Server Configuration Error: Missing SMTP Credentials",
         };
       }
 
-      const resend = new Resend(apiKey);
-
-      const { data, error } = await resend.emails.send({
-        from: "Mesa de Ayuda TIC <onboarding@resend.dev>", // TODO: Cambiar a dominio verificado en prod
-        to: payload.to,
-        subject: payload.subject,
-        react: payload.react,
+      // Configuración del transportador para Gmail
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
       });
 
-      if (error) {
-        console.error("Error enviando correo:", error);
-        return { success: false, error };
-      }
+      // Renderizar el componente de React Email a HTML
+      const emailHtml = await render(payload.react);
 
-      return { success: true, data };
+      const mailOptions = {
+        from: `"Mesa de Ayuda TIC" <${smtpUser}>`,
+        to: payload.to,
+        subject: payload.subject,
+        html: emailHtml,
+      };
+
+      const info = await transporter.sendMail(mailOptions);
+
+      console.log(
+        `✅ Correo enviado exitosamente a ${payload.to}. MessageId: ${info.messageId}`,
+      );
+      return { success: true, data: info };
     } catch (error) {
-      console.error("Excepción en EmailService:", error);
+      console.error("⚠️ EmailService (Nodemailer) Exception:", error);
       return { success: false, error };
     }
   }

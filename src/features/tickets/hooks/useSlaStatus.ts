@@ -30,6 +30,9 @@ export function useSlaStatus() {
       if (!lastRun) {
         // Si nunca ha corrido, o primer inicio
         await checkAndActivateTicketsAction();
+        const { processReservationNotificationsAction } =
+          await import("@/features/reservations/actions/reservationNotificationActions");
+        await processReservationNotificationsAction();
         queryClient.invalidateQueries({ queryKey: ["sla-last-run"] });
         return;
       }
@@ -45,6 +48,10 @@ export function useSlaStatus() {
         if (hour >= 7 && hour < 21) {
           console.log("Sincronización pasiva activada por inactividad > 1h");
           await checkAndActivateTicketsAction();
+          // También procesamos las notificaciones de reserva
+          const { processReservationNotificationsAction } =
+            await import("@/features/reservations/actions/reservationNotificationActions");
+          await processReservationNotificationsAction();
           queryClient.invalidateQueries({ queryKey: ["sla-last-run"] });
         }
       }
