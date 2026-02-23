@@ -1,0 +1,33 @@
+
+> mesa-soporte-tecnico@0.1.0 build
+> next build
+
+Ôû▓ Next.js 16.1.1 (Turbopack)
+- Environments: .env.local
+
+ÔÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+
+> Build error occurred
+Error: Turbopack build failed with 1 errors:
+./src/features/reservations/services/reservationNotificationService.ts:1:1
+Module not found: Can't resolve '@/lib/supabase/servidor'
+> 1 | import { createClient } from "@/lib/supabase/servidor";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { EmailService } from "@/lib/email/email-service";
+  3 | import ReservationReminder from "@/lib/email/templates/ReservationReminder";
+  4 | import { isColombianHoliday } from "@/lib/domain/holidays";
+
+Import map: aliased to relative './src/lib/supabase/servidor' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./src/features/reservations/services/reservationNotificationService.ts
+    ./src/features/reservations/actions/reservationNotificationActions.ts
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+    at <unknown> (./src/features/reservations/services/reservationNotificationService.ts:1:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)

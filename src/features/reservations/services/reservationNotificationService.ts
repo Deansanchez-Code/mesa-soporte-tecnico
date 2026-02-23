@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/servidor";
+import { createClient } from "@/lib/supabase/server";
 import { EmailService } from "@/lib/email/email-service";
 import ReservationReminder from "@/lib/email/templates/ReservationReminder";
 import { isColombianHoliday } from "@/lib/domain/holidays";
