@@ -254,16 +254,25 @@ export default function AuditoriumReservationForm({
         });
       } else {
         // Create Batch (New or Multi-day Edit)
-        const ticketsData = supportTicketsPayload.map((t) => ({
+        // Agrupar todas las fechas en un solo ticket para evitar spam
+        const datesString = supportTicketsPayload
+          .map((t) => t.date.split("-").reverse().join("-"))
+          .join(", ");
+
+        // Usamos la primera fecha y hora como base para el evento en el ticket
+        const primerDia = supportTicketsPayload[0];
+
+        const ticketConsolidado = {
           category: "Reserva Auditorio",
           ticket_type: "REQ" as const,
-          description: `Reserva de ${selectedSpace === "1" ? "Auditorio" : "Subdirección de Centro"}: ${title}\nFecha: ${t.date.split("-").reverse().join("-")}\nHora: ${t.start} - ${t.end}\nRecursos: ${selectedResources.join(", ")}\nDetalles: ${description}`,
+          description: `Reserva de ${selectedSpace === "1" ? "Auditorio" : "Subdirección de Centro"}: ${title}\nFechas: ${datesString}\nHora: ${primerDia.start} - ${primerDia.end}\nRecursos: ${selectedResources.join(", ")}\nDetalles: ${description}`,
           user_id: user?.id || "",
           location: selectedSpace === "1" ? "Auditorio" : "Subdirección",
-          event_date: t.isoStart,
-        }));
+          event_date: primerDia.isoStart,
+        };
 
-        await createBatchTickets(ticketsData);
+        // Enviamos el ticket consolidado (se envia en un array porque la accion espera multiples)
+        await createBatchTickets([ticketConsolidado]);
       }
 
       toast.success("Reserva(s) confirmada(s) con éxito.");
