@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import withPWAInit from "next-pwa";
+import "./src/env";
 
 const withPWA = withPWAInit({
   dest: "public", // Dónde se guardan los archivos del service worker

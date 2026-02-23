@@ -31,7 +31,7 @@ interface Article {
   };
 }
 
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 
 // ... existing interfaces ...
 

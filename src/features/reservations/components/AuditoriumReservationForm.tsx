@@ -158,6 +158,7 @@ export default function AuditoriumReservationForm({
   // 3. Handle Submit
   const handleSubmit = async (e?: React.FormEvent, isOverride = false) => {
     if (e) e.preventDefault();
+
     if (!user?.id) return;
 
     if (conflicts.length > 0 && !isOverride) {
@@ -283,7 +284,10 @@ export default function AuditoriumReservationForm({
   const timeSlots = Array.from({ length: 16 }, (_, i) => i + 6);
 
   return (
-    <div className="max-h-[85vh] overflow-y-auto px-8 py-8 scrollbar-thin scrollbar-thumb-gray-200">
+    <form
+      onSubmit={handleSubmit}
+      className="max-h-[85vh] overflow-y-auto px-8 py-8 scrollbar-thin scrollbar-thumb-gray-200"
+    >
       <div className="space-y-8 pb-4">
         {/* Encabezado de Modo */}
         <div
@@ -737,6 +741,6 @@ export default function AuditoriumReservationForm({
           isLoading={isSubmitting}
         />
       </div>
-    </div>
+    </form>
   );
 }

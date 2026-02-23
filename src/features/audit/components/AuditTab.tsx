@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import { AuditLog } from "@/app/admin/admin.types";
 import { Search, Loader2, Filter } from "lucide-react";
 

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import { useEffect } from "react";
 import { checkAndActivateTicketsAction } from "../actions/slaActions";
 

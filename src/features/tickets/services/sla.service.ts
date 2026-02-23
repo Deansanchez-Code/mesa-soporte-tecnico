@@ -1,6 +1,6 @@
 import { Ticket } from "@/app/admin/admin.types";
 import { calculateSLADueDate, getSLAHours } from "@/lib/domain/sla-calculator";
-import { createClient } from "@/lib/supabase/servidor";
+import { createClient } from "@/lib/supabase/server";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Database } from "@/app/admin/types";
 

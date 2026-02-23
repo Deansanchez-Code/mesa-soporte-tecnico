@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import { Plus, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import BulkAssignmentModal from "./BulkAssignmentModal";

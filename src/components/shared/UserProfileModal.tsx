@@ -12,7 +12,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import {
   startOfWeek,
   startOfDay,

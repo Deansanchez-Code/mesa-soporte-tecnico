@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { formatDateForDB } from "@/lib/scheduling";
 import { TimeBlock } from "@/lib/scheduling";

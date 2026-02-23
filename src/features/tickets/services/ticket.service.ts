@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/servidor";
+import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { AssignmentService } from "./assignment.service";
 import { SlaService } from "./sla.service";

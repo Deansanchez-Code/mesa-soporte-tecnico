@@ -1,2 +1,0 @@
-// Index for types
-export {};

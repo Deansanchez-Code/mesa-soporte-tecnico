@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { MessageSquare, BookOpen, Paperclip, Loader2 } from "lucide-react";
-import { supabase } from "@/lib/supabase/cliente";
+import { supabase } from "@/lib/supabase/client";
 import { Ticket } from "@/app/admin/admin.types";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";

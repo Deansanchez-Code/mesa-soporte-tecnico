@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/servidor";
+import { createClient } from "@/lib/supabase/server";
 
 export class AssignmentService {
   /**
