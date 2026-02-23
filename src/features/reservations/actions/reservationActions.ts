@@ -328,8 +328,17 @@ export async function createReservationAction(
           year: "numeric",
           month: "long",
           day: "numeric",
+          timeZone: "America/Bogota",
         });
-        const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
+        const timeStr = `${startDate.toLocaleTimeString("es-CO", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "America/Bogota",
+        })} - ${endDate.toLocaleTimeString("es-CO", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "America/Bogota",
+        })}`;
 
         await EmailService.send({
           to: recipientEmail,

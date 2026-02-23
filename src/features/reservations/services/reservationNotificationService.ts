@@ -5,13 +5,11 @@ import { isColombianHoliday } from "@/lib/domain/holidays";
 import {
   isWeekend,
   subDays,
-  format,
   startOfDay,
   addMinutes,
   isAfter,
   isBefore,
 } from "date-fns";
-import { es } from "date-fns/locale";
 import { Database } from "@/app/admin/types";
 import { SupabaseClient } from "@supabase/supabase-js";
 
@@ -225,10 +223,22 @@ export class ReservationNotificationService {
 
     const startDate = new Date(res.start_time);
     const endDate = new Date(res.end_time);
-    const dateStr = format(startDate, "EEEE, d 'de' MMMM 'de' yyyy", {
-      locale: es,
+    const dateStr = startDate.toLocaleDateString("es-CO", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "America/Bogota",
     });
-    const timeStr = `${format(startDate, "hh:mm a")} - ${format(endDate, "hh:mm a")}`;
+    const timeStr = `${startDate.toLocaleTimeString("es-CO", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "America/Bogota",
+    })} - ${endDate.toLocaleTimeString("es-CO", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "America/Bogota",
+    })}`;
 
     const recipients = [recipientEmail];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -31,6 +31,7 @@ export async function middleware(request: NextRequest) {
   const cspHeader = `
     default-src 'self';
     script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com;
+    connect-src 'self' https://*.supabase.co https://*.supabase.in;
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data: https://*.supabase.co https://*.supabase.in;
     font-src 'self';
