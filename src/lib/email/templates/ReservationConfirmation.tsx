@@ -51,11 +51,12 @@ export const ReservationConfirmation = ({
           <Section style={content}>
             <Heading style={h1}>Reserva Confirmada</Heading>
             <Text style={text}>
-              Hola <strong>{userName}</strong>,
+              Respetado(a) <strong>{userName}</strong>,
             </Text>
             <Text style={text}>
-              Tu solicitud de espacio en el auditorio ha sido procesada
-              exitosamente. A continuación los detalles de tu evento:
+              Nos complace informarle que su solicitud de reserva de espacio ha
+              sido procesada de manera exitosa. A continuación, le detallamos la
+              información correspondiente a su evento:
             </Text>
 
             {/* DATA CARD */}
@@ -100,18 +101,29 @@ export const ReservationConfirmation = ({
               )}
             </Section>
 
+            <Text style={signatureText}>
+              Cordialmente,
+              <br />
+              <br />
+              <strong>Mesa de Servicios TIC</strong>
+              <br />
+              Centro Agroempresarial y Desarrollo Pecuario del Huila
+              <br />
+              Servicio Nacional de Aprendizaje - SENA
+            </Text>
+
             <Text style={footerText}>
-              Si necesitas realizar cambios o cancelaciones, ingresa a la
-              plataforma o contacta a soporte.
+              Si necesita realizar modificaciones o cancelar la reserva, le
+              invitamos a ingresar a la plataforma o contactar a la mesa de
+              soporte.
             </Text>
           </Section>
 
           {/* FOOTER */}
           <Section style={footer}>
             <Text style={footerLegal}>
-              Servicio Nacional de Aprendizaje - SENA
-              <br />
-              Este es un correo automático, por favor no responder.
+              Este es un correo generado automáticamente por el sistema Smart
+              Dispatch. Por favor, no responda a este mensaje.
             </Text>
           </Section>
         </Container>
@@ -238,6 +250,14 @@ const button = {
   textAlign: "center" as const,
   display: "inline-block",
   padding: "12px 24px",
+};
+
+const signatureText = {
+  color: "#525f7f",
+  fontSize: "14px",
+  lineHeight: "22px",
+  textAlign: "left" as const,
+  marginTop: "32px",
 };
 
 const footerText = {

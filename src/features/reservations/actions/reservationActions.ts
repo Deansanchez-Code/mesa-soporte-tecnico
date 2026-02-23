@@ -715,12 +715,24 @@ export async function createReservationBatchAction(
                 return d.toLocaleDateString("es-CO", {
                   day: "numeric",
                   month: "short",
+                  timeZone: "America/Bogota",
                 });
               })
               .join(", ");
 
             const first = sortedRes[0];
-            const timeStr = `${new Date(first.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${new Date(first.end_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
+            const timeStr = `${new Date(first.start_time).toLocaleTimeString(
+              "es-CO",
+              {
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZone: "America/Bogota",
+              },
+            )} - ${new Date(first.end_time).toLocaleTimeString("es-CO", {
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "America/Bogota",
+            })}`;
 
             await EmailService.send({
               to: recipientEmail,

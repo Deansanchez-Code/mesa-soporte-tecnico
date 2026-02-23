@@ -56,12 +56,12 @@ export const ReservationReminder = ({
               {isOneDay ? "Recordatorio de Evento" : "Comienza en 15 Minutos"}
             </Heading>
             <Text style={text}>
-              Hola <strong>{userName}</strong>,
+              Respetado(a) <strong>{userName}</strong>,
             </Text>
             <Text style={text}>
               {isOneDay
-                ? "Te recordamos que tienes una reserva programada para el día de mañana. Aquí tienes los detalles:"
-                : "Tu evento está por comenzar. Te compartimos un resumen de la reserva:"}
+                ? "Nos permitimos recordarle que tiene una reserva de espacio programada para el día de mañana. A continuación, le compartimos los detalles de su evento:"
+                : "Le informamos que su evento está próximo a comenzar. A continuación, le compartimos un resumen de su reserva:"}
             </Text>
 
             {/* DATA CARD */}
@@ -97,19 +97,28 @@ export const ReservationReminder = ({
               )}
             </Section>
 
+            <Text style={signatureText}>
+              Cordialmente,
+              <br />
+              <br />
+              <strong>Mesa de Servicios TIC</strong>
+              <br />
+              Centro Agroempresarial y Desarrollo Pecuario del Huila
+              <br />
+              Servicio Nacional de Aprendizaje - SENA
+            </Text>
+
             <Text style={footerText}>
-              Por favor, asegúrate de llegar con anticipación para la
-              preparación técnica si es necesario.
+              Por favor, asegúrese de llegar con anticipación al lugar para
+              realizar la preparación técnica, si esta fuera necesaria.
             </Text>
           </Section>
 
           {/* FOOTER */}
           <Section style={footer}>
             <Text style={footerLegal}>
-              Servicio Nacional de Aprendizaje - SENA
-              <br />
-              Este es un correo automático de recordatorio, por favor no
-              responder.
+              Este es un correo automático de recordatorio generado por el
+              sistema Smart Dispatch. Por favor, no responda a este mensaje.
             </Text>
           </Section>
         </Container>
@@ -219,6 +228,14 @@ const cardSubValue = {
 const divider = {
   borderColor: "#e6ebf1",
   margin: "12px 0",
+};
+
+const signatureText = {
+  color: "#525f7f",
+  fontSize: "14px",
+  lineHeight: "22px",
+  textAlign: "left" as const,
+  marginTop: "32px",
 };
 
 const footerText = {
