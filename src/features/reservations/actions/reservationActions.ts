@@ -739,7 +739,7 @@ export async function createReservationBatchAction(
               subject: `Reserva Grupal Confirmada: ${titles[0]}`,
               react: ReservationConfirmation({
                 userName: user.full_name,
-                eventTitle: `${titles[0]} (Lote de ${validReservations.length} días)`,
+                eventTitle: titles[0],
                 date: datesList,
                 timeRange: timeStr,
                 location: "Auditorio Principal",
