@@ -10,6 +10,33 @@ import VipCancellation from "@/lib/email/templates/VipCancellation";
 import { ReservationSchema } from "../schemas";
 import Logger from "@/lib/logger";
 
+function hasValidDescription(desc: string | null | undefined): boolean {
+  if (!desc) return false;
+  const trimmed = desc.trim();
+  if (trimmed.length === 0) return false;
+  // Normalize by removing common punctuation and extra spaces, then lowercase
+  const normalized = trimmed
+    .toLowerCase()
+    .replace(/[.,\-_/]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const blacklist = [
+    "ninguno",
+    "ninguna",
+    "no",
+    "na",
+    "no aplica",
+    "sin requerimientos",
+    "ningun",
+    "0",
+    "ningunos",
+    "ningunas",
+    "nada",
+    "sin novedad",
+  ];
+  return !blacklist.includes(normalized) && normalized.length > 0;
+}
+
 export async function cancelReservationAction(reservationId: number) {
   try {
     const supabase = await createClient();
@@ -122,10 +149,7 @@ export async function cancelReservationAction(reservationId: number) {
               .eq("id", reservationId)
               .single();
 
-            if (
-              resDetails?.description &&
-              resDetails.description.trim().length > 0
-            ) {
+            if (hasValidDescription(resDetails?.description)) {
               await EmailService.send({
                 to: "jeavendano@sena.edu.co",
                 subject: `🚫 Requerimiento Cancelado: ${reservation.title}`,
@@ -134,7 +158,7 @@ export async function cancelReservationAction(reservationId: number) {
                   eventTitle: reservation.title,
                   date: dateStr,
                   timeRange: "CANCELADO",
-                  specialRequirements: resDetails.description,
+                  specialRequirements: resDetails!.description!,
                   type: "CANCELLED_REQUIREMENT",
                   cancelledBy: publicUser?.full_name || "Prioridad VIP",
                 }),
@@ -353,10 +377,7 @@ export async function createReservationAction(
             specialRequirements: reservation.description,
           }),
         });
-        if (
-          reservation.description &&
-          reservation.description.trim().length > 0
-        ) {
+        if (hasValidDescription(reservation.description)) {
           await EmailService.send({
             to: "jeavendano@sena.edu.co",
             subject: `⚠️ Nuevo Requerimiento Especial: ${reservation.title}`,
@@ -751,7 +772,7 @@ export async function createReservationBatchAction(
             // Coordinator summary - ONLY IF description matches search rule
             const allDescriptions = validReservations
               .map((r) => r.description)
-              .filter((d) => d && d.trim().length > 0);
+              .filter(hasValidDescription);
 
             if (allDescriptions.length > 0) {
               await EmailService.send({

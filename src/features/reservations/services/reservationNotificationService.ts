@@ -13,6 +13,33 @@ import {
 import { Database } from "@/app/admin/types";
 import { SupabaseClient } from "@supabase/supabase-js";
 
+function hasValidDescription(desc: string | null | undefined): boolean {
+  if (!desc) return false;
+  const trimmed = desc.trim();
+  if (trimmed.length === 0) return false;
+  // Normalize by removing common punctuation and extra spaces, then lowercase
+  const normalized = trimmed
+    .toLowerCase()
+    .replace(/[.,\-_/]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const blacklist = [
+    "ninguno",
+    "ninguna",
+    "no",
+    "na",
+    "no aplica",
+    "sin requerimientos",
+    "ningun",
+    "0",
+    "ningunos",
+    "ningunas",
+    "nada",
+    "sin novedad",
+  ];
+  return !blacklist.includes(normalized) && normalized.length > 0;
+}
+
 type ReservationWithUser =
   Database["public"]["Tables"]["reservations"]["Row"] & {
     users: Database["public"]["Tables"]["users"]["Row"] | null;
@@ -243,7 +270,7 @@ export class ReservationNotificationService {
     const recipients = [recipientEmail];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const description = (res as any).description;
-    const hasSpecialRequirements = description && description.trim().length > 0;
+    const hasSpecialRequirements = hasValidDescription(description);
 
     // Si hay requerimientos especiales, enviar copia a coordinación
     if (hasSpecialRequirements) {
