@@ -103,26 +103,38 @@ export default function AgentDashboard() {
   const sortTickets = (ticketList: Ticket[]) => {
     return [...ticketList].sort((a, b) => {
       const getEventDate = (ticket: Ticket) => {
-        // Auditorio: Intentar parsear la fecha de la descripción
+        // Uso primario: campo event_date nativo
+        if (ticket.event_date) {
+          return new Date(ticket.event_date);
+        }
+
+        // Fallback Auditorio: Intentar parsear la fecha de la descripción
         if (ticket.category?.toLowerCase().includes("auditorio")) {
           const desc = ticket.description || "";
-          // Regex robusta para YYYY-MM-DD y DD-MM-YYYY con - o /
-          const dateMatch = desc.match(/Fecha: (\d{2,4}[-/]\d{2}[-/]\d{2,4})/);
-          const timeMatch = desc.match(/Hora: (\d{2}:\d{2})/);
+
+          // Regex mejorada para manejar "Fechas:" o "Fecha:", múltiples fechas separadas por comas, etc.
+          // Busca el patrón "Fecha(s): XX-XX-XXXX[, ...]"
+          const dateMatch = desc.match(/Fecha[s]?:\s*([0-9\-/]+)(?:,.*)?/i);
+          const timeMatch = desc.match(/Hora:\s*(\d{2}:\d{2})/i);
 
           if (dateMatch && timeMatch) {
-            const dateStr = dateMatch[1].replace(/\//g, "-");
+            // Extraer la primera fecha en caso de tener lista separada por comas
+            const firstDateRaw = dateMatch[1].split(",")[0].trim();
+            const dateStr = firstDateRaw.replace(/\//g, "-");
             const [p1, p2, p3] = dateStr.split("-");
             let normalizedDate;
 
-            if (p1.length === 4) {
+            if (p1 && p1.length === 4) {
               // YYYY-MM-DD
               normalizedDate = `${p1}-${p2}-${p3}`;
-            } else {
+            } else if (p3 && p3.length === 4) {
               // DD-MM-YYYY
               normalizedDate = `${p3}-${p2}-${p1}`;
             }
-            return new Date(`${normalizedDate}T${timeMatch[1]}`);
+
+            if (normalizedDate) {
+              return new Date(`${normalizedDate}T${timeMatch[1]}`);
+            }
           }
         }
         // Fallback para soporte regular: SLA > Created

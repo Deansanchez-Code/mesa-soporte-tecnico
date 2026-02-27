@@ -12,6 +12,7 @@ export interface Ticket extends Tables<"tickets"> {
     type: string | null;
     serial_number: string;
   } | null;
+  event_date?: string | null;
 }
 
 export interface ConfigItem {

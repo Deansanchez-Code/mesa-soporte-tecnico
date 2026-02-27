@@ -242,7 +242,9 @@ export async function createReservationAction(
     // 2. Permissions & Identity Check
     const { data: publicUser } = await supabase
       .from("users")
-      .select("id, role, employment_type, email, username")
+      .select(
+        "id, role, employment_type, email, username, job_category, is_vip",
+      )
       .eq("auth_id", authUser.id)
       .single();
 
@@ -254,6 +256,28 @@ export async function createReservationAction(
         throw new Error(
           "No tienes permisos para crear reservas a nombre de otros",
         );
+    }
+
+    // Validación de Fines de Semana para Funcionarios Normales
+    const isVip =
+      !!publicUser?.is_vip || publicUser?.role?.toLowerCase() === "vip";
+    const isAdmin = ["admin", "superadmin"].includes(
+      publicUser?.role?.toLowerCase() || "",
+    );
+    const isInstructor =
+      publicUser?.job_category?.toLowerCase() === "instructor" ||
+      publicUser?.role?.toLowerCase() === "instructor";
+
+    if (!isAdmin && !isVip && !isInstructor) {
+      // Es un funcionario normal (u otro rol). Revisar si es fin de semana.
+      const reservationStart = new Date(start_time);
+      const dayOfWeek = reservationStart.getDay(); // 0 = Sunday, 6 = Saturday
+
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        throw new Error(
+          "Los funcionarios no pueden reservar el auditorio los fines de semana. Por favor, solicite autorización enviando un correo electrónico a la coordinadora administrativa Lorena Gutierrez.",
+        );
+      }
     }
 
     // 3. Conflict Check (Scoped to specific space)
@@ -551,7 +575,9 @@ export async function createReservationBatchAction(
     // 2. Permissions & VIP Check
     const { data: publicUser, error: userError } = await supabase
       .from("users")
-      .select("id, role, is_vip, full_name, employment_type, email")
+      .select(
+        "id, role, is_vip, full_name, employment_type, email, job_category",
+      )
       .eq("auth_id", authUser.id)
       .single();
 
@@ -563,6 +589,9 @@ export async function createReservationBatchAction(
     const isAdmin = ["admin", "superadmin"].includes(
       publicUser.role?.toLowerCase() || "",
     );
+    const isInstructor =
+      publicUser?.job_category?.toLowerCase() === "instructor" ||
+      publicUser?.role?.toLowerCase() === "instructor";
 
     // Pre-validate all
     const validReservations = [];
@@ -583,6 +612,19 @@ export async function createReservationBatchAction(
             "No tienes permisos para crear reservas a nombre de otros",
           );
       }
+
+      // Validación Fines de Semana
+      if (!isAdmin && !isVip && !isInstructor) {
+        const reservationStart = new Date(data.start_time);
+        const dayOfWeek = reservationStart.getDay();
+
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          throw new Error(
+            "Los funcionarios no pueden reservar el auditorio los fines de semana. Por favor, solicite autorización enviando un correo electrónico a la coordinadora administrativa Lorena Gutierrez.",
+          );
+        }
+      }
+
       validReservations.push(data);
     }
 
