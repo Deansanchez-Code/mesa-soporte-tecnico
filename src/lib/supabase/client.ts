@@ -3,7 +3,10 @@ import { safeGetItem, safeSetItem, safeRemoveItem } from "../storage";
 
 import { env } from "@/env";
 
-const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL.replace(
+  /^http:\/\/(?!localhost|127\.0\.0\.1)/i,
+  "https://",
+);
 const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const createSupabaseClient = () =>

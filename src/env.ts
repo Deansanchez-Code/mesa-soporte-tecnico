@@ -1,7 +1,14 @@
 import { z } from "zod";
 
 const publicEnvSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+  NEXT_PUBLIC_SUPABASE_URL: z
+    .string()
+    .url()
+    .transform((url) => {
+      // Force https for Supabase URLs, except for local development
+      if (url.includes("localhost") || url.includes("127.0.0.1")) return url;
+      return url.replace(/^http:\/\//i, "https://");
+    }),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   NODE_ENV: z
     .enum(["development", "test", "production"])
