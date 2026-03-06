@@ -236,8 +236,14 @@ export default function AuditoriumReservationForm({
       // Execute Batch or Single
       // Note: createBatchReservations handles conflict checking atomically.
       // We accept `isOverride` to force VIP override on the server.
-      await createBatchReservations(reservationsPayload, isOverride);
+      const result = await createBatchReservations(
+        reservationsPayload,
+        isOverride,
+      );
       setIsSuccess(true); // Mark as success immediately to prevent conflict flash
+
+      const isPending = !!(result as { pendingApproval?: boolean })
+        ?.pendingApproval;
 
       // Handle Support Tickets (Optimized Batch)
       if (reservationToEdit && !isMultiDay) {
@@ -266,7 +272,14 @@ export default function AuditoriumReservationForm({
         await createBatchTickets(ticketsData);
       }
 
-      toast.success("Reserva(s) confirmada(s) con éxito.");
+      if (isPending) {
+        toast.info(
+          "Solicitud recibida. La reserva está pendiente de aprobación por la Coordinación de Formación.",
+          { duration: 6000 },
+        );
+      } else {
+        toast.success("Reserva(s) confirmada(s) con éxito.");
+      }
 
       onSuccess();
     } catch (error: unknown) {
@@ -656,17 +669,29 @@ export default function AuditoriumReservationForm({
           </div>
         )}
 
-        {/* Botones */}
         {(selectedSpace === "3" &&
           (() => {
             const userEmail = ((user?.email as string) || "").toLowerCase();
             const userRole = ((user?.role as string) || "").toLowerCase();
+            const isVip = !!(user as never as { is_vip?: boolean })?.is_vip;
+            const jobCategory = (
+              user as never as { job_category?: string }
+            )?.job_category?.toLowerCase();
+            const employmentType = (
+              user as never as { employment_type?: string }
+            )?.employment_type?.toLowerCase();
+
             const isAdmin = ["admin", "superadmin"].includes(userRole);
-            const isAllowed = [
+            const isStaff = [
               "egutierrezn@sistema.local",
               "rbiblioteca@sistema.local",
             ].includes(userEmail);
-            return !isAllowed && !isAdmin;
+
+            const isInstructor = jobCategory === "instructor";
+            const isPlanta = employmentType?.includes("planta");
+
+            // Nueva regla: Permitir si es Admin, Staff, VIP, Instructor o Planta
+            return !isStaff && !isAdmin && !isVip && !isInstructor && !isPlanta;
           })()) ||
         (selectedSpace === "2" &&
           (() => {
@@ -685,7 +710,7 @@ export default function AuditoriumReservationForm({
               <p className="font-bold">Acceso Restringido</p>
               <p>
                 {selectedSpace === "3"
-                  ? "Solo los encargados de Biblioteca están autorizados para realizar estas reservas."
+                  ? "Solo personal autorizado (Instructores, Planta, VIP o Coordinación) puede solicitar reservas en Biblioteca."
                   : "Solo el personal VIP está autorizado para reservar la Subdirección."}
               </p>
             </div>

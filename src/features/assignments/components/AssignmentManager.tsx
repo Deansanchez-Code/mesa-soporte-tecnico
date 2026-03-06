@@ -163,15 +163,33 @@ export default function AssignmentManager({
                     const userRole = (
                       (user?.role as string) || ""
                     ).toLowerCase();
+                    const isVip = !!(user as never as { is_vip?: boolean })
+                      ?.is_vip;
+                    const isInstructor =
+                      (
+                        user as never as { job_category?: string }
+                      )?.job_category?.toLowerCase() === "instructor";
+                    const isPlanta = (
+                      user as never as { employment_type?: string }
+                    )?.employment_type
+                      ?.toLowerCase()
+                      .includes("planta");
+
                     const isAdmin = ["admin", "superadmin"].includes(userRole);
                     const isAllowed = [
                       "egutierrezn@sistema.local",
                       "rbiblioteca@sistema.local",
                     ].includes(userEmail);
 
-                    if (!isAllowed && !isAdmin) {
+                    if (
+                      !isAllowed &&
+                      !isAdmin &&
+                      !isVip &&
+                      !isInstructor &&
+                      !isPlanta
+                    ) {
                       toast.error(
-                        "Solo los encargados de Biblioteca pueden realizar reservas.",
+                        "No tienes permisos para realizar reservas en Biblioteca.",
                       );
                       return;
                     }

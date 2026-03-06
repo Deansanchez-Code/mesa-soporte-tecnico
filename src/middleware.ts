@@ -34,6 +34,7 @@ export async function middleware(request: NextRequest) {
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data: https://*.supabase.co https://*.supabase.in;
     font-src 'self';
+    connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in;
     object-src 'none';
     base-uri 'self';
     form-action 'self';

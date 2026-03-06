@@ -297,6 +297,8 @@ export default function CalendarView({
                         // Min height 40px to fit text
                         const heightPx = Math.max(40, durationHours * 30);
 
+                        const isPending = assign.status === "PENDING";
+
                         return (
                           <div
                             key={assign.id}
@@ -306,10 +308,17 @@ export default function CalendarView({
                               setSelectedAssignment(assign);
                             }}
                             style={{ height: `${heightPx}px` }}
-                            className="group relative text-[10px] p-2 rounded-lg border border-l-[3px] shadow-sm bg-blue-50/50 border-l-blue-600 border-blue-100 flex flex-col justify-start min-h-[40px] overflow-hidden mb-1 hover:shadow-md transition-all"
+                            className={`group relative text-[10px] p-2 rounded-lg border border-l-[3px] shadow-sm flex flex-col justify-start min-h-[40px] overflow-hidden mb-1 hover:shadow-md transition-all ${
+                              isPending
+                                ? "bg-gray-50 border-gray-200 border-l-gray-400 grayscale-[0.5] opacity-80"
+                                : "bg-blue-50/50 border-l-blue-600 border-blue-100"
+                            }`}
                           >
                             <div className="flex justify-between items-center w-full leading-tight">
-                              <span className="font-bold truncate text-blue-900 w-full pr-1">
+                              <span
+                                className={`font-bold truncate w-full pr-1 ${isPending ? "text-gray-500" : "text-blue-900"}`}
+                              >
+                                {isPending ? "⏳ " : ""}
                                 {assign.title || assign.instructor.full_name}
                               </span>
                               {/* Only show delete if authorized AND not started (unless admin) */}
@@ -325,10 +334,13 @@ export default function CalendarView({
                                 </button>
                               )}
                             </div>
-                            <div className="text-[8px] tracking-tighter text-blue-600 leading-none mt-auto">
+                            <div
+                              className={`text-[8px] tracking-tighter leading-none mt-auto ${isPending ? "text-gray-400" : "text-blue-600"}`}
+                            >
                               {assign.start_time
                                 ? `${format(new Date(assign.start_time), "HH:mm")} - ${format(new Date(assign.end_time || ""), "HH:mm")}`
                                 : ""}
+                              {isPending && " (Pendiente)"}
                             </div>
                           </div>
                         );
@@ -472,9 +484,18 @@ export default function CalendarView({
                                   <p className="text-sm font-bold text-gray-800 leading-tight">
                                     {assign.instructor.full_name}
                                   </p>
-                                  <p className="text-[10px] font-bold uppercase mt-0.5 text-blue-600">
-                                    Responsable
-                                  </p>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <p
+                                      className={`text-[10px] font-bold uppercase ${assign.status === "PENDING" ? "text-amber-600" : "text-blue-600"}`}
+                                    >
+                                      Responsable
+                                    </p>
+                                    {assign.status === "PENDING" && (
+                                      <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[8px] font-bold rounded border border-amber-200">
+                                        PENDIENTE
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
 

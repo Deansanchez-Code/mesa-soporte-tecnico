@@ -86,7 +86,7 @@ export function useAssignments({
           .select(
             "id, title, start_time, end_time, resources, user_id, status, users(full_name, is_vip)",
           )
-          .eq("status", "APPROVED")
+          .in("status", ["APPROVED", "PENDING"])
           .eq("auditorium_id", targetAuditoriumId)
           .gte("start_time", startStr + "T00:00:00")
           .lte("start_time", endStr + "T23:59:59");

@@ -9,6 +9,7 @@ import SupportNotification from "@/lib/email/templates/SupportNotification";
 import VipCancellation from "@/lib/email/templates/VipCancellation";
 import { ReservationSchema } from "../schemas";
 import Logger from "@/lib/logger";
+import { LibraryNotification } from "@/lib/email/templates/LibraryNotification";
 
 export async function cancelReservationAction(reservationId: number) {
   try {
@@ -187,6 +188,16 @@ export async function cancelReservationAction(reservationId: number) {
   }
 }
 
+interface PublicUser {
+  id: string;
+  role: string | null;
+  employment_type: string | null;
+  email: string | null;
+  username: string;
+  is_vip?: boolean | null;
+  job_category?: string | null;
+}
+
 export async function createReservationAction(
   data: z.infer<typeof ReservationSchema>,
 ) {
@@ -216,11 +227,15 @@ export async function createReservationAction(
     if (!authUser) throw new Error("No autenticado");
 
     // 2. Permissions & Identity Check
-    const { data: publicUser } = await supabase
+    const { data: publicUserRaw } = await supabase
       .from("users")
-      .select("id, role, employment_type, email, username")
+      .select(
+        "id, role, employment_type, email, username, is_vip, job_category",
+      )
       .eq("auth_id", authUser.id)
       .single();
+
+    const publicUser = publicUserRaw as unknown as PublicUser;
 
     if (publicUser?.id !== user_id) {
       const isAdmin = ["admin", "superadmin"].includes(
@@ -249,6 +264,9 @@ export async function createReservationAction(
 
     // 4. RBAC Check for Subdirección (ID 2) and Biblioteca (ID 3)
     const currentSpace = auditorium_id || "1";
+    let initialStatus = "APPROVED";
+    let needsApproval = false;
+
     if (currentSpace === "2") {
       const employmentType = (publicUser?.employment_type || "").toLowerCase();
       const isOfficial =
@@ -269,15 +287,29 @@ export async function createReservationAction(
       const isAdmin = ["admin", "superadmin"].includes(
         publicUser?.role?.toLowerCase() || "",
       );
-      const isAllowed = [
+      const isVip =
+        !!publicUser?.is_vip || publicUser?.role?.toLowerCase() === "vip";
+      const isInstructor =
+        publicUser?.job_category?.toLowerCase() === "instructor";
+      const isPlanta = publicUser?.employment_type
+        ?.toLowerCase()
+        .includes("planta");
+
+      const isStaff = [
         "egutierrezn@sistema.local",
         "rbiblioteca@sistema.local",
       ].includes(userEmail);
 
-      if (!isAllowed && !isAdmin) {
+      if (!isStaff && !isAdmin && !isVip && !isInstructor && !isPlanta) {
         throw new Error(
-          "Solo los encargados de Biblioteca o administradores pueden realizar esta reserva.",
+          "No tienes permisos para realizar esta reserva en Biblioteca.",
         );
+      }
+
+      // Business Rule: Instructors and Planta need approval, VIPs/Admins/Staff are approved immediately
+      if ((isInstructor || isPlanta) && !isVip && !isAdmin && !isStaff) {
+        initialStatus = "PENDING";
+        needsApproval = true;
       }
     }
 
@@ -293,7 +325,7 @@ export async function createReservationAction(
           auditorium_id: auditorium_id || "1",
           resources,
           description,
-          status: "APPROVED",
+          status: initialStatus,
         },
       ])
       .select("*, users(full_name, email, employment_type, username)")
@@ -305,7 +337,54 @@ export async function createReservationAction(
     try {
       const reservation = result;
       const user = reservation.users;
+      const isLibrary = String(reservation.auditorium_id) === "3";
 
+      // Business Rule: Notifications for Library always go to the coordinator (temp: dasanchezh)
+      if (isLibrary) {
+        const startDate = new Date(reservation.start_time);
+        const endDate = new Date(reservation.end_time);
+        const dateStr = startDate.toLocaleDateString("es-CO", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
+
+        const durationHours =
+          (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+
+        // Notify Coordinator (Temporary: dasanchezh@sena.edu.co)
+        const coordinatorSubject =
+          reservation.status === "PENDING"
+            ? `Solicitud de Reserva Biblioteca: ${reservation.title}`
+            : `Reserva VIP Aprobada (Cuentadante): ${reservation.title}`;
+
+        // TODO(MERGE): Cambiar correo a egutierrezn@sena.edu.co (o emgutierrezn@sena.edu.co) para produccion.
+        await EmailService.send({
+          to: "dasanchezh@sena.edu.co",
+          subject: coordinatorSubject,
+          react: LibraryNotification({
+            requesterName: user.full_name,
+            eventTitle: reservation.title,
+            date: dateStr,
+            timeRange: `${timeStr} (${durationHours.toFixed(1)} horas)`,
+            specialRequirements: reservation.description || "Ninguno",
+            type:
+              reservation.status === "PENDING"
+                ? "NEW_REQUEST"
+                : "VIP_AUTOMATIC",
+          }),
+        });
+
+        // Don't send "Confirmation" to user yet if it's PENDING
+        if (reservation.status === "PENDING") {
+          revalidatePath("/dashboard");
+          return { success: true, data: result, pendingApproval: true };
+        }
+      }
+
+      // Default confirmation for Auditorium / Subdireccion or Library (if already APPROVED)
       // Regla de Negocio:
       // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
       // - Contratistas -> Correo registrado (personal o corporativo)
@@ -339,14 +418,19 @@ export async function createReservationAction(
             eventTitle: reservation.title,
             date: dateStr,
             timeRange: timeStr,
-            location: "Auditorio Principal",
+            location: isLibrary
+              ? "Biblioteca"
+              : String(reservation.auditorium_id) === "2"
+                ? "Subdirección"
+                : "Auditorio Principal",
             resources: reservation.resources || [],
             specialRequirements: reservation.description,
           }),
         });
         if (
           reservation.description &&
-          reservation.description.trim().length > 0
+          reservation.description.trim().length > 0 &&
+          !isLibrary
         ) {
           await EmailService.send({
             to: "jeavendano@sena.edu.co",
@@ -368,7 +452,7 @@ export async function createReservationAction(
     }
 
     revalidatePath("/dashboard");
-    return { success: true, data: result };
+    return { success: true, data: result, pendingApproval: needsApproval };
   } catch (error: unknown) {
     const errorMsg =
       (error as Record<string, unknown>)?.message ||
@@ -519,14 +603,18 @@ export async function createReservationBatchAction(
     if (!authUser) throw new Error("No autenticado");
 
     // 2. Permissions & VIP Check
-    const { data: publicUser, error: userError } = await supabase
+    const { data: publicUserRaw, error: userError } = await supabase
       .from("users")
-      .select("id, role, is_vip, full_name, employment_type, email")
+      .select(
+        "id, role, is_vip, full_name, employment_type, email, job_category, username",
+      )
       .eq("auth_id", authUser.id)
       .single();
 
-    if (userError || !publicUser)
+    if (userError || !publicUserRaw)
       throw new Error("Usuario no encontrado en base de datos");
+
+    const publicUser = publicUserRaw as unknown as PublicUser;
 
     const isVip =
       !!publicUser.is_vip || publicUser.role?.toLowerCase() === "vip";
@@ -557,6 +645,9 @@ export async function createReservationBatchAction(
     }
 
     // 3. Global Conflict Check and RBAC
+    let initialStatus = "APPROVED";
+    let hasNeedsApproval = false;
+
     for (const res of validReservations) {
       const targetSpace = res.auditorium_id || "1";
 
@@ -575,15 +666,27 @@ export async function createReservationBatchAction(
         }
       } else if (targetSpace === "3") {
         const userEmail = (publicUser.email || "").toLowerCase();
-        const isAllowed = [
+        const isInstructor =
+          publicUser.job_category?.toLowerCase() === "instructor";
+        const isPlanta = publicUser.employment_type
+          ?.toLowerCase()
+          .includes("planta");
+
+        const isStaff = [
           "egutierrezn@sistema.local",
           "rbiblioteca@sistema.local",
         ].includes(userEmail);
 
-        if (!isAllowed && !isAdmin) {
+        if (!isStaff && !isAdmin && !isVip && !isInstructor && !isPlanta) {
           throw new Error(
             `No tienes permisos para reservar la Biblioteca (detectado en fecha ${new Date(res.start_time).toLocaleDateString()}).`,
           );
+        }
+
+        // Business Rule: Instructors and Planta need approval, VIPs/Admins/Staff are approved immediately
+        if ((isInstructor || isPlanta) && !isVip && !isAdmin && !isStaff) {
+          initialStatus = "PENDING";
+          hasNeedsApproval = true;
         }
       }
 
@@ -613,8 +716,7 @@ export async function createReservationBatchAction(
         if (forceVipOverride && (isVip || isAdmin)) {
           // Validate that NONE of the conflicts are from another VIP (unless Admin)
           const hasVipConflict = conflicts.some((c) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const conflictUser = (c as any).users;
+            const conflictUser = (c as unknown as { users: PublicUser }).users;
             return (
               !!conflictUser?.is_vip ||
               conflictUser?.role?.toLowerCase() === "vip"
@@ -649,7 +751,7 @@ export async function createReservationBatchAction(
       auditorium_id: r.auditorium_id || "1",
       resources: r.resources || [], // Ensure array
       description: r.description || null,
-      status: "APPROVED",
+      status: initialStatus,
     }));
 
     const { data: result, error } = await supabase
@@ -665,17 +767,23 @@ export async function createReservationBatchAction(
     // --- NOTIFICATION LOGIC (BATCH SUMMARY) ---
     try {
       if (result && result.length > 0) {
-        const { data: user } = await supabase
+        const { data: userRaw } = await supabase
           .from("users")
-          .select("full_name, email, employment_type, username")
+          .select("full_name, email, employment_type, username, id")
           .eq("id", validReservations[0].user_id)
           .single();
 
-        if (!user) throw new Error("Usuario no encontrado para notificación");
+        if (!userRaw)
+          throw new Error("Usuario no encontrado para notificación");
+        const user = userRaw;
+
+        const isLibrary = validReservations.some(
+          (r) => String(r.auditorium_id) === "3",
+        );
+        const isMultiDay = validReservations.length > 1;
 
         // Regla de Negocio:
         // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
-        // - Contratistas -> Correo registrado (personal o corporativo)
         const employmentType = (user.employment_type || "").toLowerCase();
         const isOfficial =
           employmentType.includes("planta") ||
@@ -683,75 +791,107 @@ export async function createReservationBatchAction(
           employmentType.includes("oficial");
 
         let recipientEmail = user.email;
-
         if (isOfficial) {
           recipientEmail = `${user.username.trim()}@sena.edu.co`.toLowerCase();
         }
 
+        const titles = [...new Set(validReservations.map((r) => r.title))];
+        const sortedRes = [...validReservations].sort(
+          (a, b) =>
+            new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
+        );
+
+        const datesList = sortedRes
+          .map((r) => {
+            const d = new Date(r.start_time);
+            return d.toLocaleDateString("es-CO", {
+              day: "numeric",
+              month: "short",
+            });
+          })
+          .join(", ");
+
+        const first = sortedRes[0];
+        const timeStr = `${new Date(first.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${new Date(first.end_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
+
+        // A. Library Batch Notification
+        if (isLibrary) {
+          const coordinatorSubject =
+            initialStatus === "PENDING"
+              ? `Solicitud de Reserva Biblioteca (Grupal): ${titles[0]}`
+              : `Reserva Grupal VIP Aprobada (Cuentadante): ${titles[0]}`;
+
+          await EmailService.send({
+            to: "egutierrezn@sena.edu.co",
+            subject: coordinatorSubject,
+            react: SupportNotification({
+              requesterName: user.full_name,
+              requesterEmail: recipientEmail || user.email || undefined,
+              eventTitle: `${titles[0]} (Lote de ${validReservations.length} días)`,
+              date: datesList,
+              timeRange: timeStr,
+              specialRequirements:
+                validReservations[0].description || "Ninguno",
+              type:
+                initialStatus === "PENDING"
+                  ? "NEW_REQUIREMENT"
+                  : "VIP_OVERRIDE",
+            }),
+          });
+
+          if (initialStatus === "PENDING") {
+            revalidatePath("/dashboard");
+            return { success: true, data: result, pendingApproval: true };
+          }
+        }
+
+        // B. Default confirmation check
         if (recipientEmail && recipientEmail.includes("@")) {
-          const titles = [...new Set(validReservations.map((r) => r.title))];
-          const isSingleActivity = titles.length === 1;
+          const emailSubject = isMultiDay
+            ? `Reserva Grupal Confirmada: ${titles[0]}`
+            : `Reserva Confirmada: ${titles[0]}`;
 
-          if (isSingleActivity) {
-            // GROUPED EMAIL (Multi-day)
-            const sortedRes = [...validReservations].sort(
-              (a, b) =>
-                new Date(a.start_time).getTime() -
-                new Date(b.start_time).getTime(),
-            );
+          const eventTitleDisplay = isMultiDay
+            ? `${titles[0]} (Lote de ${validReservations.length} días)`
+            : titles[0];
 
-            const datesList = sortedRes
-              .map((r) => {
-                const d = new Date(r.start_time);
-                return d.toLocaleDateString("es-CO", {
-                  day: "numeric",
-                  month: "short",
-                });
-              })
-              .join(", ");
+          await EmailService.send({
+            to: recipientEmail,
+            subject: emailSubject,
+            react: ReservationConfirmation({
+              userName: user.full_name,
+              eventTitle: eventTitleDisplay,
+              date: datesList,
+              timeRange: timeStr,
+              location: isLibrary
+                ? "Biblioteca"
+                : validReservations.some((r) => String(r.auditorium_id) === "2")
+                  ? "Subdirección"
+                  : "Auditorio Principal",
+              resources: first.resources || [],
+              specialRequirements: first.description,
+            }),
+          });
 
-            const first = sortedRes[0];
-            const timeStr = `${new Date(first.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${new Date(first.end_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
+          // Coordinator summary - ONLY IF description matches search rule
+          const allDescriptions = validReservations
+            .map((r) => r.description)
+            .filter((d) => d && d.trim().length > 0);
 
+          if (allDescriptions.length > 0) {
             await EmailService.send({
-              to: recipientEmail,
-              subject: `Reserva Grupal Confirmada: ${titles[0]}`,
-              react: ReservationConfirmation({
-                userName: user.full_name,
-                eventTitle: `${titles[0]} (Lote de ${validReservations.length} días)`,
+              to: "jeavendano@sena.edu.co",
+              subject: `⚠️ Múltiples Requerimientos: ${titles[0]}`,
+              react: SupportNotification({
+                requesterName: user.full_name,
+                requesterEmail: recipientEmail,
+                eventTitle: titles[0],
                 date: datesList,
                 timeRange: timeStr,
-                location: "Auditorio Principal",
-                resources: first.resources || [],
-                specialRequirements: first.description,
+                specialRequirements: [...new Set(allDescriptions)].join(" | "),
+                type: "NEW_REQUIREMENT",
               }),
             });
-
-            // Coordinator summary - ONLY IF description matches search rule
-            const allDescriptions = validReservations
-              .map((r) => r.description)
-              .filter((d) => d && d.trim().length > 0);
-
-            if (allDescriptions.length > 0) {
-              await EmailService.send({
-                to: "jeavendano@sena.edu.co",
-                subject: `⚠️ Múltiples Requerimientos: ${titles[0]}`,
-                react: SupportNotification({
-                  requesterName: user.full_name,
-                  requesterEmail: recipientEmail,
-                  eventTitle: titles[0],
-                  date: datesList,
-                  timeRange: timeStr,
-                  specialRequirements: [...new Set(allDescriptions)].join(
-                    " | ",
-                  ),
-                  type: "NEW_REQUIREMENT",
-                }),
-              });
-            }
-          } else {
-            // Individual fallback (Optional: just in case titles differ in a batch)
-            // For brevity, usually batch reservations from UI have same title.
           }
         }
       }
@@ -760,7 +900,7 @@ export async function createReservationBatchAction(
     }
 
     revalidatePath("/dashboard");
-    return { success: true, data: result };
+    return { success: true, data: result, pendingApproval: hasNeedsApproval };
   } catch (error: unknown) {
     const errorMsg =
       (error as Record<string, unknown>)?.message ||

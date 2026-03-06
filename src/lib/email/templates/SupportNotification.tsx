@@ -19,7 +19,7 @@ interface SupportNotificationProps {
   date: string;
   timeRange: string;
   specialRequirements: string;
-  type: "NEW_REQUIREMENT" | "CANCELLED_REQUIREMENT";
+  type: "NEW_REQUIREMENT" | "CANCELLED_REQUIREMENT" | "VIP_OVERRIDE";
   cancelledBy?: string;
 }
 
@@ -34,10 +34,17 @@ export const SupportNotification = ({
   cancelledBy,
 }: SupportNotificationProps) => {
   const isCancellation = type === "CANCELLED_REQUIREMENT";
-  const statusColor = isCancellation ? "#CF142B" : "#00324D"; // Rojo o Azul
+  const isVipOverride = type === "VIP_OVERRIDE";
+  const statusColor = isCancellation
+    ? "#CF142B"
+    : isVipOverride
+      ? "#F59E0B"
+      : "#00324D";
   const title = isCancellation
     ? "REQUERIMIENTO CANCELADO"
-    : "NUEVO REQUERIMIENTO ESPECIAL";
+    : isVipOverride
+      ? "RESERVA VIP (AUTOMÁTICA)"
+      : "NUEVO REQUERIMIENTO ESPECIAL";
 
   return (
     <Html>

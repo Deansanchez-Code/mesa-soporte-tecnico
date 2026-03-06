@@ -35,6 +35,8 @@ interface DashboardContentProps {
   loading?: boolean;
 }
 
+import LibraryApprovalModal from "@/features/reservations/components/LibraryApprovalModal";
+
 export default function DashboardContent({
   viewMode,
   permissions,
@@ -59,50 +61,51 @@ export default function DashboardContent({
   showFreezer,
   loading,
 }: DashboardContentProps) {
-  if (viewMode === "ENVIRONMENTS") {
-    return (
-      <div className="animate-in fade-in zoom-in-95 duration-300 h-full pb-10">
-        <AssignmentManager
-          canManage={!!permissions?.manage_assignments}
-          canDeleteAuditorium={
-            !!profile?.is_vip ||
-            ["superadmin", "admin", "vip"].includes(
-              role?.toLowerCase() || "",
-            ) ||
-            ["superadmin", "admin", "vip"].includes(
-              profile?.role?.toLowerCase() || "",
-            )
-          }
-          user={profile}
-        />
-      </div>
-    );
-  }
-
-  if (viewMode === "HISTORY") {
-    return <TicketHistory />;
-  }
-
   return (
-    <KanbanBoard
-      tickets={tickets} // opcional, pero lo pasamos por si acaso
-      reservationPendingTickets={reservationPendingTickets}
-      pendingTickets={pendingTickets}
-      inProgressTickets={inProgressTickets}
-      resolvedTickets={resolvedTickets}
-      waitingTickets={waitingTickets}
-      agents={agents}
-      currentUser={currentUser}
-      onUpdateStatus={updateStatus}
-      onReassign={handleReassign}
-      onToggleHold={toggleHold}
-      onPromptAddComment={promptAddComment}
-      onCategoryChange={handleCategoryChange}
-      setSelectedTicket={setSelectedTicket}
-      setSelectedAssetSerial={setSelectedAssetSerial}
-      setResolvingTicketId={setResolvingTicketId}
-      showFreezer={showFreezer}
-      loading={loading}
-    />
+    <>
+      <LibraryApprovalModal
+        userEmail={currentUser?.email || (profile?.email as string) || ""}
+      />
+      {viewMode === "ENVIRONMENTS" ? (
+        <div className="animate-in fade-in zoom-in-95 duration-300 h-full pb-10">
+          <AssignmentManager
+            canManage={!!permissions?.manage_assignments}
+            canDeleteAuditorium={
+              !!profile?.is_vip ||
+              ["superadmin", "admin", "vip"].includes(
+                role?.toLowerCase() || "",
+              ) ||
+              ["superadmin", "admin", "vip"].includes(
+                profile?.role?.toLowerCase() || "",
+              )
+            }
+            user={profile}
+          />
+        </div>
+      ) : viewMode === "HISTORY" ? (
+        <TicketHistory />
+      ) : (
+        <KanbanBoard
+          tickets={tickets} // opcional, pero lo pasamos por si acaso
+          reservationPendingTickets={reservationPendingTickets}
+          pendingTickets={pendingTickets}
+          inProgressTickets={inProgressTickets}
+          resolvedTickets={resolvedTickets}
+          waitingTickets={waitingTickets}
+          agents={agents}
+          currentUser={currentUser}
+          onUpdateStatus={updateStatus}
+          onReassign={handleReassign}
+          onToggleHold={toggleHold}
+          onPromptAddComment={promptAddComment}
+          onCategoryChange={handleCategoryChange}
+          setSelectedTicket={setSelectedTicket}
+          setSelectedAssetSerial={setSelectedAssetSerial}
+          setResolvingTicketId={setResolvingTicketId}
+          showFreezer={showFreezer}
+          loading={loading}
+        />
+      )}
+    </>
   );
 }

@@ -53,7 +53,7 @@ export async function verifyUserPermissions(
   // (since RLS might restrict what a user can see about themselves if not careful, though usually they can see self)
   const supabaseAdmin = createClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
+    env.SUPABASE_SERVICE_ROLE_KEY || "",
   );
 
   const query = supabaseAdmin

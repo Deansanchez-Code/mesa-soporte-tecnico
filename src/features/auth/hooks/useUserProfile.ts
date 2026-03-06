@@ -64,6 +64,7 @@ export function useUserProfile() {
             id: dbUser?.id || user.id, // Ensure we always have an ID for ownership checks
             full_name: dbUser?.full_name || user.user_metadata?.full_name, // Prioridad DB
             is_vip: !!(dbUser?.is_vip || isVipMetadata),
+            email: user.email,
             perm_create_assets: dbUser?.perm_create_assets,
             perm_transfer_assets: dbUser?.perm_transfer_assets,
             perm_decommission_assets: dbUser?.perm_decommission_assets,
@@ -81,6 +82,7 @@ export function useUserProfile() {
             id: user.id,
             is_vip: !!(user.user_metadata?.is_vip || metadataRole === "vip"),
             full_name: user.user_metadata?.full_name,
+            email: user.email,
           },
           loading: false,
           role: metadataRole || "user",

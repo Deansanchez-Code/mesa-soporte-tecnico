@@ -14,7 +14,7 @@ export interface Assignment {
   start_time?: string | null;
   end_time?: string | null;
   resources?: string[] | null;
-  status?: "APPROVED" | "CANCELLED";
+  status?: "APPROVED" | "CANCELLED" | "PENDING";
   users?: {
     full_name: string;
     is_vip: boolean;

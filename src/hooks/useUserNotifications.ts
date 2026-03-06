@@ -30,9 +30,32 @@ export function useUserNotifications(userId?: string) {
       if (data && data.length > 0) {
         setNotifications(data);
         // Show initial toast for the most recent one
-        toast.info(data[0].title, {
-          description: data[0].message,
-          duration: 10000,
+        data.forEach((notif) => {
+          const titleLower = notif.title.toLowerCase();
+          if (titleLower.includes("cancelada")) {
+            toast.error(notif.title, {
+              description: notif.message,
+              duration: 8000,
+            });
+          } else if (
+            titleLower.includes("aprobada") ||
+            titleLower.includes("confirmada")
+          ) {
+            toast.success(notif.title, {
+              description: notif.message,
+              duration: 8000,
+            });
+          } else if (titleLower.includes("modificaci")) {
+            toast.warning(notif.title, {
+              description: notif.message,
+              duration: 8000,
+            });
+          } else {
+            toast.info(notif.title, {
+              description: notif.message,
+              duration: 8000,
+            });
+          }
         });
       }
     };
@@ -53,10 +76,32 @@ export function useUserNotifications(userId?: string) {
         (payload) => {
           const newNotif = payload.new as UserNotification;
           setNotifications((prev) => [newNotif, ...prev]);
-          toast.error("⚠️ Alerta de Prioridad", {
-            description: newNotif.message,
-            duration: 0, // Manual close
-          });
+
+          const titleLower = newNotif.title.toLowerCase();
+          if (titleLower.includes("cancelada")) {
+            toast.error(newNotif.title, {
+              description: newNotif.message,
+              duration: 0,
+            });
+          } else if (
+            titleLower.includes("aprobada") ||
+            titleLower.includes("confirmada")
+          ) {
+            toast.success(newNotif.title, {
+              description: newNotif.message,
+              duration: 10000,
+            });
+          } else if (titleLower.includes("modificaci")) {
+            toast.warning(newNotif.title, {
+              description: newNotif.message,
+              duration: 0,
+            });
+          } else {
+            toast.info(newNotif.title, {
+              description: newNotif.message,
+              duration: 10000,
+            });
+          }
         },
       )
       .subscribe();
