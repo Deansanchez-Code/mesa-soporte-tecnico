@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import UserRequestForm from "@/features/requests/components/UserRequestForm";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useUserNotifications } from "@/hooks/useUserNotifications";
 
 interface UserData {
@@ -22,10 +22,12 @@ interface UserData {
   full_name: string;
   area: string;
   role: string;
+  email?: string;
   [key: string]: unknown;
 }
 
 function HomeContent() {
+  const router = useRouter();
   // Estados de Vista
   const [viewState, setViewState] = useState<
     "login" | "contractor" | "request"
@@ -71,7 +73,7 @@ function HomeContent() {
       if (session?.user) {
         const role = session.user.user_metadata?.role;
         if (role === "admin" || role === "superadmin") {
-          // Admin logic remains same
+          router.push("/dashboard");
         } else if (session.user.user_metadata) {
           // Consultar datos frescos de la base de datos para asegurar nombre correcto
           const { data: dbUser } = await supabase
@@ -87,6 +89,7 @@ function HomeContent() {
               dbUser?.full_name || session.user.user_metadata.full_name, // Prioridad DB
             role: session.user.user_metadata.role,
             area: dbUser?.area || session.user.user_metadata.area,
+            email: session.user.email,
           };
           setUserData(user as UserData);
           setViewState("request");
@@ -96,7 +99,7 @@ function HomeContent() {
 
     fetchAreas();
     checkSession();
-  }, []);
+  }, [router]);
 
   const searchParams = useSearchParams();
   const locationParam = searchParams.get("location");
@@ -207,7 +210,11 @@ function HomeContent() {
         }
         // --- FIN SILENT LOGIN ---
 
-        setUserData(user);
+        const currentSyntheticEmail = syntheticEmail;
+        setUserData({
+          ...user,
+          email: user.email || currentSyntheticEmail,
+        });
         setViewState("request");
       } else {
         setLoginError(true);
@@ -272,7 +279,11 @@ function HomeContent() {
         }
         // ---------------------------
 
-        setUserData(existingUser);
+        const currentSynthetic = syntheticEmail;
+        setUserData({
+          ...existingUser,
+          email: existingUser.email || currentSynthetic,
+        });
         setViewState("request");
       } else {
         // 2. Crear
@@ -328,11 +339,13 @@ function HomeContent() {
             setLoading(false);
             return;
           }
-        }
-        // -------------------------------------------
 
-        setUserData(newUser);
-        setViewState("request");
+          setUserData({
+            ...newUser,
+            email: newUser.email || newSyntheticEmail,
+          });
+          setViewState("request");
+        }
       }
 
       setViewState("request");
@@ -353,12 +366,8 @@ function HomeContent() {
 
       {/* TARJETA PRINCIPAL */}
       <div
-        className={`bg-white w-full rounded-xl shadow-2xl overflow-hidden border-t-4 border-sena-green transition-all duration-300 ${
-          viewState === "request"
-            ? requestView === "SELECTION"
-              ? "max-w-md"
-              : "max-w-3xl"
-            : "max-w-md"
+        className={`bg-white w-full rounded-xl shadow-2xl overflow-hidden border-t-4 border-sena-green transition-all duration-500 ${
+          viewState === "request" ? "max-w-7xl" : "max-w-md"
         }`}
       >
         {/* HEADER (Solo visible si no estamos en el formulario de solicitud) */}

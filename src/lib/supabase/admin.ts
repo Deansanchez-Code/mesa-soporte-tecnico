@@ -2,15 +2,20 @@ import { createClient } from "@supabase/supabase-js";
 import { env } from "@/env";
 
 export const getSupabaseAdmin = () => {
-  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL.replace(
-    /^http:\/\/(?!localhost|127\.0\.0\.1)/i,
-    "https://",
-  );
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error(
+      "❌ SUPABASE_SERVICE_ROLE_KEY no está configurada. Operación administrativa no permitida.",
+    );
+  }
 
-  return createClient(supabaseUrl, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: {
-      autoRefreshToken: false, // Not needed for admin
-      persistSession: false,
+  return createClient(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.SUPABASE_SERVICE_ROLE_KEY || "",
+    {
+      auth: {
+        autoRefreshToken: false, // Not needed for admin
+        persistSession: false,
+      },
     },
-  });
+  );
 };

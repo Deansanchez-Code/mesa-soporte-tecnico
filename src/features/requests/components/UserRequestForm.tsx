@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Calendar,
   ArrowLeft,
+  ArrowRight,
   Activity,
   Search,
   Check,
@@ -19,6 +20,7 @@ import {
   Book, // Added Book icon
 } from "lucide-react";
 import PanicButtonModal from "./PanicButtonModal";
+import LibraryApprovalModal from "@/features/reservations/components/LibraryApprovalModal";
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
 import AssignmentManager from "@/features/assignments/components/AssignmentManager";
 import { useTicketRequest } from "./hooks/useTicketRequest";
@@ -147,138 +149,218 @@ export default function UserRequestForm({
     "1" | "2" | "3"
   >("1");
 
-  const isAdmin = ["admin", "superadmin"].includes(
+  const isAdmin = ["admin", "superadmin", "vip"].includes(
     ((user?.role as string) || "").toLowerCase(),
   );
-  const isVip = !!(user as never as { is_vip?: boolean })?.is_vip;
-  const canSeeSubdireccion = isVip || isAdmin;
+  const isVip =
+    !!(user as never as { is_vip?: boolean })?.is_vip ||
+    ((user?.role as string) || "").toLowerCase() === "vip";
+  const canSeeSubdireccion =
+    isVip ||
+    isAdmin ||
+    ((user?.email as string) || "").toLowerCase() ===
+      "emgutierrezn@sena.edu.co";
 
   const userEmail = ((user?.email as string) || "").toLowerCase();
+  const isInstructor =
+    (
+      user as never as { job_category?: string }
+    )?.job_category?.toLowerCase() === "instructor";
+  const isPlanta = (
+    user as never as { employment_type?: string }
+  )?.employment_type
+    ?.toLowerCase()
+    .includes("planta");
   const canSeeBiblioteca =
-    ["egutierrezn@sistema.local", "rbiblioteca@sistema.local"].includes(
-      userEmail,
-    ) || isAdmin;
+    [
+      "egutierrezn@sistema.local",
+      "rbiblioteca@sistema.local",
+      "emgutierrezn@sena.edu.co",
+    ].includes(userEmail) ||
+    isAdmin ||
+    isInstructor ||
+    isPlanta ||
+    isVip;
 
-  // --- VISTA DE SELECCIÓN (CARDS) ---
+  // --- VISTA DE SELECCIÓN (3 COLUMNAS) ---
   if (view === "SELECTION") {
     return (
-      <div className="w-full max-w-5xl mx-auto animate-in fade-in zoom-in duration-300">
-        <div className="mb-6"></div>
-
-        <div className="flex flex-col gap-3 max-w-2xl mx-auto">
-          {/* CARD 1: SERVICIO TÉCNICO */}
-          <button
-            onClick={() => handleViewChange("TICKET")}
-            className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-sena-green transition-all duration-300 flex flex-col items-center text-center gap-2"
-          >
-            <div className="bg-green-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
-              <Monitor className="w-8 h-8 text-sena-green" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-gray-800 group-hover:text-sena-green transition-colors">
-                Servicio Técnico
-              </h3>
-              <p className="text-sm text-gray-500 leading-relaxed mt-1">
-                Reporta fallas en equipos, internet, software o impresoras.
-              </p>
-            </div>
-          </button>
-
-          {/* CARD 2: RESERVA AUDITORIO */}
-          <button
-            onClick={() => {
-              setSelectedReservationSpace("1");
-              handleViewChange("RESERVATION");
-            }}
-            className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-sena-blue transition-all duration-300 flex flex-col items-center text-center gap-2"
-          >
-            <div className="bg-blue-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
-              <Calendar className="w-8 h-8 text-sena-blue" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-gray-800 group-hover:text-sena-blue transition-colors">
-                Reserva Auditorio
-              </h3>
-              <p className="text-sm text-gray-500 leading-relaxed mt-1">
-                Solicita el espacio para capacitaciones o eventos especiales.
-              </p>
-            </div>
-          </button>
-
-          {/* CARD 2.5: RESERVA SUBDIRECCIÓN (Only for official personnel) */}
-          {canSeeSubdireccion && (
-            <button
-              onClick={() => {
-                setSelectedReservationSpace("2");
-                handleViewChange("RESERVATION");
-              }}
-              className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-sena-orange transition-all duration-300 flex flex-col items-center text-center gap-2"
-            >
-              <div className="bg-orange-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
-                <Calendar className="w-8 h-8 text-sena-orange" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-800 group-hover:text-sena-orange transition-colors">
-                  Reserva Subdirección
-                </h3>
-                <p className="text-sm text-gray-500 leading-relaxed mt-1">
-                  Espacio exclusivo para reuniones de subdirección y planta.
-                </p>
-              </div>
-            </button>
-          )}
-
-          {/* CARD 3: RESERVA BIBLIOTECA (Only for authorized personnel) */}
-          {canSeeBiblioteca && (
-            <button
-              onClick={() => {
-                setSelectedReservationSpace("3");
-                handleViewChange("RESERVATION");
-              }}
-              className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-purple-500 transition-all duration-300 flex flex-col items-center text-center gap-2"
-            >
-              <div className="bg-purple-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
-                <Book className="w-8 h-8 text-purple-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-800 group-hover:text-purple-600 transition-colors">
-                  Reserva Biblioteca
-                </h3>
-                <p className="text-sm text-gray-500 leading-relaxed mt-1">
-                  Solicita el préstamo de la biblioteca para tus actividades.
-                </p>
-              </div>
-            </button>
-          )}
-
-          {/* CARD 4: CONSULTAR DISPONIBILIDAD */}
-          <button
-            onClick={() => handleViewChange("AVAILABILITY")}
-            className="group bg-white p-4 rounded-2xl shadow-sm hover:shadow-xl border-2 border-transparent hover:border-pink-500 transition-all duration-300 flex flex-col items-center text-center gap-2"
-          >
-            <div className="bg-pink-50 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
-              <CalendarRange className="w-8 h-8 text-pink-600" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-gray-800 group-hover:text-pink-600 transition-colors">
-                Consultar Disponibilidad
-              </h3>
-              <p className="text-sm text-gray-500 leading-relaxed mt-1">
-                Verifica la ocupación de ambientes y programación de
-                instructores.
-              </p>
-            </div>
-          </button>
+      <div className="w-full max-w-[1400px] mx-auto animate-in fade-in zoom-in duration-700 px-4 py-8">
+        <div className="mb-12 text-center group">
+          <h2 className="text-4xl lg:text-5xl font-black text-sena-blue tracking-tight transition-transform duration-500 group-hover:scale-105">
+            ¿En qué podemos{" "}
+            <span className="text-sena-green">ayudarte hoy?</span>
+          </h2>
+          <div className="w-24 h-1.5 bg-sena-green mx-auto mt-4 rounded-full opacity-50 group-hover:w-48 transition-all duration-500" />
+          <p className="text-gray-500 mt-6 font-semibold text-lg max-w-2xl mx-auto">
+            Hemos organizado nuestras herramientas para brindarte una respuesta
+            más ágil y efectiva.
+          </p>
         </div>
 
-        <div className="mt-12 text-center">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-stretch">
+          {/* COLUMNA 1: SOPORTE TÉCNICO */}
+          <div className="flex flex-col gap-8 h-full">
+            <div className="flex items-center gap-3 px-4">
+              <div className="w-3 h-8 bg-sena-green rounded-full shadow-sm shadow-green-200" />
+              <h4 className="text-sm font-black uppercase tracking-[0.2em] text-gray-400">
+                Soporte & Tecnología
+              </h4>
+            </div>
+
+            <button
+              onClick={() => handleViewChange("TICKET")}
+              className="group relative bg-white p-10 rounded-[2.5rem] shadow-sm hover:shadow-2xl border-2 border-slate-100 hover:border-sena-green transition-all duration-500 flex flex-col items-center text-center gap-6 h-full min-h-[420px] justify-center overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-48 h-48 bg-green-50 rounded-full -mr-24 -mt-24 group-hover:scale-150 transition-transform duration-700 opacity-40 blur-2xl" />
+
+              <div className="relative z-10 bg-green-50 p-8 rounded-[2rem] group-hover:bg-sena-green group-hover:scale-110 transition-all duration-500 shadow-inner">
+                <Monitor className="w-16 h-16 text-sena-green group-hover:text-white" />
+              </div>
+              <div className="relative z-10 space-y-4">
+                <h3 className="text-3xl font-black text-slate-800 group-hover:text-sena-green transition-colors leading-tight">
+                  Servicio Técnico
+                </h3>
+                <p className="text-base text-slate-500 leading-relaxed font-medium">
+                  Atención especializada para fallas en equipos, conectividad,
+                  desarrollo de software o soporte de impresión.
+                </p>
+              </div>
+
+              <div className="mt-6 flex items-center gap-3 text-sena-green font-black text-sm opacity-0 group-hover:opacity-100 transition-all translate-y-4 group-hover:translate-y-0 duration-500 bg-green-50 px-6 py-2 rounded-full border border-green-100">
+                GENERAR TICKET <ArrowRight className="w-4 h-4" />
+              </div>
+            </button>
+          </div>
+
+          {/* COLUMNA 2: RESERVAS */}
+          <div className="flex flex-col gap-8 h-full bg-slate-50/50 rounded-[3rem] p-4 lg:p-8 border border-slate-100/50">
+            <div className="flex items-center gap-3 px-4">
+              <div className="w-3 h-8 bg-sena-blue rounded-full shadow-sm shadow-blue-200" />
+              <h4 className="text-sm font-black uppercase tracking-[0.2em] text-gray-400">
+                Reservas & Espacios
+              </h4>
+            </div>
+
+            <div className="flex flex-col gap-5 h-full">
+              {/* AUDITORIO */}
+              <button
+                onClick={() => {
+                  setSelectedReservationSpace("1");
+                  handleViewChange("RESERVATION");
+                }}
+                className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-sena-blue transition-all duration-300 text-left w-full h-full"
+              >
+                <div className="bg-blue-50 p-5 rounded-2xl group-hover:bg-sena-blue transition-all duration-300 group-hover:rotate-6">
+                  <Calendar className="w-10 h-10 text-sena-blue group-hover:text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-black text-gray-800 group-hover:text-sena-blue transition-colors">
+                    Auditorio
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1 font-semibold italic opacity-70 group-hover:opacity-100">
+                    Capacitaciones institucionales.
+                  </p>
+                </div>
+              </button>
+
+              {/* SUBDIRECCIÓN */}
+              {canSeeSubdireccion && (
+                <button
+                  onClick={() => {
+                    setSelectedReservationSpace("2");
+                    handleViewChange("RESERVATION");
+                  }}
+                  className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-sena-orange transition-all duration-300 text-left w-full h-full"
+                >
+                  <div className="bg-orange-50 p-5 rounded-2xl group-hover:bg-sena-orange transition-all duration-300 group-hover:-rotate-6">
+                    <Calendar className="w-10 h-10 text-sena-orange group-hover:text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-black text-gray-800 group-hover:text-sena-orange transition-colors">
+                      Subdirección
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1 font-semibold italic opacity-70 group-hover:opacity-100">
+                      Reuniones de alta gerencia.
+                    </p>
+                  </div>
+                </button>
+              )}
+
+              {/* BIBLIOTECA */}
+              {canSeeBiblioteca && (
+                <button
+                  onClick={() => {
+                    setSelectedReservationSpace("3");
+                    handleViewChange("RESERVATION");
+                  }}
+                  className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-purple-500 transition-all duration-300 text-left w-full h-full"
+                >
+                  <div className="bg-purple-50 p-5 rounded-2xl group-hover:bg-purple-600 transition-all duration-300 group-hover:scale-110">
+                    <Book className="w-10 h-10 text-purple-600 group-hover:text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-black text-gray-800 group-hover:text-purple-600 transition-colors">
+                      Biblioteca
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1 font-semibold italic opacity-70 group-hover:opacity-100">
+                      Entornos de aprendizaje.
+                    </p>
+                  </div>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* COLUMNA 3: INFO & SERVICIOS */}
+          <div className="flex flex-col gap-8 h-full">
+            <div className="flex items-center gap-3 px-4">
+              <div className="w-3 h-8 bg-pink-500 rounded-full shadow-sm shadow-pink-200" />
+              <h4 className="text-sm font-black uppercase tracking-[0.2em] text-gray-400">
+                Servicios & Consulta
+              </h4>
+            </div>
+
+            <div className="flex flex-col gap-6 h-full justify-center">
+              {/* DISPONIBILIDAD */}
+              <button
+                onClick={() => handleViewChange("AVAILABILITY")}
+                className="group relative bg-gradient-to-br from-pink-500 to-rose-600 p-10 rounded-[2.5rem] shadow-lg hover:shadow-2xl transition-all duration-500 flex flex-col items-center text-center gap-6 h-full min-h-[450px] justify-center overflow-hidden border-b-8 border-pink-700 hover:border-b-4 hover:translate-y-1"
+              >
+                <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -mr-24 -mt-24 group-hover:scale-150 transition-transform duration-700 blur-xl" />
+
+                <div className="relative z-10 bg-white/20 p-8 rounded-[2rem] backdrop-blur-md group-hover:bg-white group-hover:scale-110 transition-all duration-500 shadow-xl border border-white/30 group-hover:border-transparent">
+                  <CalendarRange className="w-16 h-16 text-white group-hover:text-pink-600" />
+                </div>
+                <div className="relative z-10 space-y-3">
+                  <h3 className="text-3xl font-black text-white">
+                    Disponibilidad
+                  </h3>
+                  <p className="text-base text-pink-50 leading-relaxed font-semibold opacity-90">
+                    Ambientes y programación en tiempo real.
+                  </p>
+                </div>
+
+                <div className="absolute top-4 right-6 text-white/40 text-[10px] font-black tracking-widest uppercase">
+                  Consulta Pública
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-20 text-center">
           <button
             onClick={onCancel}
-            className="px-6 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-gray-800 transition-colors text-sm font-medium"
+            className="group px-10 py-4 bg-white border-2 border-slate-200 text-slate-400 rounded-3xl hover:bg-slate-50 hover:border-slate-300 hover:text-slate-800 transition-all text-sm font-black flex items-center gap-3 mx-auto shadow-sm"
           >
-            Cancelar y salir
+            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-2 transition-transform" />
+            FINALIZAR SESIÓN
           </button>
         </div>
+
+        {/* Modal de Aprobaciones de Biblioteca */}
+        <LibraryApprovalModal userEmail={userEmail} />
 
         {/* Modal de Pánico */}
         {showPanicModal && (
@@ -387,10 +469,10 @@ export default function UserRequestForm({
                     <AlertTriangle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
                     <div className="ml-3">
                       <h3 className="text-sm font-bold text-yellow-800">
-                        {activeOutage.title}
+                        {activeOutage?.title}
                       </h3>
                       <p className="mt-1 text-sm text-yellow-700">
-                        {activeOutage.description}
+                        {activeOutage?.description}
                       </p>
                       <p className="mt-2 text-xs font-bold text-yellow-800">
                         🔧 Ya estamos trabajando en ello.
