@@ -304,7 +304,7 @@ export default function UserRequestForm({
               </p>
               <div className="flex flex-col gap-3">
                 <a
-                  href="mailto:mesadeservicio@sena.edu.co"
+                  href="mailto:mesadeservicio@sena.edu.co?cc=jucsendoya@sena.edu.co,lapinilla@sena.edu.co"
                   onClick={() => setShowSupportRedirect(false)}
                   className="w-full py-4 bg-sena-green hover:bg-[#2d8500] text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2"
                 >
@@ -427,7 +427,7 @@ export default function UserRequestForm({
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a
-                  href="mailto:mesadeservicio@sena.edu.co"
+                  href="mailto:mesadeservicio@sena.edu.co?cc=jucsendoya@sena.edu.co,lapinilla@sena.edu.co"
                   className="w-full sm:w-auto px-8 py-4 bg-sena-green hover:bg-[#2d8500] text-white rounded-2xl font-black shadow-lg shadow-green-900/20 transition-all flex items-center justify-center gap-3 hover:scale-105"
                 >
                   <Send className="w-5 h-5" />
