@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import UserRequestForm from "@/features/requests/components/UserRequestForm";
 import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useUserNotifications } from "@/hooks/useUserNotifications";
 
 interface UserData {
@@ -101,9 +101,6 @@ function HomeContent() {
     checkSession();
   }, [router]);
 
-  const searchParams = useSearchParams();
-  const locationParam = searchParams.get("location");
-
   // Estado para controlar el ancho del contenedor según la vista interna del formulario
   const [requestView, setRequestView] = useState<
     "SELECTION" | "TICKET" | "RESERVATION" | "AVAILABILITY"
@@ -119,8 +116,7 @@ function HomeContent() {
 
       if (view === "request") {
         setViewState("request");
-        if (step === "TICKET") setRequestView("TICKET");
-        else if (step === "RESERVATION") setRequestView("RESERVATION");
+        if (step === "RESERVATION") setRequestView("RESERVATION");
         else if (step === "AVAILABILITY") setRequestView("AVAILABILITY");
         else setRequestView("SELECTION");
       } else if (view === "contractor") {
@@ -603,7 +599,6 @@ function HomeContent() {
                   setContractorEmail("");
                   setRequestView("SELECTION");
                 }}
-                initialLocation={locationParam || undefined}
                 onViewChange={setRequestView}
                 currentView={requestView}
               />
