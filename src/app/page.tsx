@@ -119,8 +119,7 @@ function HomeContent() {
 
       if (view === "request") {
         setViewState("request");
-        if (step === "TICKET") setRequestView("TICKET");
-        else if (step === "RESERVATION") setRequestView("RESERVATION");
+        if (step === "RESERVATION") setRequestView("RESERVATION");
         else if (step === "AVAILABILITY") setRequestView("AVAILABILITY");
         else setRequestView("SELECTION");
       } else if (view === "contractor") {
