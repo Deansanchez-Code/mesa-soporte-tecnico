@@ -51,27 +51,20 @@ const SupportRedirectMessage = ({
         directamente por correo electrónico.
       </p>
 
-      <div className="flex flex-col gap-3 mt-4 w-full">
+      <div className="flex flex-col gap-3 mt-6 w-full">
+        {/* BOTÓN PRINCIPAL: OUTLOOK WEB */}
         <a
-          href="mailto:mesadeservicio@sena.edu.co?cc=jucsendoya@sena.edu.co,lapinilla@sena.edu.co"
+          href="https://outlook.office.com/owa/?path=/mail/action/compose&to=mesadeservicio@sena.edu.co&cc=jucsendoya@sena.edu.co,lapinilla@sena.edu.co&subject=Solicitud%20Soporte%20T%C3%A9cnico"
+          target="_blank"
+          rel="noopener noreferrer"
           onClick={onClose}
-          className="w-full py-3.5 bg-sena-green hover:bg-[#2d8500] text-white rounded-xl font-bold shadow-md shadow-green-900/10 transition-all flex items-center justify-center gap-2"
+          className="w-full py-4 bg-sena-green hover:bg-[#2d8500] text-white rounded-xl font-bold shadow-lg shadow-green-900/20 transition-all flex items-center justify-center gap-3 hover:scale-[1.02]"
         >
-          <Send className="w-5 h-5" />
-          Abrir en tu Correo (Por Defecto)
+          <ExternalLink className="w-5 h-5" />
+          Abrir en Outlook Web (Recomendado)
         </a>
 
         <div className="grid grid-cols-2 gap-3">
-          <a
-            href="https://outlook.office.com/mail/deeplink/compose?to=mesadeservicio@sena.edu.co&cc=jucsendoya@sena.edu.co;lapinilla@sena.edu.co&subject=Solicitud%20Soporte%20T%C3%A9cnico"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={onClose}
-            className="py-3 bg-white border border-slate-200 hover:border-[#0078D4] hover:bg-[#0078D4]/5 text-slate-700 hover:text-[#0078D4] rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
-          >
-            <ExternalLink className="w-4 h-4" />
-            Outlook Web
-          </a>
           <a
             href="https://mail.google.com/mail/?view=cm&fs=1&to=mesadeservicio@sena.edu.co&cc=jucsendoya@sena.edu.co,lapinilla@sena.edu.co&su=Solicitud%20Soporte%20T%C3%A9cnico"
             target="_blank"
@@ -82,11 +75,19 @@ const SupportRedirectMessage = ({
             <ExternalLink className="w-4 h-4" />
             Gmail Web
           </a>
+          <a
+            href="mailto:mesadeservicio@sena.edu.co?cc=jucsendoya@sena.edu.co,lapinilla@sena.edu.co"
+            onClick={onClose}
+            className="py-3 bg-white border border-slate-200 hover:border-sena-green hover:bg-green-50 text-slate-700 hover:text-sena-green rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
+          >
+            <Send className="w-4 h-4" />
+            Correo (App)
+          </a>
         </div>
 
         <button
           onClick={handleCopyAddresses}
-          className="w-full mt-2 py-3 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm"
+          className="w-full mt-1 py-3 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm"
         >
           {copiedAddress ? (
             <>
