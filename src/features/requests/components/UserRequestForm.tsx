@@ -8,12 +8,111 @@ import {
   ArrowLeft,
   CalendarRange,
   Book, // Added Book icon
+  Copy,
+  ExternalLink,
+  CheckCircle2,
 } from "lucide-react";
 import PanicButtonModal from "./PanicButtonModal";
 import LibraryApprovalModal from "@/features/reservations/components/LibraryApprovalModal";
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
 import AssignmentManager from "@/features/assignments/components/AssignmentManager";
 import { User } from "./types";
+
+const SupportRedirectMessage = ({
+  onClose,
+  showBackButton,
+}: {
+  onClose?: () => void;
+  showBackButton?: boolean;
+}) => {
+  const [copiedAddress, setCopiedAddress] = useState(false);
+
+  const handleCopyAddresses = () => {
+    navigator.clipboard.writeText(
+      "To: mesadeservicio@sena.edu.co\nCC: jucsendoya@sena.edu.co, lapinilla@sena.edu.co",
+    );
+    setCopiedAddress(true);
+    setTimeout(() => setCopiedAddress(false), 2000);
+  };
+
+  return (
+    <div className="w-full max-w-md mx-auto text-center animate-in zoom-in-95 duration-500">
+      <div className="mx-auto w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
+        <Monitor className="w-10 h-10 text-sena-green" />
+      </div>
+      <h3 className="text-2xl sm:text-3xl font-black text-slate-800 mb-4">
+        ¡Gracias por tu confianza!
+      </h3>
+      <p className="text-slate-600 mb-6 text-base leading-relaxed font-medium">
+        Te informamos que el sistema seguirá funcionando con normalidad para la{" "}
+        <strong>reserva de Auditorio y Biblioteca</strong>.
+        <br />
+        <br />A partir de ahora, los casos de servicio técnico se manejarán
+        directamente por correo electrónico.
+      </p>
+
+      <div className="flex flex-col gap-3 mt-4 w-full">
+        <a
+          href="mailto:mesadeservicio@sena.edu.co?cc=jucsendoya@sena.edu.co,lapinilla@sena.edu.co"
+          onClick={onClose}
+          className="w-full py-3.5 bg-sena-green hover:bg-[#2d8500] text-white rounded-xl font-bold shadow-md shadow-green-900/10 transition-all flex items-center justify-center gap-2"
+        >
+          <Send className="w-5 h-5" />
+          Abrir en tu Correo (Por Defecto)
+        </a>
+
+        <div className="grid grid-cols-2 gap-3">
+          <a
+            href="https://outlook.office.com/mail/deeplink/compose?to=mesadeservicio@sena.edu.co&cc=jucsendoya@sena.edu.co,lapinilla@sena.edu.co&subject=Solicitud%20Soporte%20T%C3%A9cnico"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onClose}
+            className="py-3 bg-white border border-slate-200 hover:border-[#0078D4] hover:bg-[#0078D4]/5 text-slate-700 hover:text-[#0078D4] rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Outlook Web
+          </a>
+          <a
+            href="https://mail.google.com/mail/?view=cm&fs=1&to=mesadeservicio@sena.edu.co&cc=jucsendoya@sena.edu.co,lapinilla@sena.edu.co&su=Solicitud%20Soporte%20T%C3%A9cnico"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onClose}
+            className="py-3 bg-white border border-slate-200 hover:border-[#EA4335] hover:bg-[#EA4335]/5 text-slate-700 hover:text-[#EA4335] rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Gmail Web
+          </a>
+        </div>
+
+        <button
+          onClick={handleCopyAddresses}
+          className="w-full mt-2 py-3 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm"
+        >
+          {copiedAddress ? (
+            <>
+              <CheckCircle2 className="w-4 h-4 text-green-500" />
+              <span className="text-green-600">¡Correos copiados!</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-4 h-4" />
+              Copiar direcciones de correo
+            </>
+          )}
+        </button>
+
+        {showBackButton && onClose && (
+          <button
+            onClick={onClose}
+            className="w-full mt-1 py-3 bg-transparent hover:bg-slate-100 text-slate-500 rounded-xl font-bold transition-colors text-sm"
+          >
+            Volver al menú
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export default function UserRequestForm({
   user,
@@ -286,38 +385,11 @@ export default function UserRequestForm({
         {/* Modal Redirección Soporte */}
         {showSupportRedirect && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-white rounded-[2rem] shadow-2xl max-w-md w-full p-8 text-center animate-in zoom-in-95 duration-300">
-              <div className="mx-auto w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
-                <Monitor className="w-10 h-10 text-sena-green" />
-              </div>
-              <h3 className="text-2xl font-black text-slate-800 mb-4">
-                ¡Gracias por tu confianza!
-              </h3>
-              <p className="text-slate-600 mb-8 leading-relaxed font-medium">
-                Agradecemos la confianza depositada en el uso del desarrollo del
-                aplicativo. Te informamos que el sistema seguirá funcionando con
-                normalidad para la{" "}
-                <strong>reserva de Auditorio y Biblioteca</strong>.
-                <br />
-                <br />A partir de ahora, los casos de servicio técnico se
-                manejarán directamente por correo electrónico.
-              </p>
-              <div className="flex flex-col gap-3">
-                <a
-                  href="mailto:mesadeservicio@sena.edu.co?cc=jucsendoya@sena.edu.co,lapinilla@sena.edu.co"
-                  onClick={() => setShowSupportRedirect(false)}
-                  className="w-full py-4 bg-sena-green hover:bg-[#2d8500] text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2"
-                >
-                  <Send className="w-5 h-5" />
-                  Enviar correo a Soporte
-                </a>
-                <button
-                  onClick={() => setShowSupportRedirect(false)}
-                  className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold transition-colors"
-                >
-                  Volver al menú
-                </button>
-              </div>
+            <div className="bg-white rounded-[2rem] shadow-2xl max-w-lg w-full p-8 text-center animate-in zoom-in-95 duration-300">
+              <SupportRedirectMessage
+                showBackButton
+                onClose={() => setShowSupportRedirect(false)}
+              />
             </div>
           </div>
         )}
@@ -411,29 +483,8 @@ export default function UserRequestForm({
               />
             </div>
           ) : (
-            <div className="text-center py-12 max-w-lg mx-auto animate-in fade-in zoom-in-95 duration-500">
-              <div className="mx-auto w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                <Monitor className="w-12 h-12 text-sena-green" />
-              </div>
-              <h3 className="text-3xl font-black text-slate-800 mb-6">
-                ¡Gracias por tu confianza!
-              </h3>
-              <p className="text-slate-600 mb-10 text-lg leading-relaxed font-medium">
-                Te informamos que el sistema seguirá funcionando con normalidad
-                para la <strong>reserva de Auditorio y Biblioteca</strong>.
-                <br />
-                <br />A partir de ahora, los casos de servicio técnico se
-                manejarán directamente por correo electrónico.
-              </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <a
-                  href="mailto:mesadeservicio@sena.edu.co?cc=jucsendoya@sena.edu.co,lapinilla@sena.edu.co"
-                  className="w-full sm:w-auto px-8 py-4 bg-sena-green hover:bg-[#2d8500] text-white rounded-2xl font-black shadow-lg shadow-green-900/20 transition-all flex items-center justify-center gap-3 hover:scale-105"
-                >
-                  <Send className="w-5 h-5" />
-                  Enviar correo a Soporte
-                </a>
-              </div>
+            <div className="py-12">
+              <SupportRedirectMessage />
             </div>
           )}
         </div>
