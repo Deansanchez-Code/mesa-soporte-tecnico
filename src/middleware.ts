@@ -41,7 +41,9 @@ export async function middleware(request: NextRequest) {
     frame-ancestors 'none';
     block-all-mixed-content;
     upgrade-insecure-requests;
-  `;
+  `
+    .replace(/\s{2,}/g, " ")
+    .trim();
 
   // Apply headers to the response (whether it came from updateSession or next())
   const finalResponse = response || NextResponse.next();

@@ -63,7 +63,7 @@ const SupportRedirectMessage = ({
 
         <div className="grid grid-cols-2 gap-3">
           <a
-            href="https://outlook.office.com/mail/deeplink/compose?to=mesadeservicio@sena.edu.co&cc=jucsendoya@sena.edu.co,lapinilla@sena.edu.co&subject=Solicitud%20Soporte%20T%C3%A9cnico"
+            href="https://outlook.office.com/mail/deeplink/compose?to=mesadeservicio@sena.edu.co&cc=jucsendoya@sena.edu.co;lapinilla@sena.edu.co&subject=Solicitud%20Soporte%20T%C3%A9cnico"
             target="_blank"
             rel="noopener noreferrer"
             onClick={onClose}
