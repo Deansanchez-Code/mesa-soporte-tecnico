@@ -28,30 +28,26 @@ export async function middleware(request: NextRequest) {
   // Content Security Policy (CSP)
   // Note: 'unsafe-inline' and 'unsafe-eval' are currently allowed for Next.js hydration and some libraries.
   // Ideally, we would use nonces, but that requires more complex setup with Next.js App Router.
-  const cspHeader = `
-    default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com;
-    style-src 'self' 'unsafe-inline';
-    img-src 'self' blob: data: https://*.supabase.co https://*.supabase.in;
-    font-src 'self';
-    connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in;
-    object-src 'none';
-    base-uri 'self';
-    form-action 'self';
-    frame-ancestors 'none';
-    block-all-mixed-content;
-    upgrade-insecure-requests;
-  `
-    .replace(/\s{2,}/g, " ")
-    .trim();
+  const supabaseUrl = "ukoqpikpqzffqieomaoo.supabase.co";
+  const cspHeader = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' blob: data: https://*.supabase.co https://*.supabase.in",
+    "font-src 'self'",
+    `connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://${supabaseUrl} wss://${supabaseUrl}`,
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "block-all-mixed-content",
+    "upgrade-insecure-requests",
+  ].join("; ");
 
   // Apply headers to the response (whether it came from updateSession or next())
   const finalResponse = response || NextResponse.next();
 
-  finalResponse.headers.set(
-    "Content-Security-Policy",
-    cspHeader.replace(/\s{2,}/g, " ").trim(),
-  );
+  finalResponse.headers.set("Content-Security-Policy", cspHeader);
 
   finalResponse.headers.set("X-Content-Type-Options", "nosniff");
   finalResponse.headers.set("X-Frame-Options", "DENY");
