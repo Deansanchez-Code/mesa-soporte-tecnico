@@ -10,7 +10,6 @@ import {
   AlertTriangle,
   Calendar,
   ArrowLeft,
-  ArrowRight,
   Activity,
   Search,
   Check,
@@ -145,6 +144,7 @@ export default function UserRequestForm({
   };
 
   const [showPanicModal, setShowPanicModal] = useState(false);
+  const [showSupportRedirect, setShowSupportRedirect] = useState(false);
   const [selectedReservationSpace, setSelectedReservationSpace] = useState<
     "1" | "2" | "3"
   >("1");
@@ -209,7 +209,7 @@ export default function UserRequestForm({
             </div>
 
             <button
-              onClick={() => handleViewChange("TICKET")}
+              onClick={() => setShowSupportRedirect(true)}
               className="group relative bg-white p-10 rounded-[2.5rem] shadow-sm hover:shadow-2xl border-2 border-slate-100 hover:border-sena-green transition-all duration-500 flex flex-col items-center text-center gap-6 h-full min-h-[420px] justify-center overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-48 h-48 bg-green-50 rounded-full -mr-24 -mt-24 group-hover:scale-150 transition-transform duration-700 opacity-40 blur-2xl" />
@@ -228,7 +228,7 @@ export default function UserRequestForm({
               </div>
 
               <div className="mt-6 flex items-center gap-3 text-sena-green font-black text-sm opacity-0 group-hover:opacity-100 transition-all translate-y-4 group-hover:translate-y-0 duration-500 bg-green-50 px-6 py-2 rounded-full border border-green-100">
-                GENERAR TICKET <ArrowRight className="w-4 h-4" />
+                CONTACTAR SOPORTE <Send className="w-4 h-4 ml-1" />
               </div>
             </button>
           </div>
@@ -370,6 +370,45 @@ export default function UserRequestForm({
             onCancel={() => setShowPanicModal(false)}
             onSuccess={onCancel}
           />
+        )}
+
+        {/* Modal Redirección Soporte */}
+        {showSupportRedirect && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-white rounded-[2rem] shadow-2xl max-w-md w-full p-8 text-center animate-in zoom-in-95 duration-300">
+              <div className="mx-auto w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6">
+                <Monitor className="w-10 h-10 text-sena-green" />
+              </div>
+              <h3 className="text-2xl font-black text-slate-800 mb-4">
+                ¡Gracias por tu confianza!
+              </h3>
+              <p className="text-slate-600 mb-8 leading-relaxed font-medium">
+                Agradecemos la confianza depositada en el uso del desarrollo del
+                aplicativo. Te informamos que el sistema seguirá funcionando con
+                normalidad para la{" "}
+                <strong>reserva de Auditorio y Biblioteca</strong>.
+                <br />
+                <br />A partir de ahora, los casos de servicio técnico se
+                manejarán directamente por correo electrónico.
+              </p>
+              <div className="flex flex-col gap-3">
+                <a
+                  href="mailto:mesadeservicio@sena.edu.co"
+                  onClick={() => setShowSupportRedirect(false)}
+                  className="w-full py-4 bg-sena-green hover:bg-[#2d8500] text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2"
+                >
+                  <Send className="w-5 h-5" />
+                  Enviar correo a Soporte
+                </a>
+                <button
+                  onClick={() => setShowSupportRedirect(false)}
+                  className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold transition-colors"
+                >
+                  Volver al menú
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     );
