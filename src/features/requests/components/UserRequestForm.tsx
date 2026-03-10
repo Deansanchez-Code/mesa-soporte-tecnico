@@ -3,121 +3,32 @@
 import { useEffect, useState } from "react";
 import {
   Monitor,
-  Cpu,
-  MapPin,
   Send,
-  Loader2,
-  AlertTriangle,
   Calendar,
   ArrowLeft,
-  Activity,
-  Search,
-  Check,
-  X,
   CalendarRange,
-  MessageSquare,
   Book, // Added Book icon
 } from "lucide-react";
 import PanicButtonModal from "./PanicButtonModal";
 import LibraryApprovalModal from "@/features/reservations/components/LibraryApprovalModal";
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
 import AssignmentManager from "@/features/assignments/components/AssignmentManager";
-import { useTicketRequest } from "./hooks/useTicketRequest";
-import { User, Asset } from "./types";
-
-interface AssetCardProps {
-  asset: Asset;
-  selected: boolean;
-  onSelect: () => void;
-}
-
-function AssetCard({ asset, selected, onSelect }: AssetCardProps) {
-  return (
-    <div
-      onClick={onSelect}
-      className={`flex items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
-        selected
-          ? "border-sena-orange bg-orange-50 ring-1 ring-sena-orange"
-          : "border-gray-200 hover:border-gray-300"
-      }`}
-    >
-      <div
-        className={`w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center ${
-          selected ? "border-sena-orange bg-sena-orange" : "border-gray-300"
-        }`}
-      >
-        {selected && <div className="w-2 h-2 bg-white rounded-full" />}
-      </div>
-      <div>
-        <p className="text-sm font-bold text-gray-800">
-          {asset.type} {asset.brand}
-        </p>
-        <p className="text-xs text-gray-500 font-mono">
-          SN: {asset.serial_number}
-        </p>
-        {asset.location && (
-          <p className="text-[10px] text-sena-blue mt-1 flex items-center gap-1">
-            <MapPin className="w-3 h-3" /> {asset.location}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
+import { User } from "./types";
 
 export default function UserRequestForm({
   user,
   onCancel,
-  initialLocation,
   onViewChange,
   currentView,
 }: {
   user: User;
   onCancel: () => void;
-  initialLocation?: string;
   onViewChange?: (
     view: "SELECTION" | "TICKET" | "RESERVATION" | "AVAILABILITY",
   ) => void;
   currentView?: "SELECTION" | "TICKET" | "RESERVATION" | "AVAILABILITY";
 }) {
-  // Use the new custom hook
-  const {
-    // Data
-    assets,
-    locationAssets,
-    areas,
-    categoryGroups,
-    activeOutage,
-
-    // Form State
-    category,
-    setCategory,
-    selectedAsset,
-    setSelectedAsset,
-    manualSerial,
-    setManualSerial,
-    description,
-    setDescription,
-    location,
-    setLocation,
-    isSubmitting,
-    isLocationLocked,
-
-    // Search / Validation
-    showSuggestions,
-    setShowSuggestions,
-    suggestions,
-    isValidSerial,
-    setIsValidSerial,
-    isSearching,
-
-    // Handlers
-    handleSubmitTicket,
-  } = useTicketRequest({
-    user,
-    initialLocation,
-    onSuccess: onCancel,
-  });
+  // User Request Request Hook logic is removed as Ticket feature is disabled
 
   // VISTA ACTUAL: 'SELECTION' | 'TICKET' | 'RESERVATION' | 'AVAILABILITY'
   const [view, setView] = useState<
@@ -500,355 +411,30 @@ export default function UserRequestForm({
               />
             </div>
           ) : (
-            <form onSubmit={handleSubmitTicket} className="space-y-8">
-              {/* ALERTA DE FALLA MASIVA */}
-              {activeOutage && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg shadow-sm animate-in slide-in-from-top-2">
-                  <div className="flex items-start">
-                    <AlertTriangle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
-                    <div className="ml-3">
-                      <h3 className="text-sm font-bold text-yellow-800">
-                        {activeOutage?.title}
-                      </h3>
-                      <p className="mt-1 text-sm text-yellow-700">
-                        {activeOutage?.description}
-                      </p>
-                      <p className="mt-2 text-xs font-bold text-yellow-800">
-                        🔧 Ya estamos trabajando en ello.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SELECCIÓN DE CATEGORÍA DINÁMICA */}
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-3">
-                  1. ¿Qué tipo de problema tienes?
-                </label>
-
-                <div className="space-y-4">
-                  {Object.entries(categoryGroups).map(([groupName, items]) => (
-                    <div
-                      key={groupName}
-                      className="bg-gray-50 p-4 rounded-xl border border-gray-100"
-                    >
-                      <h3 className="font-bold text-gray-600 mb-3 uppercase text-xs flex items-center gap-2">
-                        {groupName === "Hardware" ? (
-                          <Cpu className="w-4 h-4" />
-                        ) : groupName === "Software" ? (
-                          <Activity className="w-4 h-4" />
-                        ) : (
-                          <Monitor className="w-4 h-4" />
-                        )}
-                        {groupName}
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {items.map((itemStr) => {
-                          const displayLabel = itemStr.includes(": ")
-                            ? itemStr.split(": ")[1]
-                            : itemStr;
-                          return (
-                            <button
-                              key={itemStr}
-                              type="button"
-                              onClick={() => setCategory(itemStr)}
-                              className={`p-3 rounded-lg border text-left text-sm font-medium transition-all ${
-                                category === itemStr
-                                  ? "border-sena-green bg-green-100 text-sena-green ring-1 ring-sena-green"
-                                  : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-100"
-                              }`}
-                            >
-                              {displayLabel}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <div className="text-center py-12 max-w-lg mx-auto animate-in fade-in zoom-in-95 duration-500">
+              <div className="mx-auto w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                <Monitor className="w-12 h-12 text-sena-green" />
               </div>
-
-              {/* SELECCIÓN DE ACTIVO */}
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-3">
-                  2. ¿Cuál equipo presenta la falla?
-                </label>
-
-                {/* MIS ACTIVOS Y ACTIVOS DE UBICACIÓN */}
-                {(assets.length > 0 || locationAssets.length > 0) && (
-                  <div className="mb-4 space-y-4 animate-in fade-in duration-300">
-                    {assets.length > 0 && (
-                      <div>
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">
-                          Mis Equipos Asignados
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {assets.map((asset) => (
-                            <AssetCard
-                              key={asset.id}
-                              asset={asset}
-                              selected={selectedAsset === asset.serial_number}
-                              onSelect={() => {
-                                setSelectedAsset(asset.serial_number);
-                                setManualSerial("");
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {locationAssets.length > 0 && (
-                      <div>
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">
-                          Equipos en {location}
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {locationAssets.map((asset) => (
-                            <AssetCard
-                              key={asset.id}
-                              asset={asset}
-                              selected={selectedAsset === asset.serial_number}
-                              onSelect={() => {
-                                setSelectedAsset(asset.serial_number);
-                                setManualSerial("");
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* CAMPO MANUAL DE SERIAL */}
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 relative">
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                    {user.role === "contractor" || user.role === "external"
-                      ? "Serial del Equipo (Obligatorio)"
-                      : "Serial del Equipo (Si no aparece arriba)"}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={manualSerial}
-                      onChange={(e) => {
-                        setManualSerial(e.target.value);
-                        setIsValidSerial(false);
-                        if (e.target.value) setSelectedAsset("");
-                      }}
-                      onFocus={() => {
-                        if (manualSerial && suggestions.length > 0)
-                          setShowSuggestions(true);
-                      }}
-                      onBlur={() => {
-                        setTimeout(() => setShowSuggestions(false), 200);
-                      }}
-                      placeholder="Escribe para buscar serial..."
-                      className={`w-full pl-10 pr-10 py-2 border rounded-lg outline-none focus:ring-2 transition ${
-                        isValidSerial
-                          ? "border-green-500 focus:ring-green-200 bg-green-50"
-                          : manualSerial && !isSearching
-                            ? "border-red-300 focus:ring-red-200"
-                            : "border-gray-300 focus:ring-sena-green"
-                      }`}
-                    />
-                    <div className="absolute left-3 top-2.5 text-gray-400">
-                      {isSearching ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <Search className="w-5 h-5" />
-                      )}
-                    </div>
-                    <div className="absolute right-3 top-2.5">
-                      {isValidSerial ? (
-                        <Check className="w-5 h-5 text-green-600" />
-                      ) : manualSerial && !isSearching ? (
-                        <X className="w-5 h-5 text-red-400" />
-                      ) : null}
-                    </div>
-
-                    {showSuggestions && suggestions.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {suggestions.map((asset) => (
-                          <button
-                            key={asset.id}
-                            type="button"
-                            onClick={() => {
-                              setManualSerial(asset.serial_number);
-                              setIsValidSerial(true);
-                              setShowSuggestions(false);
-                              setSelectedAsset("");
-                            }}
-                            className="w-full text-left px-4 py-2 hover:bg-gray-50 flex flex-col border-b border-gray-100 last:border-0"
-                          >
-                            <span className="font-bold text-sm text-gray-800">
-                              {asset.serial_number}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {asset.type} - {asset.brand} {asset.model}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-1 min-h-5">
-                    {manualSerial && !isValidSerial && !isSearching ? (
-                      <p className="text-[10px] text-red-500 font-bold flex items-center gap-1">
-                        <X className="w-3 h-3" /> Serial no encontrado en la
-                        base de datos.
-                      </p>
-                    ) : user.employment_type === "planta" &&
-                      !isValidSerial &&
-                      !selectedAsset ? (
-                      <p className="text-[10px] text-sena-orange font-medium animate-pulse">
-                        * Funcionarios de planta deben seleccionar un equipo
-                        SENA asignado.
-                      </p>
-                    ) : (user.role === "contractor" ||
-                        user.role === "external") &&
-                      !isValidSerial &&
-                      !selectedAsset ? (
-                      <p className="text-[10px] text-gray-400">
-                        * Opcional: Ingrese el serial si el equipo es SENA.
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              {/* DESCRIPCIÓN */}
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-3">
-                  4. Describe detalladamente el problema{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute left-4 top-3.5 text-gray-400">
-                    <MessageSquare className="w-5 h-5" />
-                  </div>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Ej: El equipo no enciende después de un bajón de energía, o el internet está intermitente..."
-                    rows={4}
-                    className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-4 focus:ring-green-50 outline-none transition-all font-medium text-gray-700 bg-white resize-none ${
-                      !description && isSubmitting
-                        ? "border-red-300"
-                        : "border-gray-200 focus:border-sena-green hover:border-sena-green"
-                    }`}
-                  />
-                  {description.length > 0 && description.length < 10 && (
-                    <p className="text-[10px] text-orange-500 mt-1 font-bold">
-                      Mínimo 10 caracteres para una mejor atención.
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* UBICACIÓN */}
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-3">
-                  3. ¿Dónde te encuentras?{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <MapPin className="absolute left-4 top-3.5 text-gray-400 w-5 h-5" />
-                  <select
-                    id="location-input"
-                    value={location}
-                    disabled={isLocationLocked}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-4 focus:ring-green-50 outline-none transition-all font-medium text-gray-700 bg-white appearance-none cursor-pointer ${
-                      !location && isSubmitting
-                        ? "border-red-300"
-                        : isLocationLocked
-                          ? "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed"
-                          : "border-gray-200 focus:border-sena-green hover:border-sena-green"
-                    }`}
-                  >
-                    <option value="">Seleccione una ubicación...</option>
-                    {areas.map((area, index) => (
-                      <option key={index} value={area}>
-                        {area}
-                      </option>
-                    ))}
-                  </select>
-
-                  {!isLocationLocked && (
-                    <div className="absolute right-4 top-3.5 text-gray-400 pointer-events-none">
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
-                    </div>
-                  )}
-
-                  {isLocationLocked && (
-                    <div
-                      className="absolute right-4 top-3.5 text-gray-400"
-                      title="Ubicación fija del equipo"
-                    >
-                      <Loader2 className="w-5 h-5 animate-spin hidden" /> 🔒
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* BOTONES DE ACCIÓN */}
-              <div className="pt-4 flex gap-4">
-                <button
-                  type="button"
-                  onClick={() => setView("SELECTION")}
-                  className="px-6 py-3 border border-gray-300 rounded-xl text-gray-600 font-bold hover:bg-gray-50 transition"
+              <h3 className="text-3xl font-black text-slate-800 mb-6">
+                ¡Gracias por tu confianza!
+              </h3>
+              <p className="text-slate-600 mb-10 text-lg leading-relaxed font-medium">
+                Te informamos que el sistema seguirá funcionando con normalidad
+                para la <strong>reserva de Auditorio y Biblioteca</strong>.
+                <br />
+                <br />A partir de ahora, los casos de servicio técnico se
+                manejarán directamente por correo electrónico.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a
+                  href="mailto:mesadeservicio@sena.edu.co"
+                  className="w-full sm:w-auto px-8 py-4 bg-sena-green hover:bg-[#2d8500] text-white rounded-2xl font-black shadow-lg shadow-green-900/20 transition-all flex items-center justify-center gap-3 hover:scale-105"
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={
-                    isSubmitting ||
-                    !location ||
-                    description.length < 10 ||
-                    (user.employment_type === "planta" &&
-                      !selectedAsset &&
-                      !isValidSerial)
-                  }
-                  className={`w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-white shadow-lg shadow-green-900/20 transition-all flex items-center justify-center gap-2 ${
-                    isSubmitting ||
-                    !location ||
-                    (user.employment_type === "planta" &&
-                      !selectedAsset &&
-                      !isValidSerial)
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-sena-green hover:bg-[#2d8500] hover:scale-105"
-                  }`}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      ENVIAR SOLICITUD <Send className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+                  <Send className="w-5 h-5" />
+                  Enviar correo a Soporte
+                </a>
               </div>
-            </form>
+            </div>
           )}
         </div>
       </div>
