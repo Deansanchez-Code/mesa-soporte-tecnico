@@ -1,0 +1,127 @@
+
+> mesa-soporte-tecnico@0.1.0 lint D:\mesa-soporte-tecnico
+> eslint
+
+
+D:\mesa-soporte-tecnico\.agent\get-shit-done\bin\gsd-tools.cjs
+  129:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  130:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  131:19  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  132:15  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  133:15  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  134:17  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  135:16  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  136:16  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  137:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  138:19  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  139:18  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  140:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  141:21  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\.agent\get-shit-done\bin\lib\commands.cjs
+    4:12   error    A `require()` style import is forbidden            @typescript-eslint/no-require-imports
+    5:14   error    A `require()` style import is forbidden            @typescript-eslint/no-require-imports
+    6:9    warning  'execSync' is assigned a value but never used      @typescript-eslint/no-unused-vars
+    6:22   error    A `require()` style import is forbidden            @typescript-eslint/no-require-imports
+    7:9    warning  'safeReadFile' is assigned a value but never used  @typescript-eslint/no-unused-vars
+    7:278  error    A `require()` style import is forbidden            @typescript-eslint/no-require-imports
+    8:32   error    A `require()` style import is forbidden            @typescript-eslint/no-require-imports
+    9:28   error    A `require()` style import is forbidden            @typescript-eslint/no-require-imports
+  181:18   warning  'e' is defined but never used                      @typescript-eslint/no-unused-vars
+  385:9    warning  'roadmapPath' is assigned a value but never used   @typescript-eslint/no-unused-vars
+
+D:\mesa-soporte-tecnico\.agent\get-shit-done\bin\lib\config.cjs
+   5:12  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   6:14  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   7:27  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  12:5   error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  62:19  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  82:12  warning  'err' is defined but never used          @typescript-eslint/no-unused-vars
+
+D:\mesa-soporte-tecnico\.agent\get-shit-done\bin\lib\core.cjs
+   5:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   6:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   7:33  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   8:28  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  27:33  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\.agent\get-shit-done\bin\lib\frontmatter.cjs
+  5:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  6:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  7:41  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\.agent\get-shit-done\bin\lib\init.cjs
+    5:12   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+    6:14   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+    7:22   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+    8:247  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  166:19   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\.agent\get-shit-done\bin\lib\milestone.cjs
+  5:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  6:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  7:65  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  8:32  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  9:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\.agent\get-shit-done\bin\lib\phase.cjs
+    5:12   error    A `require()` style import is forbidden            @typescript-eslint/no-require-imports
+    6:14   error    A `require()` style import is forbidden            @typescript-eslint/no-require-imports
+    7:229  error    A `require()` style import is forbidden            @typescript-eslint/no-require-imports
+    8:32   error    A `require()` style import is forbidden            @typescript-eslint/no-require-imports
+    9:26   error    A `require()` style import is forbidden            @typescript-eslint/no-require-imports
+  218:7    warning  'phaseDirName' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  711:9    warning  'normalized' is assigned a value but never used    @typescript-eslint/no-unused-vars
+
+D:\mesa-soporte-tecnico\.agent\get-shit-done\bin\lib\roadmap.cjs
+  5:12   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  6:14   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  7:130  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\.agent\get-shit-done\bin\lib\state.cjs
+  5:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  6:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  7:95  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  8:56  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\.agent\get-shit-done\bin\lib\template.cjs
+  5:12   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  6:14   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  7:101  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  8:36   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\.agent\get-shit-done\bin\lib\verify.cjs
+   5:12   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   6:14   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   7:12   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   8:131  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   9:53   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  10:26   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\.agent\hooks\gsd-check-update.js
+  5:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  6:14  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  7:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  8:19  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\mesa-soporte-tecnico\.agent\hooks\gsd-context-monitor.js
+   20:12  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   21:12  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   22:14  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   55:16  warning  'e' is defined but never used            @typescript-eslint/no-unused-vars
+   93:16  warning  'e' is defined but never used            @typescript-eslint/no-unused-vars
+  151:12  warning  'e' is defined but never used            @typescript-eslint/no-unused-vars
+
+D:\mesa-soporte-tecnico\.agent\hooks\gsd-statusline.js
+    5:12  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+    6:14  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+    7:12  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+   47:18  warning  'e' is defined but never used            @typescript-eslint/no-unused-vars
+   86:20  warning  'e' is defined but never used            @typescript-eslint/no-unused-vars
+   88:16  warning  'e' is defined but never used            @typescript-eslint/no-unused-vars
+  102:16  warning  'e' is defined but never used            @typescript-eslint/no-unused-vars
+  112:12  warning  'e' is defined but never used            @typescript-eslint/no-unused-vars
+
+Ô£û 89 problems (74 errors, 15 warnings)
+
+ÔÇëELIFECYCLEÔÇë Command failed with exit code 1.

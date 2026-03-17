@@ -10,7 +10,7 @@
 - Playwright 1.58.2 (para E2E)
 - Configuración: `vitest.config.ts` y `playwright.config.ts` en la raíz del proyecto.
 
-## Librería de Aserciones:
+## Librería de Aserciones
 
 - `expect` integrado de Vitest.
 - Emparejadores (Matchers): emparejadores estándar compatibles con Jest (`toBe`, `toEqual`, `toThrow`).

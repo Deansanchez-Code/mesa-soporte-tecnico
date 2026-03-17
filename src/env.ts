@@ -15,11 +15,24 @@ const publicEnvSchema = z.object({
     .default("development"),
 });
 
-const serverEnvSchema = z.object({
-  SMTP_USER: z.string().min(1).optional(),
-  SMTP_PASS: z.string().min(1).optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
-});
+const serverEnvSchema = z
+  .object({
+    SMTP_USER: z.string().min(1).optional(),
+    SMTP_PASS: z.string().min(1).optional(),
+    SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  })
+  .refine(
+    (data) => {
+      if (process.env.NODE_ENV === "production") {
+        return !!data.SMTP_USER && !!data.SMTP_PASS;
+      }
+      return true;
+    },
+    {
+      message: "SMTP_USER and SMTP_PASS are required in production",
+      path: ["SMTP_USER"],
+    },
+  );
 
 const isServer = typeof window === "undefined";
 
