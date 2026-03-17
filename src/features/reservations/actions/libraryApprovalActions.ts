@@ -142,8 +142,9 @@ export async function approveLibraryReservation(id: number) {
           date: new Date(reservation.start_time).toLocaleDateString("es-CO", {
             day: "numeric",
             month: "long",
+            timeZone: "America/Bogota",
           }),
-          timeRange: `${new Date(reservation.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${new Date(reservation.end_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`,
+          timeRange: `${new Date(reservation.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })} - ${new Date(reservation.end_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })}`,
           specialRequirements: reservation.description || "Ninguno",
           type: "APPROVED",
         }),
@@ -155,7 +156,7 @@ export async function approveLibraryReservation(id: number) {
       {
         user_id: reservation.user_id,
         title: "Reserva Aprobada ✅",
-        message: `Tu reserva de biblioteca "${reservation.title}" para el ${new Date(reservation.start_time).toLocaleDateString("es-CO")} ha sido autorizada.`,
+        message: `Tu reserva de biblioteca "${reservation.title}" para el ${new Date(reservation.start_time).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })} ha sido autorizada.`,
       },
     ]);
 
@@ -209,7 +210,9 @@ export async function cancelLibraryReservation(id: number, reason: string) {
       react: LibraryNotification({
         requesterName: user.full_name,
         eventTitle: `CANCELADA: ${reservation.title}`,
-        date: new Date(reservation.start_time).toLocaleDateString("es-CO"),
+        date: new Date(reservation.start_time).toLocaleDateString("es-CO", {
+          timeZone: "America/Bogota",
+        }),
         timeRange: "N/A",
         specialRequirements: `Motivo de la cancelación: ${reason}`,
         type: "CANCELLED",
@@ -262,7 +265,9 @@ export async function requestModificationAction(
       react: LibraryNotification({
         requesterName: user.full_name,
         eventTitle: `MODIFICACIÓN REQUERIDA: ${reservation.title}`,
-        date: new Date(reservation.start_time).toLocaleDateString("es-CO"),
+        date: new Date(reservation.start_time).toLocaleDateString("es-CO", {
+          timeZone: "America/Bogota",
+        }),
         timeRange: "Revisar Sugerencia",
         specialRequirements: suggestion,
         type: "MODIFICATION_SUGGESTED",

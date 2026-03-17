@@ -45,12 +45,12 @@ export const LibraryNotification = ({
       : "#00324D";
 
   const title = isCancellation
-    ? "RESERVA CANCELADA"
+    ? "Reserva Cancelada"
     : isApproval
-      ? "RESERVA APROBADA"
+      ? "Reserva Confirmada"
       : isModification
-        ? "SUGERENCIA DE MODIFICACIÓN"
-        : "NUEVA SOLICITUD DE RESERVA";
+        ? "Sugerencia de Modificación"
+        : "Solicitud de Reserva";
 
   return (
     <Html>
@@ -62,35 +62,48 @@ export const LibraryNotification = ({
           <Section style={{ ...headerBar, backgroundColor: statusColor }} />
           <Section style={logoSection}>
             <Heading style={senaLogoText}>SENA</Heading>
-            <Text style={subLogoText}>Biblioteca - Mesa de Ayuda</Text>
+            <Text style={subLogoText}>Mesa de Ayuda TIC</Text>
           </Section>
 
           {/* CONTENIDO PRINCIPAL */}
           <Section style={content}>
-            <Heading style={{ ...h1, color: statusColor }}>{title}</Heading>
+            <Heading style={h1}>{title}</Heading>
+            <Text style={text}>
+              Respetado(a) <strong>{requesterName}</strong>,
+            </Text>
 
             <Text style={text}>
               {type === "NEW_REQUEST" || type === "VIP_AUTOMATIC" ? (
                 <>
-                  Notificación detallada sobre la reserva de{" "}
-                  <strong>{requesterName}</strong> en Biblioteca:
+                  Se ha generado una solicitud de reserva de espacio en la
+                  Biblioteca. A continuación, le detallamos la información
+                  correspondiente a su evento:
+                </>
+              ) : isCancellation ? (
+                <>
+                  Le informamos que su reserva de espacio en la biblioteca ha
+                  sido cancelada. A continuación, le detallamos la información
+                  de la actividad:
+                </>
+              ) : isApproval ? (
+                <>
+                  Nos complace informarle que su solicitud de reserva de espacio
+                  en la biblioteca ha sido procesada de manera exitosa. A
+                  continuación, le detallamos la información correspondiente a
+                  su evento:
                 </>
               ) : (
                 <>
-                  Hola <strong>{requesterName}</strong>,<br />
-                  <br />
-                  {isCancellation
-                    ? "Tu reserva en la biblioteca ha sido cancelada."
-                    : isApproval
-                      ? "Tu solicitud de reserva en la biblioteca ha sido aprobada."
-                      : "Se ha sugerido una modificación para tu reserva en la biblioteca."}
+                  Le informamos que se ha sugerido una modificación para su
+                  reserva en la biblioteca. A continuación, le detallamos la
+                  información correspondiente:
                 </>
               )}
             </Text>
 
             {/* DATA CARD */}
             <Section style={card}>
-              <Text style={cardLabel}>ACTIVIDAD</Text>
+              <Text style={cardLabel}>EVENTO</Text>
               <Text style={cardValue}>{eventTitle}</Text>
 
               <Hr style={divider} />
@@ -109,7 +122,7 @@ export const LibraryNotification = ({
                 specialRequirements.trim().toLowerCase() !== "ninguno" && (
                   <>
                     <Hr style={divider} />
-                    <Text style={{ ...cardLabel, color: statusColor }}>
+                    <Text style={cardLabel}>
                       {isModification
                         ? "SUGERENCIA / COMENTARIOS"
                         : isCancellation
@@ -121,11 +134,7 @@ export const LibraryNotification = ({
                 )}
             </Section>
 
-            <Text style={footerText}>
-              Para más detalles o para gestionar tus solicitudes, ingresa a la
-              plataforma.
-            </Text>
-
+            {/* CTA ACCIONES */}
             <Section style={buttonContainer}>
               <Button
                 style={{ ...button, backgroundColor: statusColor }}
@@ -134,14 +143,29 @@ export const LibraryNotification = ({
                 Ir a Mesa de Ayuda
               </Button>
             </Section>
+
+            <Text style={signatureText}>
+              Cordialmente,
+              <br />
+              <br />
+              <strong>Mesa de Servicios TIC</strong>
+              <br />
+              Centro Agroempresarial y Desarrollo Pecuario del Huila
+              <br />
+              Servicio Nacional de Aprendizaje - SENA
+            </Text>
+
+            <Text style={footerText}>
+              Si necesita realizar modificaciones o consultar el estado de su
+              solicitud, le invitamos a ingresar a la plataforma.
+            </Text>
           </Section>
 
           {/* FOOTER */}
           <Section style={footer}>
             <Text style={footerLegal}>
-              Servicio Nacional de Aprendizaje - SENA
-              <br />
-              Este es un correo automático, por favor no responder.
+              Este es un correo generado automáticamente por el sistema Smart
+              Dispatch. Por favor, no responda a este mensaje.
             </Text>
           </Section>
         </Container>
@@ -203,6 +227,7 @@ const content = {
 };
 
 const h1 = {
+  color: "#00324D",
   fontSize: "24px",
   fontWeight: "bold",
   margin: "0 0 16px",
@@ -266,6 +291,14 @@ const button = {
   textAlign: "center" as const,
   display: "inline-block",
   padding: "12px 24px",
+};
+
+const signatureText = {
+  color: "#525f7f",
+  fontSize: "14px",
+  lineHeight: "22px",
+  textAlign: "left" as const,
+  marginTop: "32px",
 };
 
 const footerText = {

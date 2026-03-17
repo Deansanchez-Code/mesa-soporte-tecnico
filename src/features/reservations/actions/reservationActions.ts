@@ -96,7 +96,7 @@ export async function cancelReservationAction(reservationId: number) {
         {
           user_id: reservation.user_id,
           title: "Reserva Cancelada por Prioridad",
-          message: `Tu reserva "${reservation.title}" para el ${new Date(reservation.start_time).toLocaleString()} ha sido cancelada por un usuario VIP.`,
+          message: `Tu reserva "${reservation.title}" para el ${new Date(reservation.start_time).toLocaleString("es-CO", { timeZone: "America/Bogota" })} ha sido cancelada por un usuario VIP.`,
         },
       ]);
 
@@ -129,6 +129,7 @@ export async function cancelReservationAction(reservationId: number) {
           if (recipientEmail && recipientEmail.includes("@")) {
             const dateStr = new Date(reservation.start_time).toLocaleDateString(
               "es-CO",
+              { timeZone: "America/Bogota" },
             );
 
             // 1. Notify Victim
@@ -394,8 +395,9 @@ export async function createReservationAction(
           year: "numeric",
           month: "long",
           day: "numeric",
+          timeZone: "America/Bogota",
         });
-        const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
+        const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })}`;
 
         const durationHours =
           (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
