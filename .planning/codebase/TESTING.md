@@ -1,87 +1,87 @@
-# Testing Patterns
+# Patrones de Pruebas
 
-**Analysis Date:** 2026-03-17
+**Fecha de Análisis:** 2026-03-17
 
-## Test Framework
+## Framework de Pruebas
 
-**Runner:**
+**Ejecutor (Runner):**
 
 - Vitest 4.0.18
-- Playwright 1.58.2 (for E2E)
-- Config: `vitest.config.ts` and `playwright.config.ts` in project root.
+- Playwright 1.58.2 (para E2E)
+- Configuración: `vitest.config.ts` y `playwright.config.ts` en la raíz del proyecto.
 
-**Assertion Library:**
+## Librería de Aserciones:
 
-- Vitest built-in `expect`.
-- Matchers: standard Jest-compatible matchers (`toBe`, `toEqual`, `toThrow`).
+- `expect` integrado de Vitest.
+- Emparejadores (Matchers): emparejadores estándar compatibles con Jest (`toBe`, `toEqual`, `toThrow`).
 
-**Run Commands:**
+**Comandos de Ejecución:**
 
 ```bash
-pnpm test                              # Run all tests in watch mode
-pnpm run test:all                      # Run all tests once
-npx playwright test                    # Run E2E tests
+pnpm test                              # Ejecutar todas las pruebas en modo watch
+pnpm run test:all                      # Ejecutar todas las pruebas una vez
+npx playwright test                    # Ejecutar pruebas E2E
 ```
 
-## Test File Organization
+## Organización de Archivos de Prueba
 
-**Location:**
+**Ubicación:**
 
-- Unit/Integration tests: Collocated with source files (e.g., `src/features/tickets/hooks/useTickets.test.ts`).
-- E2E tests: Located in `tests/e2e/`.
+- Pruebas unitarias/de integración: Ubicadas junto a los archivos fuente (ej., `src/features/tickets/hooks/useTickets.test.ts`).
+- Pruebas E2E: Ubicadas en `tests/e2e/`.
 
-**Naming:**
+**Nombres:**
 
-- `*.test.ts` for unit/integration tests.
-- `*.spec.ts` for Playwright E2E tests.
+- `*.test.ts` para pruebas unitarias/de integración.
+- `*.spec.ts` para pruebas E2E de Playwright.
 
-## Test Structure
+## Estructura de las Pruebas
 
-**Suite Organization:**
+**Organización de la Suite:**
 
 ```typescript
 import { describe, it, expect, vi } from "vitest";
 
-describe("FeatureName", () => {
-  it("should perform expected behavior", () => {
-    // arrange
-    // act
-    // assert
+describe("NombreDeLaCaracteristica", () => {
+  it("debe realizar el comportamiento esperado", () => {
+    // organizar (arrange)
+    // actuar (act)
+    // afirmar (assert)
   });
 });
 ```
 
-**Patterns:**
+**Patrones:**
 
-- Use `vi.mock` for mocking external dependencies (e.g., Supabase client).
-- Use `beforeEach` to reset mocks or setup state.
+- Usar `vi.mock` para simular dependencias externas (ej., cliente de Supabase).
+- Usar `beforeEach` para reiniciar simulacros o configurar el estado.
 
-## Mocking
+## Simulacros (Mocking)
 
 **Framework:**
 
-- Vitest built-in `vi` utility.
+- Utilidad `vi` integrada de Vitest.
 
-**What to Mock:**
+**Qué simular:**
 
-- Supabase client and auth calls.
-- External API integrations (e.g., Resend).
-- Navigation and Next.js internal hooks.
+- Llamadas al cliente de Supabase y de autenticación.
+- Integraciones de APIs externas (ej., Resend).
+- Navegación y hooks internos de Next.js.
 
-## Test Types
+## Tipos de Pruebas
 
-**Unit Tests:**
+**Pruebas Unitarias:**
 
-- Focus on individual hooks and logic-heavy services.
-- Located within feature folders.
+- Se centran en hooks individuales y servicios con mucha lógica.
+- Ubicadas dentro de las carpetas de características (features).
 
-**E2E Tests:**
+**Pruebas E2E:**
 
-- Focus on critical user flows (login, ticket creation, dashboard navigation).
-- Uses Playwright to interact with a running instance of the app.
-- Located in `tests/e2e/`.
+- Se centran en flujos críticos de usuario (inicio de sesión, creación de tickets, navegación por el dashboard).
+- Utiliza Playwright para interactuar con una instancia en ejecución de la aplicación.
+- Ubicadas en `tests/e2e/`.
 
 ---
 
-_Testing analysis: 2026-03-17_
-_Update when test patterns change_
+_Análisis de pruebas: 2026-03-17_
+_Actualizar cuando cambien los patrones de prueba_

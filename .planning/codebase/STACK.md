@@ -1,87 +1,87 @@
-# Technology Stack
+# Stack Tecnológico
 
-**Analysis Date:** 2026-03-17
+**Fecha de Análisis:** 2026-03-17
 
-## Languages
+## Lenguajes
 
-**Primary:**
+**Principal:**
 
-- TypeScript 5.9.3 - All application code and type safety.
+- TypeScript 5.9.3 - Todo el código de la aplicación y seguridad de tipos.
 
-**Secondary:**
+**Secundario:**
 
-- JavaScript - Configuration files (`eslint.config.mjs`, `postcss.config.mjs`).
+- JavaScript - Archivos de configuración (`eslint.config.mjs`, `postcss.config.mjs`).
 
-## Runtime
+## Entorno de Ejecución (Runtime)
 
-**Environment:**
+**Ambiente:**
 
-- Node.js (Version managed via pnpm)
-- Browser-based PWA (Progressive Web App)
+- Node.js (Versión gestionada vía pnpm)
+- PWA basada en navegador (Progressive Web App)
 
-**Package Manager:**
+**Gestor de Paquetes:**
 
-- pnpm - Used for dependency management and scripts.
-- Lockfile: `pnpm-lock.yaml` present.
+- pnpm - Utilizado para la gestión de dependencias y scripts.
+- Archivo de bloqueo: `pnpm-lock.yaml` presente.
 
 ## Frameworks
 
 **Core:**
 
-- Next.js 16.1.1 - Application framework and routing (App Router).
-- React 19.2.0 - UI library.
+- Next.js 16.1.1 - Framework de aplicación y enrutamiento (App Router).
+- React 19.2.0 - Librería de UI.
 
-**Testing:**
+**Pruebas (Testing):**
 
-- Vitest 4.0.18 - Unit and integration testing.
-- Playwright 1.58.2 - E2E testing.
+- Vitest 4.0.18 - Pruebas unitarias y de integración.
+- Playwright 1.58.2 - Pruebas E2E.
 
-**Build/Dev:**
+**Construcción/Desarrollo:**
 
-- Tailwind CSS 4.2.1 - Styling framework.
-- TypeScript 5.9.3 - Transpilation and type checking.
-- PostCSS 8.x - CSS processing.
+- Tailwind CSS 4.2.1 - Framework de estilos.
+- TypeScript 5.9.3 - Transpilación y comprobación de tipos.
+- PostCSS 8.x - Procesamiento de CSS.
 
-## Key Dependencies
+## Dependencias Clave
 
-**Critical:**
+**Críticas:**
 
-- @supabase/supabase-js 2.99.0 - Database and authentication client.
-- @supabase/ssr 0.8.0 - Supabase integration for Next.js SSR.
-- @tanstack/react-query 5.90.21 - Data fetching and state management.
-- Zod 4.3.6 - Schema validation.
-- lucide-react 0.563.0 - Icon set.
+- @supabase/supabase-js 2.99.0 - Cliente de base de datos y autenticación.
+- @supabase/ssr 0.8.0 - Integración de Supabase para SSR de Next.js.
+- @tanstack/react-query 5.90.21 - Obtención de datos y gestión de estado.
+- Zod 4.3.6 - Validación de esquemas.
+- lucide-react 0.563.0 - Conjunto de iconos.
 
-**Infrastructure:**
+**Infraestructura:**
 
-- next-pwa 5.6.0 - PWA support.
-- nodemailer 8.0.2 - Email sending (used with React Email).
-- class-variance-authority 0.7.1 - CSS-in-TS utility.
+- next-pwa 5.6.0 - Soporte de PWA.
+- nodemailer 8.0.2 - Envío de correos electrónicos (utilizado con React Email).
+- class-variance-authority 0.7.1 - Utilidad CSS-in-TS.
 
-## Configuration
+## Configuración
 
-**Environment:**
+**Entorno:**
 
-- Configured via `.env` files (loaded by `src/env.ts` with validation).
-- Key configs: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- Configurado vía archivos `.env` (cargados por `src/env.ts` con validación).
+- Configuraciones clave: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 
-**Build:**
+**Construcción:**
 
-- `next.config.ts`, `tsconfig.json`, `tailwind.config.ts` (or equivalent).
+- `next.config.ts`, `tsconfig.json`, `tailwind.config.ts` (o equivalente).
 
-## Platform Requirements
+## Requisitos de la Plataforma
 
-**Development:**
+**Desarrollo:**
 
-- Windows/macOS/Linux with Node.js and pnpm.
-- Supabase project for backend services.
+- Windows/macOS/Linux con Node.js y pnpm.
+- Proyecto de Supabase para servicios de backend.
 
-**Production:**
+**Producción:**
 
-- Deployment target: Vercel (Next.js optimized).
-- Database/Auth: Supabase.
+- Objetivo de despliegue: Vercel (optimizado para Next.js).
+- Base de datos/Autenticación: Supabase.
 
 ---
 
-_Stack analysis: 2026-03-17_
-_Update after major dependency changes_
+_Análisis de stack: 2026-03-17_
+_Actualizar tras cambios importantes en dependencias_

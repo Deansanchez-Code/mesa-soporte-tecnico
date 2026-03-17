@@ -1,65 +1,65 @@
-# Coding Conventions
+# Convenciones de Codificación
 
-**Analysis Date:** 2026-03-17
+**Fecha de Análisis:** 2026-03-17
 
-## Naming Patterns
+## Patrones de Nombres
 
-**Files:**
+**Archivos:**
 
-- `PascalCase.tsx` for React components.
-- `camelCase.ts` for hooks, actions, services, and utilities.
-- `*.test.ts` for Vitest tests.
-- `*.spec.ts` for Playwright tests.
+- `PascalCase.tsx` para componentes de React.
+- `camelCase.ts` para hooks, acciones, servicios y utilidades.
+- `*.test.ts` para pruebas de Vitest.
+- `*.spec.ts` para pruebas de Playwright.
 
-**Functions:**
+**Funciones:**
 
-- `camelCase` for all functions.
-- `use[Name]` for custom React hooks.
-- `[name]Action` for Server Actions (exported from `actions/`).
-- `handle[Event]` for internal event handlers.
+- `camelCase` para todas las funciones.
+- `use[Nombre]` para hooks personalizados de React.
+- `[nombre]Action` para Server Actions (exportadas desde `actions/`).
+- `handle[Evento]` para controladores de eventos internos.
 
 **Variables:**
 
-- `camelCase` for variables and parameters.
-- `UPPER_SNAKE_CASE` for constants and environment variable keys.
+- `camelCase` para variables y parámetros.
+- `UPPER_SNAKE_CASE` para constantes y llaves de variables de entorno.
 
-**Types:**
+**Tipos:**
 
-- `PascalCase` for Interfaces and Types.
-- No `I` prefix for interfaces.
+- `PascalCase` para Interfaces y Tipos.
+- Sin prefijo `I` para interfaces.
 
-## Code Style
+## Estilo de Código
 
-**Formatting:**
+**Formateo:**
 
-- Prettier managed via `.prettierrc` (inferred from `package.json` setup).
-- ESLint for static analysis (`eslint.config.mjs`).
+- Prettier gestionado vía `.prettierrc` (inferido de la configuración de `package.json`).
+- ESLint para análisis estático (`eslint.config.mjs`).
 
-**Import Organization:**
+**Organización de Importaciones:**
 
-- Order: React/Next core -> Third-party libraries -> Path aliases (`@/*`) -> Relative imports.
-- Path aliases: `@/` points to `src/`.
+- Orden: React/Next core -> Librerías de terceros -> Alias de ruta (`@/*`) -> Importaciones relativas.
+- Alias de ruta: `@/` apunta a `src/`.
 
-## Error Handling
+## Manejo de Errores
 
-**Patterns:**
+**Patrones:**
 
-- **Server Actions:** Use `try/catch` blocks.
-- **Validation:** Use Zod schemas (`safeParse`) at the beginning of actions and services.
-- **Utilities:** `handleActionError` and `createActionResponse` from `@/lib/server-action-utils` to standardize responses.
+- **Server Actions:** Usar bloques `try/catch`.
+- **Validación:** Usar esquemas de Zod (`safeParse`) al inicio de acciones y servicios.
+- **Utilidades:** `handleActionError` y `createActionResponse` de `@/lib/server-action-utils` para estandarizar las respuestas.
 
-**Logging:**
+**Registro de Logs (Logging):**
 
-- Use the custom `Logger` class from `@/lib/logger.ts`.
-- Avoid direct `console.log` in production code.
+- Usar la clase personalizada `Logger` de `@/lib/logger.ts`.
+- Evitar `console.log` directos en el código de producción.
 
-## Module Design
+## Diseño de Módulos
 
-- **Feature Encapsulation:** All logic for a domain must stay within its feature folder in `src/features/`.
-- **Public API:** Components and hooks should be the primary exported surface for features.
-- **Server-Only:** Use `"use server"` directive at the top of action files.
+- **Encapsulación de Características (Features):** Toda la lógica de un dominio debe permanecer dentro de su carpeta de característica en `src/features/`.
+- **API Pública:** Los componentes y hooks deben ser la superficie principal exportada de las características.
+- **Solo Servidor:** Usar la directiva `"use server"` al inicio de los archivos de acciones.
 
 ---
 
-_Convention analysis: 2026-03-17_
-_Update when patterns change_
+_Análisis de convenciones: 2026-03-17_
+_Actualizar cuando cambien los patrones_

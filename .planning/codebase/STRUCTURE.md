@@ -1,96 +1,96 @@
-# Codebase Structure
+# Estructura de la Base de Código
 
-**Analysis Date:** 2026-03-17
+**Fecha de Análisis:** 2026-03-17
 
-## Directory Layout
+## Diseño de Directorios
 
 ```
 mesa-soporte-tecnico/
-├── .agent/             # GSD System resources and skills
-├── .planning/          # Project planning and codebase mapping
-├── public/             # Static assets (images, manifest, icons)
-├── src/                # Source code root
-│   ├── app/           # Next.js App Router (pages and layouts)
-│   ├── components/    # Shared/Generic UI components
-│   ├── context/       # Global React Contexts
-│   ├── features/      # Modular business features
-│   ├── hooks/         # Shared React hooks
-│   ├── lib/           # Shared utilities and configurations
-│   └── tests/         # Global test suite
-├── supabase/           # Supabase config and migrations
-└── package.json        # Manifest and dependencies
+├── .agent/             # Recursos y habilidades del sistema GSD
+├── .planning/          # Planificación del proyecto y mapeo de la base de código
+├── public/             # Activos estáticos (imágenes, manifiesto, iconos)
+├── src/                # Raíz del código fuente
+│   ├── app/           # Next.js App Router (páginas y diseños)
+│   ├── components/    # Componentes de UI compartidos/genéricos
+│   ├── context/       # Contextos globales de React
+│   ├── features/      # Características de negocio modulares
+│   ├── hooks/         # Hooks de React compartidos
+│   ├── lib/           # Utilidades y configuraciones compartidas
+│   └── tests/         # Suite de pruebas globales
+├── supabase/           # Configuración y migraciones de Supabase
+└── package.json        # Manifiesto y dependencias
 ```
 
-## Directory Purposes
+## Propósitos de los Directorios
 
 **src/app/:**
 
-- Purpose: Defines the routes and layouts of the application.
-- Contains: `page.tsx`, `layout.tsx`, and route directories.
+- Propósito: Define las rutas y diseños (layouts) de la aplicación.
+- Contiene: `page.tsx`, `layout.tsx` y directorios de rutas.
 
 **src/features/:**
 
-- Purpose: Core logic organized by business domain.
-- Contains: Subdirectories for each feature (e.g., `tickets`, `assets`).
-- Internal Structure:
-  - `actions/`: Server logic for mutations.
-  - `components/`: Feature-specific React components.
-  - `hooks/`: Domain-specific hooks (mostly React Query).
-  - `services/`: Low-level data access logic.
-  - `types.ts`: TypeScript definitions for the feature.
+- Propósito: Lógica central organizada por dominio de negocio.
+- Contiene: Subdirectorios para cada característica (ej., `tickets`, `assets`).
+- Estructura Interna:
+  - `actions/`: Lógica de servidor para mutaciones.
+  - `components/`: Componentes de React específicos de la característica.
+  - `hooks/`: Hooks específicos del dominio (principalmente React Query).
+  - `services/`: Lógica de acceso a datos de bajo nivel.
+  - `types.ts`: Definiciones de TypeScript para la característica.
 
 **src/lib/:**
 
-- Purpose: Shared utilities, third-party initializers, and core config.
-- Key files: `logger.ts`, `env.ts`, `supabase/`.
+- Propósito: Utilidades compartidas, inicializadores de terceros y configuración central.
+- Archivos clave: `logger.ts`, `env.ts`, `supabase/`.
 
 **src/components/:**
 
-- Purpose: General-purpose UI components (Buttons, Inputs, Modals).
-- Contains: Highly reusable, non-business specific components.
+- Propósito: Componentes de UI de propósito general (Botones, Entradas, Modales).
+- Contiene: Componentes altamente reutilizables, no específicos de negocio.
 
-## Key File Locations
+## Ubicaciones de Archivos Clave
 
-**Entry Points:**
+**Puntos de Entrada:**
 
-- `src/app/page.tsx`: Main dashboard/landing entry.
-- `src/middleware.ts`: Global request interceptor.
+- `src/app/page.tsx`: Entrada principal del dashboard/inicio.
+- `src/middleware.ts`: Interceptor de peticiones global.
 
-**Configuration:**
+**Configuración:**
 
-- `next.config.ts`: Next.js settings and PWA config.
-- `src/env.ts`: Environment variable validation (Zod).
-- `package.json`: Dependency manifest.
+- `next.config.ts`: Ajustes de Next.js y configuración de PWA.
+- `src/env.ts`: Validación de variables de entorno (Zod).
+- `package.json`: Manifiesto de dependencias.
 
-## Naming Conventions
+## Convenciones de Nombres
 
-**Files:**
+**Archivos:**
 
-- `PascalCase.tsx`: React components.
-- `camelCase.ts`: Utilities, hooks, and services.
-- `kebab-case.ts`: For scripts or specific config files if needed.
-- `*.test.ts`: Test files.
+- `PascalCase.tsx`: Componentes de React.
+- `camelCase.ts`: Utilidades, hooks y servicios.
+- `kebab-case.ts`: Para scripts o archivos de configuración específicos si es necesario.
+- `*.test.ts`: Archivos de prueba.
 
-**Directories:**
+**Directorios:**
 
-- `kebab-case`: Standard for all directories.
+- `kebab-case`: Estándar para todos los directorios.
 
-## Where to Add New Code
+## Dónde Añadir Nuevo Código
 
-**New Feature (e.g., "Inventario"):**
+**Nueva Característica (ej., "Inventario"):**
 
-- Create `src/features/inventario/`.
-- Add subdirectories for components, hooks, actions.
+- Crear `src/features/inventario/`.
+- Añadir subdirectorios para componentes, hooks, acciones.
 
-**New Shared Component:**
+**Nuevo Componente Compartido:**
 
 - Implementation: `src/components/ui/[Name].tsx`.
 
-**New Shared Utility:**
+**Nueva Utilidad Compartida:**
 
 - Implementation: `src/lib/[name].ts`.
 
 ---
 
-_Structure analysis: 2026-03-17_
-_Update when directory structure changes_
+_Análisis de estructura: 2026-03-17_
+_Actualizar cuando cambie la estructura de directorios_

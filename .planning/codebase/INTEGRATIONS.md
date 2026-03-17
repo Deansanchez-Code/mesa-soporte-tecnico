@@ -1,63 +1,63 @@
-# External Integrations
+# Integraciones Externas
 
-**Analysis Date:** 2026-03-17
+**Fecha de Análisis:** 2026-03-17
 
-## APIs & External Services
+## APIs y Servicios Externos
 
-**Email/SMS:**
+**Correo Electrónico/SMS:**
 
-- SMTP / Resend - Transactional emails (ticket notifications, etc.)
-  - SDK/Client: `nodemailer`, `@react-email/components`
-  - Auth: `SMTP_USER`, `SMTP_PASS`, `RESEND_API_KEY` (validated in `src/env.ts`)
-  - Implementation: Used with React Email for templating.
+- SMTP / Resend - Correos transaccionales (notificaciones de tickets, etc.)
+  - SDK/Cliente: `nodemailer`, `@react-email/components`
+  - Autenticación: `SMTP_USER`, `SMTP_PASS`, `RESEND_API_KEY` (validado en `src/env.ts`)
+  - Implementación: Utilizado con React Email para plantillas.
 
-## Data Storage
+## Almacenamiento de Datos
 
-**Databases:**
+**Bases de Datos:**
 
-- PostgreSQL on Supabase - Primary data store.
-  - Connection: via `NEXT_PUBLIC_SUPABASE_URL` and keys.
-  - Client: `@supabase/supabase-js` and `@supabase/ssr`.
-  - Migrations: Managed in `supabase/migrations/`.
+- PostgreSQL en Supabase - Almacén de datos principal.
+  - Conexión: vía `NEXT_PUBLIC_SUPABASE_URL` y llaves.
+  - Cliente: `@supabase/supabase-js` and `@supabase/ssr`.
+  - Migraciones: Gestionadas en `supabase/migrations/`.
 
-**File Storage:**
+**Almacenamiento de Archivos:**
 
-- Supabase Storage - Asset and ticket attachments.
-  - SDK/Client: `@supabase/supabase-js`.
-  - Buckets: Identifiable via Supabase dashboard.
+- Supabase Storage - Archivos adjuntos de activos y tickets.
+  - SDK/Cliente: `@supabase/supabase-js`.
+  - Buckets: Identificables vía el panel de control de Supabase.
 
-## Authentication & Identity
+## Autenticación e Identidad
 
-**Auth Provider:**
+**Proveedor de Autenticación:**
 
-- Supabase Auth - Email/password based authentication.
-  - Implementation: `@supabase/ssr` for server-side session management in Next.js.
-  - Token storage: Cookies handled by Supabase SSR.
-  - Session management: Managed through Next.js middleware and Supabase hooks.
+- Supabase Auth - Autenticación basada en correo/contraseña.
+  - Implementación: `@supabase/ssr` para la gestión de sesiones en el servidor en Next.js.
+  - Almacenamiento de tokens: Cookies gestionadas por Supabase SSR.
+  - Gestión de sesiones: Gestionada a través del middleware de Next.js y los hooks de Supabase.
 
-## CI/CD & Deployment
+## CI/CD y Despliegue
 
-**Hosting:**
+**Alojamiento (Hosting):**
 
-- Vercel - Primary hosting platform for the Next.js application.
-  - Deployment: Automatic on git push to main.
+- Vercel - Plataforma de alojamiento principal para la aplicación Next.js.
+  - Despliegue: Automático al hacer push a la rama main.
 
-**Monitoring:**
+**Monitoreo:**
 
-- Custom logging system in `src/lib/logger.ts`.
+- Sistema de logs personalizado en `src/lib/logger.ts`.
 
-## Environment Configuration
+## Configuración del Entorno
 
-**Development:**
+**Desarrollo:**
 
-- Required env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
-- Secrets location: `.env.local` (gitignored).
+- Variables de entorno requeridas: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+- Ubicación de secretos: `.env.local` (ignorado por git).
 
-**Production:**
+**Producción:**
 
-- Secrets management: Cloud-stored environment variables (Vercel).
+- Gestión de secretos: Variables de entorno almacenadas en la nube (Vercel).
 
 ---
 
-_Integration audit: 2026-03-17_
-_Update when adding/removing external services_
+_Auditoría de integración: 2026-03-17_
+_Actualizar al añadir/eliminar servicios externos_

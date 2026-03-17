@@ -1,95 +1,95 @@
-# Architecture
+# Arquitectura
 
-**Analysis Date:** 2026-03-17
+**Fecha de Análisis:** 2026-03-17
 
-## Pattern Overview
+## Descripción General del Patrón
 
-**Overall:** Full-stack Next.js Application with Feature-Based Modularity.
+**En general:** Aplicación Next.js Full-stack con Modularidad Basada en Características (Features).
 
-**Key Characteristics:**
+**Características Clave:**
 
-- **App Router:** Hybrid rendering (Server/Client components).
-- **Feature-Based:** Logic is encapsulated within `src/features/[feature-name]`.
-- **Server Actions:** Primary method for mutations and data submission.
-- **Supabase-Centric:** Heavy reliance on Supabase for Auth, DB, and Realtime.
+- **App Router:** Renderizado híbrido (componentes de servidor y cliente).
+- **Basado en Características:** La lógica está encapsulada dentro de `src/features/[nombre-del-feature]`.
+- **Server Actions:** Método principal para mutaciones y envío de datos.
+- **Centrado en Supabase:** Gran dependencia de Supabase para Autenticación, Base de Datos y Realtime.
 
-## Layers
+## Capas
 
-**UI Layer (React Components):**
+**Capa de UI (Componentes de React):**
 
-- Purpose: Render interfaces and handle user interaction.
-- Contains: Server Components (`src/app`), Client Components (`src/features/*/components`).
-- Depends on: Hooks for state/logic, Actions for mutations.
-- Used by: End users.
+- Propósito: Renderizar interfaces y manejar la interacción del usuario.
+- Contiene: Componentes de Servidor (`src/app`), Componentes de Cliente (`src/features/*/components`).
+- Depende de: Hooks para estado/lógica, Acciones para mutaciones.
+- Utilizado por: Usuarios finales.
 
-**Logic Layer (Custom Hooks):**
+**Capa de Lógica (Hooks Personalizados):**
 
-- Purpose: Manage client-side state and data fetching orchestration.
-- Contains: React Query hooks.
-- Location: `src/features/*/hooks`.
-- Depends on: Services or Direct Supabase client.
+- Propósito: Gestionar el estado del lado del cliente y la orquestación de la obtención de datos.
+- Contiene: Hooks de React Query.
+- Ubicación: `src/features/*/hooks`.
+- Depends on: Servicios o cliente directo de Supabase.
 - Used by: UI Components.
 
-**Server Layer (Actions & Services):**
+**Capa de Servidor (Acciones y Servicios):**
 
-- Purpose: Execute business logic and database mutations on the server.
-- Contains: Server Actions (`src/features/*/actions`), Business Services (`src/features/*/services`).
-- Depends on: Supabase Client, Lib utilities.
-- Used by: Form submissions, Click handlers (via Hooks).
+- Propósito: Ejecutar lógica de negocio y mutaciones de base de datos en el servidor.
+- Contiene: Server Actions (`src/features/*/actions`), Servicios de Negocio (`src/features/*/services`).
+- Depende de: Cliente de Supabase, utilidades de la librería (Lib).
+- Utilizado por: Envíos de formularios, controladores de clics (vía Hooks).
 
-**Data Layer (Supabase/PostgreSQL):**
+**Capa de Datos (Supabase/PostgreSQL):**
 
-- Purpose: Persistent storage and authentication.
-- Contains: Tables, Views, RLS Policies.
-- Managed via: `supabase/migrations`.
+- Propósito: Almacenamiento persistente y autenticación.
+- Contiene: Tablas, Vistas, Políticas de RLS.
+- Gestionado vía: `supabase/migrations`.
 
-## Data Flow
+## Flujo de Datos
 
-**Typical Mutation Flow (e.g., Creating a Ticket):**
+**Flujo de Mutación Típico (ej., Creación de un Ticket):**
 
-1. **Entry:** User submits a form in a Ticket component.
-2. **Hook:** `useCreateTicket` hook calls the server action.
-3. **Action:** `createTicketAction` (`src/features/tickets/actions/`) validates input with Zod.
-4. **Service:** The action calls `TicketService` (`src/features/tickets/services/`) to interact with Supabase.
-5. **DB:** Supabase executes the insert and checks RLS.
-6. **Result:** Success/Error bubbles back to the UI to update state (e.g., via React Query invalidation).
+1. **Entrada:** El usuario envía un formulario en un componente de Ticket.
+2. **Hook:** El hook `useCreateTicket` llama a la acción del servidor.
+3. **Acción:** `createTicketAction` (`src/features/tickets/actions/`) valida la entrada con Zod.
+4. **Servicio:** La acción llama a `TicketService` (`src/features/tickets/services/`) para interactuar con Supabase.
+5. **DB:** Supabase ejecuta la inserción y comprueba las políticas de RLS.
+6. **Resultado:** El éxito o error burbujea de vuelta a la UI para actualizar el estado (ej., vía invalidación de React Query).
 
-**State Management:**
+**Gestión de Estado:**
 
-- **Server State:** Handled by TanStack Query.
-- **Client State:** React `useState`/`useContext` where necessary.
-- **Auth State:** Managed by Supabase SSR middleware and context providers.
+- **Estado del Servidor:** Manejado por TanStack Query.
+- **Estado del Cliente:** React `useState`/`useContext` donde sea necesario.
+- **Estado de Autenticación:** Gestionado por el middleware de Supabase SSR y proveedores de contexto.
 
-## Key Abstractions
+## Abstracciones Clave
 
-**Feature Module:**
+**Módulo de Característica (Feature Module):**
 
-- Purpose: Encapsulate everything related to a domain entity.
-- Examples: `src/features/assets`, `src/features/tickets`.
-- Pattern: Modular structure containing own components, hooks, and actions.
+- Propósito: Encapsular todo lo relacionado con una entidad del dominio.
+- Ejemplos: `src/features/assets`, `src/features/tickets`.
+- Patrón: Estructura modular que contiene sus propios componentes, hooks y acciones.
 
-**Supabase Client:**
+**Cliente de Supabase:**
 
-- Purpose: Unified interface for DB, Auth, and Storage.
-- Pattern: Initialized via `@supabase/ssr` for server/client contexts.
+- Propósito: Interfaz unificada para BD, Autenticación y Almacenamiento.
+- Patrón: Inicializado vía `@supabase/ssr` para contextos de servidor/cliente.
 
-## Entry Points
+## Puntos de Entrada
 
-**Web Entry:**
+**Entrada Web:**
 
-- Location: `src/app/layout.tsx` and `src/app/page.tsx`.
-- Responsibilities: Initialize providers (QueryClient, Auth), render root layout.
+- Ubicación: `src/app/layout.tsx` y `src/app/page.tsx`.
+- Responsabilidades: Inicializar proveedores (QueryClient, Auth), renderizar el diseño raíz (root layout).
 
 **Middleware:**
 
-- Location: `src/middleware.ts`.
-- Responsibilities: Session update, Security headers (CSP), Protected route redirection.
+- Ubicación: `src/middleware.ts`.
+- Responsabilidades: Actualización de sesión, encabezados de seguridad (CSP), redirección de rutas protegidas.
 
-## Error Handling
+## Manejo de Errores
 
-**Strategy:** Zod validation at the boundary, try/catch in actions, Sonner toasts for UI feedback.
+**Estrategia:** Validación con Zod en el límite, try/catch en acciones, notificaciones (toasts) de Sonner para retroalimentación en la UI.
 
 ---
 
-_Architecture analysis: 2026-03-17_
-_Update when major patterns change_
+_Análisis de arquitectura: 2026-03-17_
+_Actualizar cuando cambien los patrones principales_

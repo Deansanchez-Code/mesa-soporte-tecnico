@@ -1,54 +1,54 @@
-# Codebase Concerns
+# Preocupaciones de la Base de Código
 
-**Analysis Date:** 2026-03-17
+**Fecha de Análisis:** 2026-03-17
 
-## Tech Debt
+## Deuda Técnica
 
-**Optional SMTP Configuration:**
+**Configuración SMTP Opcional:**
 
-- Issue: `SMTP_USER` and `SMTP_PASS` are marked as optional in `src/env.ts`.
-- Why: To allow the app to build/run without local email setup.
-- Impact: Silent failures in email notifications if env vars are missing in production.
-- Fix approach: Make them required for production builds in `src/env.ts`.
+- Problema: `SMTP_USER` y `SMTP_PASS` están marcados como opcionales en `src/env.ts`.
+- Por qué: Para permitir que la aplicación se construya/ejecute sin una configuración de correo local.
+- Impacto: Fallos silenciosos en las notificaciones por correo si faltan las variables de entorno en producción.
+- Enfoque de solución: Hacerlas obligatorias para las construcciones de producción en `src/env.ts`.
 
-**SLA Calculation Logic:**
+**Lógica de Cálculo de SLA:**
 
-- Issue: Manual calculation of SLA due dates and hours.
-- Why: Custom business requirements for VIP users and specific categories.
-- Impact: High complexity and potential for bugs in `src/lib/domain/sla-calculator.ts`.
-- Fix approach: Add extensive unit tests for all edge cases (holidays, weekends, etc.).
+- Problema: Cálculo manual de las fechas de vencimiento y horas de SLA.
+- Por qué: Requisitos de negocio personalizados para usuarios VIP y categorías específicas.
+- Impacto: Alta complejidad y potencial de errores en `src/lib/domain/sla-calculator.ts`.
+- Enfoque de solución: Añadir pruebas unitarias extensas para todos los casos de borde (festivos, fines de semana, etc.).
 
-## Security Considerations
+## Consideraciones de Seguridad
 
-**Content Security Policy (CSP):**
+**Política de Seguridad de Contenido (CSP):**
 
-- Risk: Usage of `'unsafe-inline'` and `'unsafe-eval'` in `src/middleware.ts`.
-- Current mitigation: Allowed for Next.js hydration and compatibility.
-- Recommendations: Implement nonces for scripts and styles to remove 'unsafe-inline'.
+- Riesgo: Uso de `'unsafe-inline'` y `'unsafe-eval'` en `src/middleware.ts`.
+- Mitigación actual: Permitido para la hidratación de Next.js y compatibilidad de librerías.
+- Recomendaciones: Implementar nonces para scripts y estilos para eliminar `'unsafe-inline'`.
 
-**Exposed Supabase URL:**
+**URL de Supabase Expuesta:**
 
-- Risk: Potential exposure of internal Supabase project structure via public client.
-- Current mitigation: RLS policies in the database.
-- Recommendations: Audit all RLS policies to ensure no unauthorized data leaks.
+- Riesgo: Exposición potencial de la estructura interna del proyecto Supabase a través del cliente público.
+- Mitigación actual: Políticas de RLS en la base de datos.
+- Recomendaciones: Auditar todas las políticas de RLS para asegurar que no haya fugas de datos no autorizadas.
 
-## Fragile Areas
+## Áreas Frágiles
 
-**Middleware Order:**
+**Orden del Middleware:**
 
-- Why fragile: The CSP and session update logic in `src/middleware.ts` is sensitive to ordering.
-- Common failures: Changes in routing or asset matching can accidentally bypass security headers.
-- Safe modification: Carefully test asset matching regex when adding new public routes.
+- Por qué es frágil: La lógica de CSP y de actualización de sesión en `src/middleware.ts` es sensible al orden.
+- Fallos comunes: Los cambios en el enrutamiento o en el emparejamiento de activos pueden saltarse accidentalmente los encabezados de seguridad.
+- Modificación segura: Probar cuidadosamente la regex de emparejamiento de activos al añadir nuevas rutas públicas.
 
-## Test Coverage Gaps
+## Brechas en la Cobertura de Pruebas
 
-**Feature-specific E2E:**
+**E2E Específico de Características:**
 
-- What's not tested: Complex multi-step workflows like VIP ticket escalation.
-- Risk: Integration issues between Supabase Realtime and UI might go unnoticed.
-- Priority: Medium.
+- Qué no está probado: Flujos de trabajo multietapa complejos como la escalada de tickets VIP.
+- Riesgo: Los problemas de integración entre Supabase Realtime y la UI podrían pasar desapercibidos.
+- Prioridad: Media.
 
 ---
 
-_Concerns audit: 2026-03-17_
-_Update as issues are fixed or new ones discovered_
+_Auditoría de preocupaciones: 2026-03-17_
+_Actualizar a medida que se solucionen los problemas o se descubran otros nuevos_
