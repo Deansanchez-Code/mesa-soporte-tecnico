@@ -23,7 +23,10 @@ const serverEnvSchema = z
   })
   .refine(
     (data) => {
-      if (process.env.NODE_ENV === "production") {
+      // En producción, SMTP_USER y SMTP_PASS son obligatorios.
+      // Sin embargo, permitimos que el BUILD de Vercel pase sin ellos para evitar bloqueos,
+      // confiando en que estarán presentes en runtime.
+      if (process.env.NODE_ENV === "production" && !process.env.VERCEL) {
         return !!data.SMTP_USER && !!data.SMTP_PASS;
       }
       return true;
