@@ -228,6 +228,24 @@ export async function cancelLibraryReservation(id: number, reason: string) {
       },
     ]);
 
+    // --- AUTOMATIC TICKET RESOLUTION ---
+    try {
+      // Identify the associated ticket
+      const { data: tickets } = await supabaseAdmin
+        .from("tickets")
+        .select("id")
+        .eq("user_id", reservation.user_id)
+        .ilike("description", `%${reservation.title}%`)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (tickets && tickets.length > 0) {
+        await supabaseAdmin.from("tickets").delete().eq("id", tickets[0].id);
+      }
+    } catch (e) {
+      console.error("Auto Ticket Deletion Error: ", e);
+    }
+
     revalidatePath("/dashboard");
     return { success: true };
   } catch (error: unknown) {
