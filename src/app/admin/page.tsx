@@ -942,6 +942,7 @@ export default function AdminDashboard() {
               users={usersList}
               onRefresh={fetchData}
               currentUserRole={currentUser?.role}
+              configData={configData}
             />
           )}
 

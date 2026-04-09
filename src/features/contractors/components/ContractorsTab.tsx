@@ -8,24 +8,40 @@ import {
   Users,
   Shield,
   ShieldOff,
+  Edit,
 } from "lucide-react"; // Added Icons for better visual hierarchy
-import { User } from "@/app/admin/admin.types";
+import { User, ConfigItem } from "@/app/admin/admin.types";
 import { formatName } from "@/lib/utils";
+import { useUserManagement } from "../../users/hooks/useUserManagement";
+import UserModal from "../../users/components/UserModal";
 
 interface ContractorsTabProps {
   users: User[];
   onRefresh: () => void;
   currentUserRole?: string;
+  configData: {
+    areas: ConfigItem[];
+  };
 }
 
 export default function ContractorsTab({
   users,
   onRefresh,
   currentUserRole,
+  configData,
 }: ContractorsTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<"contractors" | "planta">(
     "contractors",
   );
+
+  const {
+    showAgentModal,
+    setShowAgentModal,
+    newAgent,
+    setNewAgent,
+    handleCreateOrUpdateUser,
+    handleEditUser,
+  } = useUserManagement(onRefresh);
 
   // Filter logic
   // Filter logic (Case Insensitive)
@@ -164,6 +180,7 @@ export default function ContractorsTab({
               users={instructors}
               onBulkAction={handleBulkAction}
               onToggleUser={handleIndividualToggle}
+              onEditUser={handleEditUser}
               showBulkActions={true}
               currentUserRole={currentUserRole}
             />
@@ -175,6 +192,7 @@ export default function ContractorsTab({
               users={officials}
               onBulkAction={handleBulkAction}
               onToggleUser={handleIndividualToggle}
+              onEditUser={handleEditUser}
               showBulkActions={true}
               currentUserRole={currentUserRole}
             />
@@ -203,6 +221,7 @@ export default function ContractorsTab({
               users={plantaInstructors}
               onBulkAction={() => {}}
               onToggleUser={handleIndividualToggle}
+              onEditUser={handleEditUser}
               showBulkActions={false}
               currentUserRole={currentUserRole}
             />
@@ -214,12 +233,22 @@ export default function ContractorsTab({
               users={plantaOfficials}
               onBulkAction={() => {}}
               onToggleUser={handleIndividualToggle}
+              onEditUser={handleEditUser}
               showBulkActions={false}
               currentUserRole={currentUserRole}
             />
           </div>
         )}
       </div>
+
+      <UserModal
+        isOpen={showAgentModal}
+        onClose={() => setShowAgentModal(false)}
+        onSave={handleCreateOrUpdateUser}
+        newAgent={newAgent}
+        setNewAgent={setNewAgent}
+        areas={configData.areas}
+      />
     </section>
   );
 }
@@ -241,6 +270,7 @@ function ContractorGroup({
   users,
   onBulkAction,
   onToggleUser,
+  onEditUser,
   showBulkActions = true,
   currentUserRole,
 }: {
@@ -250,6 +280,7 @@ function ContractorGroup({
   users: User[];
   onBulkAction: (cat: string, en: boolean) => void;
   onToggleUser: (u: User) => void;
+  onEditUser: (u: User) => void;
   showBulkActions?: boolean;
   currentUserRole?: string;
 }) {
@@ -348,6 +379,7 @@ function ContractorGroup({
                   key={user.id}
                   user={user}
                   onToggle={() => onToggleUser(user)}
+                  onEdit={() => onEditUser(user)}
                   currentUserRole={currentUserRole}
                 />
               ))}
@@ -362,10 +394,12 @@ function ContractorGroup({
 function UserCard({
   user,
   onToggle,
+  onEdit,
   currentUserRole,
 }: {
   user: User;
   onToggle: () => void;
+  onEdit: () => void;
   currentUserRole?: string;
 }) {
   return (
@@ -392,10 +426,20 @@ function UserCard({
         </p>
       </div>
 
-      <button
-        onClick={onToggle}
-        disabled={currentUserRole === "admin"}
-        className={`
+      <div className="flex items-center gap-2">
+        {currentUserRole !== "admin" && (
+          <button
+            onClick={onEdit}
+            className="p-1.5 hover:bg-sena-blue/10 rounded text-sena-blue transition"
+            title="Editar Usuario"
+          >
+            <Edit className="w-4 h-4" />
+          </button>
+        )}
+        <button
+          onClick={onToggle}
+          disabled={currentUserRole === "admin"}
+          className={`
                relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sena-green focus:ring-offset-2
                ${user.is_active ? "bg-sena-green" : "bg-gray-200"}
                ${
@@ -404,16 +448,17 @@ function UserCard({
                    : "cursor-pointer"
                }
             `}
-        role="switch"
-        aria-checked={user.is_active}
-      >
-        <span
-          className={`
+          role="switch"
+          aria-checked={user.is_active}
+        >
+          <span
+            className={`
                   pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out
                   ${user.is_active ? "translate-x-5" : "translate-x-0"}
                `}
-        />
-      </button>
+          />
+        </button>
+      </div>
     </div>
   );
 }

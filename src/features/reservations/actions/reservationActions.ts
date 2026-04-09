@@ -171,33 +171,25 @@ export async function cancelReservationAction(reservationId: number) {
       } catch (e) {
         console.error("VIP Cancel Email Error: ", e);
       }
-      // --- AUTOMATIC TICKET RESOLUTION ---
-      try {
-        // Identify the associated ticket
-        const { data: tickets } = await supabase
-          .from("tickets")
-          .select("id")
-          .eq("user_id", reservation.user_id)
-          .eq("category", "Reserva Auditorio")
-          .ilike("description", `%${reservation.title}%`)
-          .neq("status", "RESUELTO")
-          .order("created_at", { ascending: false })
-          .limit(1);
+    }
 
-        if (tickets && tickets.length > 0) {
-          await supabase
-            .from("tickets")
-            .update({
-              status: "RESUELTO",
-              solution: "Cancelado por el usuario y resuelto por el Superadmin",
-              sla_status: "completed",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", tickets[0].id);
-        }
-      } catch (e) {
-        console.error("Auto Ticket Resolution Error: ", e);
+    // --- AUTOMATIC TICKET RESOLUTION ---
+    try {
+      // Identify the associated ticket
+      const { data: tickets } = await supabase
+        .from("tickets")
+        .select("id")
+        .eq("user_id", reservation.user_id)
+        .eq("category", "Reserva Auditorio")
+        .ilike("description", `%${reservation.title}%`)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (tickets && tickets.length > 0) {
+        await supabase.from("tickets").delete().eq("id", tickets[0].id);
       }
+    } catch (e) {
+      console.error("Auto Ticket Deletion Error: ", e);
     }
 
     revalidatePath("/dashboard");
