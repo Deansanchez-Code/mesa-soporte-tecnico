@@ -276,8 +276,14 @@ export async function createReservationAction(
 
     if (!isAdmin && !isVip && !isInstructor) {
       // Es un funcionario normal (u otro rol). Revisar si es fin de semana.
+      // Evaluamos en la zona horaria local de Colombia para evitar que el viernes en la noche
+      // sea tratado como sábado (UTC) en el servidor.
       const reservationStart = new Date(start_time);
-      const dayOfWeek = reservationStart.getDay(); // 0 = Sunday, 6 = Saturday
+      const bogotaDateString = reservationStart.toLocaleString("en-US", {
+        timeZone: "America/Bogota",
+      });
+      const bogotaDate = new Date(bogotaDateString);
+      const dayOfWeek = bogotaDate.getDay(); // 0 = Sunday, 6 = Saturday
 
       if (dayOfWeek === 0 || dayOfWeek === 6) {
         throw new Error(
@@ -697,7 +703,11 @@ export async function createReservationBatchAction(
       // Validación Fines de Semana
       if (!isAdmin && !isVip && !isInstructor) {
         const reservationStart = new Date(data.start_time);
-        const dayOfWeek = reservationStart.getDay();
+        const bogotaDateString = reservationStart.toLocaleString("en-US", {
+          timeZone: "America/Bogota",
+        });
+        const bogotaDate = new Date(bogotaDateString);
+        const dayOfWeek = bogotaDate.getDay();
 
         if (dayOfWeek === 0 || dayOfWeek === 6) {
           throw new Error(
@@ -872,12 +882,13 @@ export async function createReservationBatchAction(
             return d.toLocaleDateString("es-CO", {
               day: "numeric",
               month: "short",
+              timeZone: "America/Bogota",
             });
           })
           .join(", ");
 
         const first = sortedRes[0];
-        const timeStr = `${new Date(first.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })} - ${new Date(first.end_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}`;
+        const timeStr = `${new Date(first.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })} - ${new Date(first.end_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })}`;
 
         // A. Library Batch Notification
         if (isLibrary) {
