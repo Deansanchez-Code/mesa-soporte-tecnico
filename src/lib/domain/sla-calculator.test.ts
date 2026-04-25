@@ -51,14 +51,15 @@ describe("SLA Calculator", () => {
       expect(dueDate.getHours()).toBe(12);
     });
 
-    it("should skip weekends", () => {
+    it("should skip weekends and holidays", () => {
       const fridayLate = new Date("2024-03-22T16:00:00"); // Viernes 4:00 PM
       const dueDate = calculateSLADueDate(fridayLate, 4);
 
-      // Viernes: 16:00 a 18:00 = 2h consume. Restan 2h.
-      // Sábado y Domingo se saltan.
-      // Lunes a las 8:00 AM + 2h = 10:00 AM
-      expect(dueDate.getDate()).toBe(25); // Lunes
+      // Viernes 22: 16:00 a 18:00 = 2h consume. Restan 2h.
+      // Sábado 23 y Domingo 24 se saltan.
+      // Lunes 25 es FESTIVO (San José) -> Se salta.
+      // Martes 26 a las 8:00 AM + 2h = 10:00 AM
+      expect(dueDate.getDate()).toBe(26); // Martes
       expect(dueDate.getHours()).toBe(10);
     });
 
@@ -66,8 +67,8 @@ describe("SLA Calculator", () => {
       const sunday = new Date("2024-03-24T12:00:00"); // Domingo
       const dueDate = calculateSLADueDate(sunday, 4);
 
-      // Se ajusta a Lunes 8:00 AM + 4h = 12:00 PM
-      expect(dueDate.getDate()).toBe(25); // Lunes
+      // Se ajusta a Martes 26 8:00 AM (ya que el lunes 25 es festivo) + 4h = 12:00 PM
+      expect(dueDate.getDate()).toBe(26); // Martes
       expect(dueDate.getHours()).toBe(12);
     });
 
@@ -78,6 +79,47 @@ describe("SLA Calculator", () => {
       // Se ajusta a Jueves 8:00 AM + 4h = 12:00 PM
       expect(dueDate.getDate()).toBe(21); // Jueves
       expect(dueDate.getHours()).toBe(12);
+    });
+
+    it("should skip Colombian holidays (e.g., Monday March 25, 2024)", () => {
+      // Viernes 22 de Marzo, 4:00 PM
+      const fridayLate = new Date("2024-03-22T16:00:00");
+      const dueDate = calculateSLADueDate(fridayLate, 4);
+
+      // Viernes: 16:00 a 18:00 = 2h consume. Restan 2h.
+      // Sábado 23, Domingo 24 se saltan.
+      // Lunes 25 es Festivo (San José) -> Se salta.
+      // Martes 26 a las 8:00 AM + 2h = 10:00 AM
+      expect(dueDate.getDate()).toBe(26); // Martes
+      expect(dueDate.getHours()).toBe(10);
+    });
+
+    it("should handle ticket created at the very last minute of business day (5:59 PM)", () => {
+      const lastMinute = new Date("2024-03-20T17:59:00"); // Miércoles 5:59 PM
+      const dueDate = calculateSLADueDate(lastMinute, 1); // 1h SLA
+
+      // 5:59 PM tiene solo 1 min hoy. Restan 59 mins.
+      // Mañana 8:00 AM + 59 mins = 8:59 AM
+      expect(dueDate.getDate()).toBe(21); // Jueves
+      expect(dueDate.getHours()).toBe(8);
+      expect(dueDate.getMinutes()).toBe(59);
+    });
+
+    it("should handle long duration SLAs spanning multiple weeks (40h duration)", () => {
+      const mondayStart = new Date("2024-03-18T08:00:00"); // Lunes 8:00 AM
+      const dueDate = calculateSLADueDate(mondayStart, 40); // 40h (exactamente una semana laboral de 5 días x 8h? No, jornada es 10h)
+
+      // Jornada: 8 AM a 6 PM = 10 horas.
+      // 40h / 10h/día = 4 días exactos.
+      // Lunes -> Martes -> Miércoles -> Jueves.
+      // Debe vencer el Viernes a las 8:00 AM?
+      // Lunes 8 AM a 6 PM (10h)
+      // Martes 8 AM a 6 PM (10h)
+      // Miércoles 8 AM a 6 PM (10h)
+      // Jueves 8 AM a 6 PM (10h)
+      // Total 40h consumidas el Jueves a las 6:00 PM.
+      expect(dueDate.getDate()).toBe(21); // Jueves
+      expect(dueDate.getHours()).toBe(18);
     });
   });
 });
