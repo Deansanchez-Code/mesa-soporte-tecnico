@@ -33,10 +33,10 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = "ukoqpikpqzffqieomaoo.supabase.co";
   const cspHeader = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: http: ${
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' https: http: ${
       process.env.NODE_ENV === "development" ? "'unsafe-eval'" : ""
     }`,
-    "style-src 'self' 'unsafe-inline'", // 'unsafe-inline' is still needed for some CSS-in-JS/Tailwind behaviors
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data: https://*.supabase.co https://*.supabase.in",
     "font-src 'self'",
     `connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://${supabaseUrl} wss://${supabaseUrl} https://vitals.vercel-insights.com`,

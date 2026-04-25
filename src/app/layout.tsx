@@ -4,6 +4,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { Toaster } from "sonner";
 import SessionMonitor from "@/features/shifts/components/SessionMonitor";
 import QueryProvider from "@/components/providers/QueryProvider";
+import { headers } from "next/headers";
 
 export const metadata: Metadata = {
   title: "Soporte TIC SENA",
@@ -24,8 +25,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = headers().get("x-nonce") || "";
+
   return (
-    <html lang="es" suppressHydrationWarning className="overflow-x-hidden">
+    <html
+      lang="es"
+      suppressHydrationWarning
+      className="overflow-x-hidden"
+      nonce={nonce}
+    >
       <body className="bg-gray-50 text-gray-900 antialiased flex flex-col min-h-screen overflow-x-hidden">
         <main className="flex-1 flex flex-col">
           <NotificationProvider>
