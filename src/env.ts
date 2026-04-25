@@ -23,6 +23,15 @@ const serverEnvSchema = z
   })
   .refine(
     (data) => {
+      // Omitir validación durante el tiempo de construcción (build) para evitar fallos en Vercel
+      if (
+        process.env.npm_lifecycle_event === "build" ||
+        process.env.SKIP_ENV_VALIDATION === "true" ||
+        process.env.SKIP_ENV_VALIDATION === "1"
+      ) {
+        return true;
+      }
+
       if (process.env.NODE_ENV === "production") {
         return !!data.SMTP_USER && !!data.SMTP_PASS;
       }

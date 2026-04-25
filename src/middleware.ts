@@ -22,17 +22,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const response = await updateSession(request);
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+
+  const response = await updateSession(request, requestHeaders);
 
   // Security Headers
   // Content Security Policy (CSP)
-  // Note: 'unsafe-inline' and 'unsafe-eval' are currently allowed for Next.js hydration and some libraries.
-  // Ideally, we would use nonces, but that requires more complex setup with Next.js App Router.
   const supabaseUrl = "ukoqpikpqzffqieomaoo.supabase.co";
   const cspHeader = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com",
-    "style-src 'self' 'unsafe-inline'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: http: ${
+      process.env.NODE_ENV === "development" ? "'unsafe-eval'" : ""
+    }`,
+    "style-src 'self' 'unsafe-inline'", // 'unsafe-inline' is still needed for some CSS-in-JS/Tailwind behaviors
     "img-src 'self' blob: data: https://*.supabase.co https://*.supabase.in",
     "font-src 'self'",
     `connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://${supabaseUrl} wss://${supabaseUrl} https://vitals.vercel-insights.com`,
@@ -42,12 +46,27 @@ export async function middleware(request: NextRequest) {
     "frame-ancestors 'none'",
     "block-all-mixed-content",
     "upgrade-insecure-requests",
-  ].join("; ");
+  ]
+    .filter(Boolean)
+    .join("; ");
+
+  const contentSecurityPolicyHeaderValue = cspHeader
+    .replace(/\s{2,}/g, " ")
+    .trim();
 
   // Apply headers to the response (whether it came from updateSession or next())
-  const finalResponse = response || NextResponse.next();
+  const finalResponse =
+    response ||
+    NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
 
-  finalResponse.headers.set("Content-Security-Policy", cspHeader);
+  finalResponse.headers.set(
+    "Content-Security-Policy",
+    contentSecurityPolicyHeaderValue,
+  );
 
   finalResponse.headers.set("X-Content-Type-Options", "nosniff");
   finalResponse.headers.set("X-Frame-Options", "DENY");
