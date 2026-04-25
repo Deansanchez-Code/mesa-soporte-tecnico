@@ -9,11 +9,13 @@
 
 1. Se generó un diagnóstico inicial de la base de código (`DIAGNOSTICO.md`).
 2. Se implementó la Fase 1 del plan de mejora, centrada en seguridad y variables de entorno.
+3. Se realizó una limpieza profunda del repositorio, eliminando archivos obsoletos y temporales.
 
 ### Cómo se desarrolló
 
 - **Ajuste de Entorno (SMTP):** Se modificó la validación de Zod en `src/env.ts` para omitirla durante el `npm_lifecycle_event === 'build'` o si `SKIP_ENV_VALIDATION` está activo. Esto previene que Vercel falle al construir la aplicación por la ausencia de credenciales de correo (SMTP), pero sigue exigiendo las variables en el entorno de producción en tiempo de ejecución.
 - **Ajuste de Middleware (CSP):** Se refactorizó `src/middleware.ts` y `src/lib/supabase/middleware.ts` para generar un _nonce_ criptográfico único por cada petición. Este nonce se inserta en los encabezados `Content-Security-Policy` (`script-src`) utilizando la directiva `'strict-dynamic'`. Esto permitió mitigar el riesgo asociado con el uso de `'unsafe-inline'` para scripts.
+- **Limpieza del Proyecto:** Se escanearon y eliminaron 18 archivos identificados como basura (logs, reportes de auditoría, scripts de migración de un solo uso y dumps de base de datos corruptos). Esto reduce el ruido visual en el proyecto y previene la confusión con scripts obsoletos.
 
 ### Errores detectados y Lecciones aprendidas
 
