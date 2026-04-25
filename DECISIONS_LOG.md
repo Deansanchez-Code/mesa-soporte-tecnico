@@ -17,3 +17,9 @@
 - **Decisión:** Integrar el cálculo de festivos basado en la "Ley Emiliani" en el calculador de SLA.
 - **Razón:** Los acuerdos de nivel de servicio deben ser realistas y respetar los días no laborales locales para evitar penalizaciones injustas en las métricas.
 - **Impacto:** Mayor precisión en las fechas de vencimiento de los tickets.
+
+## [2026-04-25] UX: Filtros de Criticidad y Alertas de SLA
+
+- **Decisión:** Implementar un filtro dedicado para tickets "VIP" y un resaltado visual (ámbar pulsante) para tickets próximos a vencer (<1h).
+- **Razón:** Facilitar a los agentes la identificación inmediata de tickets que requieren acción prioritaria para cumplir el SLA.
+- **Impacto:** Reducción en el riesgo de incumplimiento de SLA y mejora en la eficiencia operativa.

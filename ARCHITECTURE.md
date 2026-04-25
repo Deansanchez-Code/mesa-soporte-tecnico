@@ -23,3 +23,4 @@
 - **Feature-Based Architecture:** Organización de archivos por funcionalidad para mejorar la escalabilidad.
 - **Domain Logic Separation:** Lógica crítica (como el cálculo de SLA) separada de los componentes de UI.
 - **Middleware Security:** Uso de middlewares para gestión de sesiones y políticas de seguridad (CSP).
+- **Extended Typing:** Sistema de tipos centralizado en `admin.types.ts` que ahora incluye estados de filtrado específicos (VIP).

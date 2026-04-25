@@ -14,3 +14,8 @@
 
 - **Contexto:** Cálculo de fechas de vencimiento.
 - **Aprendizaje:** Se implementó el cálculo del Domingo de Ramos/Pascua para determinar festivos móviles y se aplicó la lógica de traslado de festivos al lunes siguiente (Ley Emiliani).
+
+## [Error] Error de Sintaxis en Resolución de Conflictos (Git Merge)
+
+- **Causa:** Durante la resolución manual de conflictos en `src/env.ts`, se eliminó accidentalmente la firma de una función de flecha en un `.refine()`.
+- **Aprendizaje:** Tras resolver conflictos manualmente, es imperativo realizar una revisión visual de la sintaxis y ejecutar el linter antes de intentar el commit definitivo. Los pre-commit hooks (Husky/Lint-staged) son la última línea de defensa efectiva.
