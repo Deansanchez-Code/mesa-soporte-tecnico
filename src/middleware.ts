@@ -31,15 +31,25 @@ export async function middleware(request: NextRequest) {
   // Security Headers
   // Content Security Policy (CSP)
   const supabaseUrl = "ukoqpikpqzffqieomaoo.supabase.co";
+  const hashes = [
+    "'sha256-OMTN3RiyGV48q7dfq7smzPajXInCCyET3nO2f/iyGm0='",
+    "'sha256-IruqL+Rw2/gw9qcIEuVTtiQ6W/FT4P/h68AqpI1X5JA='",
+    "'sha256-bZ66FjJw6gE5A6F5VF76R5WFPfgCUXQq1IWKo8MKo82s='",
+    "'sha256-milqxmInn7vM++7+wQXZsRvJr3AyWwDmPSqjv/MA/r28='",
+    "'sha256-Y91HmwHwj2+jCk0enBcIF22Zpjm3GhhlGQDTAgyfpzX4='",
+    "'sha256-dvlHb+QYNRGgwSS8TPAL4he8zk2xs7hu8T6IRVnmSTE='",
+  ].join(" ");
+
   const cspHeader = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' https: http: ${
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${hashes} https: http: ${
       process.env.NODE_ENV === "development" ? "'unsafe-eval'" : ""
     }`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data: https://*.supabase.co https://*.supabase.in",
     "font-src 'self'",
     `connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://${supabaseUrl} wss://${supabaseUrl} https://vitals.vercel-insights.com`,
+    "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
