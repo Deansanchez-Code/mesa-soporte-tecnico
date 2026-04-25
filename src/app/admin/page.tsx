@@ -66,6 +66,8 @@ const UserProfileModal = React.lazy(
 );
 import { useTicketsQuery } from "@/features/tickets/hooks/useTicketsQuery";
 import PaginationControls from "@/components/ui/PaginationControls";
+import { calculateSLADueDate, getSLAHours } from "@/lib/domain/sla-calculator";
+import { isAfter, subHours } from "date-fns";
 
 // --- TIPOS DE DATOS ---
 
@@ -823,12 +825,25 @@ export default function AdminDashboard() {
                   >
                     Pendientes
                   </button>
+                  <button
+                    onClick={() => {
+                      setTicketFilter("VIP");
+                      setPage(1);
+                    }}
+                    className={`px-3 py-1 rounded text-xs font-bold ${
+                      ticketFilter === "VIP"
+                        ? "bg-amber-500 text-white"
+                        : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    Críticos (VIP)
+                  </button>
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-[600px] overflow-y-auto relative">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                     <tr>
                       <th className="p-4 text-xs font-bold text-gray-500 uppercase">
                         ID
@@ -857,61 +872,92 @@ export default function AdminDashboard() {
                     {isLoadingTickets ? (
                       <TicketsTableSkeleton />
                     ) : (
-                      tickets.map((ticket) => (
-                        <tr
-                          key={ticket.id}
-                          className="hover:bg-gray-50 cursor-pointer transition"
-                          onClick={() => {
-                            setSelectedTicket(ticket);
-                            setShowTicketModal(true);
-                          }}
-                        >
-                          <td className="p-4 font-bold text-gray-800">
-                            #{ticket.id}
-                          </td>
-                          <td className="p-4">
-                            <span
-                              className={`text-[10px] font-bold px-2 py-1 rounded border ${
-                                ticket.ticket_type === "INC"
-                                  ? "bg-orange-50 text-orange-700 border-orange-200"
-                                  : "bg-blue-50 text-blue-700 border-blue-200"
-                              }`}
-                            >
-                              {ticket.ticket_type || "REQ"}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-bold uppercase ${
-                                ticket.status === "RESUELTO" ||
-                                ticket.status === "CERRADO"
-                                  ? "bg-green-100 text-green-700"
-                                  : ticket.status === "EN_PROGRESO"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : ticket.status === "EN_ESPERA"
-                                      ? "bg-purple-100 text-purple-700"
-                                      : "bg-red-100 text-red-700"
-                              }`}
-                            >
-                              {ticket.status}
-                            </span>
-                          </td>
-                          <td className="p-4 text-sm text-gray-700">
-                            {ticket.users?.full_name}
-                          </td>
-                          <td className="p-4 text-sm text-gray-600">
-                            {ticket.category}
-                          </td>
-                          <td className="p-4 text-sm text-gray-600">
-                            {ticket.assigned_agent?.full_name || "Sin asignar"}
-                          </td>
-                          <td className="p-4 text-xs text-gray-500">
-                            {new Date(
-                              ticket.created_at || "",
-                            ).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))
+                      tickets.map((ticket) => {
+                        // Lógica de urgencia (< 1h para vencer)
+                        const slaHours = getSLAHours(ticket);
+                        const created =
+                          ticket.created_at || new Date().toISOString();
+                        const dueDate = ticket.sla_expected_end_at
+                          ? new Date(ticket.sla_expected_end_at)
+                          : calculateSLADueDate(created, slaHours);
+
+                        const isResolved =
+                          ticket.status === "RESUELTO" ||
+                          ticket.status === "CERRADO";
+                        const isExpiringSoon =
+                          !isResolved &&
+                          isAfter(new Date(), subHours(dueDate, 1)) &&
+                          isAfter(dueDate, new Date());
+
+                        return (
+                          <tr
+                            key={ticket.id}
+                            className={`hover:bg-gray-50 cursor-pointer transition relative ${
+                              isExpiringSoon
+                                ? "bg-amber-50/50 border-l-[4px] border-l-amber-500"
+                                : ""
+                            }`}
+                            onClick={() => {
+                              setSelectedTicket(ticket);
+                              setShowTicketModal(true);
+                            }}
+                          >
+                            <td className="p-4 font-bold text-gray-800">
+                              #{ticket.id}
+                              {ticket.is_vip_ticket && (
+                                <span className="ml-2 bg-amber-100 text-amber-700 text-[9px] px-1.5 py-0.5 rounded-full border border-amber-200">
+                                  VIP
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-1 rounded border ${
+                                  ticket.ticket_type === "INC"
+                                    ? "bg-orange-50 text-orange-700 border-orange-200"
+                                    : "bg-blue-50 text-blue-700 border-blue-200"
+                                }`}
+                              >
+                                {ticket.ticket_type || "REQ"}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-bold uppercase ${
+                                  ticket.status === "RESUELTO" ||
+                                  ticket.status === "CERRADO"
+                                    ? "bg-green-100 text-green-700"
+                                    : ticket.status === "EN_PROGRESO"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : ticket.status === "EN_ESPERA"
+                                        ? "bg-purple-100 text-purple-700"
+                                        : "bg-red-100 text-red-700"
+                                }`}
+                              >
+                                {ticket.status}
+                              </span>
+                              {isExpiringSoon && (
+                                <span className="ml-2 inline-block w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                              )}
+                            </td>
+                            <td className="p-4 text-sm text-gray-700">
+                              {ticket.users?.full_name}
+                            </td>
+                            <td className="p-4 text-sm text-gray-600">
+                              {ticket.category}
+                            </td>
+                            <td className="p-4 text-sm text-gray-600">
+                              {ticket.assigned_agent?.full_name ||
+                                "Sin asignar"}
+                            </td>
+                            <td className="p-4 text-xs text-gray-500">
+                              {new Date(
+                                ticket.created_at || "",
+                              ).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>

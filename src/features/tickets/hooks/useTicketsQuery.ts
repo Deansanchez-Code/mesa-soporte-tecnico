@@ -37,7 +37,11 @@ export const useTicketsQuery = ({
 
       // Apply filter if status is not 'ALL' or empty
       if (status && status !== "ALL") {
-        query = query.eq("status", status);
+        if (status === "VIP") {
+          query = query.eq("is_vip_ticket", true);
+        } else {
+          query = query.eq("status", status);
+        }
       }
 
       const { data, error, count } = await query;

@@ -7,6 +7,7 @@ import {
   startOfDay,
 } from "date-fns";
 import { Ticket } from "@/app/admin/admin.types";
+import { isColombianHoliday } from "./holidays";
 
 // Configuración por defecto: Lunes a Viernes, 8:00 AM - 6:00 PM
 const BUSINESS_HOURS = {
@@ -75,8 +76,8 @@ export const calculateSLADueDate = (
 function adjustToBusinessHours(date: Date): Date {
   let d = new Date(date);
 
-  // 1. Si es fin de semana, mover al lunes siguiente a las 8 AM
-  while (isWeekend(d)) {
+  // 1. Si es fin de semana o festivo, mover al siguiente día hábil a las 8 AM
+  while (isWeekend(d) || isColombianHoliday(d)) {
     d = addDays(d, 1);
     d = startOfDay(d);
     d = setHours(d, BUSINESS_HOURS.start);

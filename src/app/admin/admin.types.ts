@@ -80,7 +80,7 @@ export type AdminTab =
   | "audit"
   | "shifts";
 
-export type TicketFilterType = "ALL" | "PENDING";
+export type TicketFilterType = "ALL" | "PENDING" | "VIP";
 
 export interface AuditLog {
   id: string;

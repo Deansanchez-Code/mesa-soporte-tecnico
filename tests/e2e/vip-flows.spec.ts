@@ -68,4 +68,24 @@ test.describe("VIP and Critical Ticket Flows", () => {
       await expect(vipLabel).toHaveClass(/bg-amber-100/); // Color standard for VIP in this project
     }
   });
+
+  test("should display correct SLA for VIP tickets", async ({ page }) => {
+    // Navigate to admin dashboard where tickets are listed
+    await page.goto("/admin");
+
+    // Look for a VIP ticket in the list
+    const vipTicket = page.locator('div:has-text("VIP")').first();
+
+    if (await vipTicket.isVisible()) {
+      await vipTicket.click();
+
+      // Verify the SLA indicator shows 4 hours for VIP
+      const slaHeader = page.locator("text=Est. Vencimiento (4h)");
+      await expect(slaHeader).toBeVisible();
+
+      // Verify the due date is displayed
+      const dueDate = page.locator(".font-bold.text-gray-800.text-sm");
+      await expect(dueDate).not.toBeEmpty();
+    }
+  });
 });
