@@ -89,20 +89,24 @@ export async function cancelReservationAction(reservationId: number) {
 
     if (error) throw new Error(error.message);
 
-    // 6. Notify Owner if VIP Override (Smart Dispatch)
-    if (!isOwner && isVip) {
-      // Insert internal notification
-      await supabase.from("user_notifications").insert([
-        {
-          user_id: reservation.user_id,
-          title: "Reserva Cancelada por Prioridad",
-          message: `Tu reserva "${reservation.title}" para el ${new Date(reservation.start_time).toLocaleString("es-CO", { timeZone: "America/Bogota" })} ha sido cancelada por un usuario VIP.`,
-        },
-      ]);
+    // --- EMAIL NOTIFICATIONS ---
+    try {
+      const dateStr = new Date(reservation.start_time).toLocaleDateString(
+        "es-CO",
+        { timeZone: "America/Bogota" },
+      );
 
-      // --- EMAIL DISPATCH ---
-      try {
-        // Fetch full victim user details
+      // A. Notify Owner if VIP Override
+      if (!isOwner && isVip) {
+        // Insert internal notification
+        await supabase.from("user_notifications").insert([
+          {
+            user_id: reservation.user_id,
+            title: "Reserva Cancelada por Prioridad",
+            message: `Tu reserva "${reservation.title}" para el ${new Date(reservation.start_time).toLocaleString("es-CO", { timeZone: "America/Bogota" })} ha sido cancelada por un usuario VIP.`,
+          },
+        ]);
+
         const { data: victim } = await supabase
           .from("users")
           .select("full_name, email, employment_type, username")
@@ -110,31 +114,15 @@ export async function cancelReservationAction(reservationId: number) {
           .single();
 
         if (victim) {
-          let recipientEmail = victim.email;
+          const victimEmail =
+            victim.employment_type?.toLowerCase().includes("planta") ||
+            victim.employment_type?.toLowerCase().includes("funcionario")
+              ? `${victim.username.trim()}@sena.edu.co`.toLowerCase()
+              : victim.email;
 
-          // Regla de Negocio:
-          // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
-          // - Contratistas -> Correo registrado (personal o corporativo)
-          const employmentType = (victim.employment_type || "").toLowerCase();
-          const isOfficial =
-            employmentType.includes("planta") ||
-            employmentType.includes("funcionario") ||
-            employmentType.includes("oficial");
-
-          if (isOfficial) {
-            recipientEmail =
-              `${victim.username.trim()}@sena.edu.co`.toLowerCase();
-          }
-
-          if (recipientEmail && recipientEmail.includes("@")) {
-            const dateStr = new Date(reservation.start_time).toLocaleDateString(
-              "es-CO",
-              { timeZone: "America/Bogota" },
-            );
-
-            // 1. Notify Victim
+          if (victimEmail && victimEmail.includes("@")) {
             await EmailService.send({
-              to: recipientEmail,
+              to: victimEmail,
               subject: `⚠️ Cancelación por Prioridad: ${reservation.title}`,
               react: VipCancellation({
                 userName: victim.full_name,
@@ -143,36 +131,40 @@ export async function cancelReservationAction(reservationId: number) {
                 cancelledBy: publicUser?.full_name || "Usuario VIP",
               }),
             });
-
-            // 2. Notify Coordinator IF it had Special Requirements
-            const { data: resDetails } = await supabase
-              .from("reservations")
-              .select("description")
-              .eq("id", reservationId)
-              .single();
-
-            if (hasValidDescription(resDetails?.description)) {
-              await EmailService.send({
-                to: "jeavendano@sena.edu.co",
-                subject: `🚫 Requerimiento Cancelado: ${reservation.title}`,
-                react: SupportNotification({
-                  requesterName: victim.full_name,
-                  eventTitle: reservation.title,
-                  date: dateStr,
-                  timeRange: "CANCELADO",
-                  specialRequirements: resDetails!.description!,
-                  type: "CANCELLED_REQUIREMENT",
-                  cancelledBy: publicUser?.full_name || "Prioridad VIP",
-                }),
-              });
-            }
           }
         }
-      } catch (e) {
-        console.error("VIP Cancel Email Error: ", e);
       }
-    }
 
+      // B. Notify Coordinator IF it had Special Requirements (Always trigger on cancellation)
+      const { data: resDetails } = await supabase
+        .from("reservations")
+        .select("description, users(full_name)")
+        .eq("id", reservationId)
+        .single();
+
+      if (hasValidDescription(resDetails?.description)) {
+        const userDetails = resDetails?.users as unknown as {
+          full_name: string;
+        } | null;
+        await EmailService.send({
+          to: "jeavendano@sena.edu.co",
+          subject: `🚫 Requerimiento Cancelado: ${reservation.title}`,
+          react: SupportNotification({
+            requesterName: userDetails?.full_name || "Usuario",
+            eventTitle: reservation.title,
+            date: dateStr,
+            timeRange: "CANCELADO",
+            specialRequirements: resDetails!.description!,
+            type: "CANCELLED_REQUIREMENT",
+            cancelledBy: isOwner
+              ? "El Usuario (Cancelación Manual)"
+              : publicUser?.full_name || "Administración",
+          }),
+        });
+      }
+    } catch (e) {
+      console.error("Cancellation Email Error: ", e);
+    }
     // --- AUTOMATIC TICKET RESOLUTION ---
     try {
       // Identify the associated ticket(s)

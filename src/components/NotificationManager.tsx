@@ -84,7 +84,7 @@ export default function NotificationManager({
           }
         });
       }
-    } catch (_) {}
+    } catch {}
 
     const checkSLA = () => {
       const now = Date.now();
@@ -139,7 +139,7 @@ export default function NotificationManager({
         try {
           const obj = Object.fromEntries(lastNotificationTime.current);
           localStorage.setItem("notified_tickets_v2", JSON.stringify(obj));
-        } catch (_) {}
+        } catch {}
       }
     };
 

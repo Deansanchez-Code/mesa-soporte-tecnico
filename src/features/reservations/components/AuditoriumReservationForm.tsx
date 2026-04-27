@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, AlertTriangle, CheckCircle, Info } from "lucide-react";
+import { Calendar, AlertTriangle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 

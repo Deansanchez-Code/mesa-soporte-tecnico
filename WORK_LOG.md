@@ -18,12 +18,12 @@
 - **Auditoría RLS:** Se analizaron los scripts de migración y el `full_reset_db.sql`, detectando el uso recurrente de `USING (true)` para el rol `authenticated` en tablas de inventario.
 - **Notificaciones:** Se implementó una lógica de "vencimiento inminente" que alerta 15 minutos antes de que un ticket expire, mejorando la proactividad de los agentes.
 
-### Errores detectados y Lecciones aprendidas
+### Errores detectados y Lecciones aprendidas (2026-04-27)
 
 - **Lección:** Las políticas RLS que usan `USING (true)` para usuarios autenticados son un antipatrón de seguridad si la tabla contiene datos que no pertenecen a todos los usuarios (ej. activos asignados).
 - **Lección:** El uso de un servicio centralizado para notificaciones del navegador facilita la gestión de permisos y evita la duplicidad de lógica en componentes React.
 
-### Pendientes
+### Pendientes (2026-04-27)
 
 - Aplicar las correcciones de RLS propuestas en el ADR-005.
 - Evaluar la refactorización de UI (Fase 4: shadcn/ui).
@@ -54,13 +54,13 @@
 - **Filtros Avanzados:** Se añadió un botón de filtro rápido para tickets **VIP** (Críticos), actualizando el hook de consulta y los tipos de datos.
 - **Alertas de Urgencia:** Se implementó un resaltado visual (ámbar con pulso) para tickets que están a menos de 1 hora de vencer, facilitando la priorización visual.
 
-### Errores detectados y Lecciones aprendidas
+### Errores detectados y Lecciones aprendidas (2026-04-25)
 
 - **Error Histórico:** Validar variables de entorno críticas (como SMTP) usando solo `NODE_ENV === 'production'` causa fallos durante el build en Vercel, ya que el paso de compilación no suele contar con estas variables.
 - **Solución/Lección:** Siempre saltar la validación de entorno en tiempo de construcción si las variables solo son necesarias en tiempo de ejecución.
 - **Error Histórico:** Dificultad para pasar encabezados modificados (`x-nonce`) a través de funciones como `updateSession` en Supabase.
 - **Solución/Lección:** Para propagar encabezados en middlewares de Next.js de manera concurrente con la actualización de sesión, la función envolvente (`updateSession`) debe aceptar las cabeceras modificadas (`requestHeaders`) y pasarlas explícitamente a `NextResponse.next({ request: { headers: requestHeaders } })`.
 
-### Pendientes
+### Pendientes (2026-04-25)
 
 - Continuar con la Fase 2 del Diagnóstico: Pruebas unitarias para el calculador de SLA y E2E para flujos críticos.
