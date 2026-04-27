@@ -175,21 +175,37 @@ export async function cancelReservationAction(reservationId: number) {
 
     // --- AUTOMATIC TICKET RESOLUTION ---
     try {
-      // Identify the associated ticket
+      // Identify the associated ticket(s)
+      // We look for tickets from the reservation owner, in the "Reserva Auditorio" category,
+      // and whose description contains the reservation title.
       const { data: tickets } = await supabase
         .from("tickets")
         .select("id")
         .eq("user_id", reservation.user_id)
         .eq("category", "Reserva Auditorio")
         .ilike("description", `%${reservation.title}%`)
-        .order("created_at", { ascending: false })
-        .limit(1);
+        .order("created_at", { ascending: false });
 
       if (tickets && tickets.length > 0) {
-        await supabase.from("tickets").delete().eq("id", tickets[0].id);
+        // We delete the most recent matching ticket to ensure the "cases tray" is cleaned up.
+        const ticketId = tickets[0].id;
+        const { error: deleteError } = await supabase
+          .from("tickets")
+          .delete()
+          .eq("id", ticketId);
+
+        if (!deleteError) {
+          await Logger.info(
+            `Ticket #${ticketId} eliminado automáticamente tras cancelación de reserva #${reservationId}.`,
+          );
+        }
       }
     } catch (e) {
       console.error("Auto Ticket Deletion Error: ", e);
+      await Logger.error("Error en eliminación automática de ticket", {
+        reservationId,
+        error: e,
+      });
     }
 
     revalidatePath("/dashboard");
