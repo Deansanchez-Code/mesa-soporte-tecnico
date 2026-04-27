@@ -1,5 +1,34 @@
 # Registro de Trabajo (Work Log)
 
+## Sesión: 2026-04-27
+
+**Rama:** `feat/mejora-gradual-seguridad-calidad`
+**Modo:** Diagnóstico y Ejecución Gradual (Fases 1-3)
+
+### Qué se desarrolló
+
+1. **Fase 1 (Calidad):** Implementación de pruebas extendidas para el calculador de SLA (`sla-extended.test.ts`). Se validaron casos de borde de cambio de año, Semana Santa y límites de jornada laboral.
+2. **Fase 2 (Seguridad):** Auditoría completa de políticas RLS. Se identificaron vulnerabilidades en `assets` y `users` que permiten visibilidad excesiva a usuarios autenticados.
+3. **Fase 3 (UX):** Refactorización del sistema de notificaciones. Se creó `NotificationService.ts` y se actualizó `NotificationManager.tsx` para usar alertas basadas en el fin de SLA esperado en lugar de solo el tiempo de creación.
+
+### Cómo se desarrolló
+
+- **Tests de SLA:** Se diseñaron escenarios con `date-fns` simulando fechas críticas (31 Dic -> 2 Ene) y se confirmó el salto correcto de festivos colombianos.
+- **Auditoría RLS:** Se analizaron los scripts de migración y el `full_reset_db.sql`, detectando el uso recurrente de `USING (true)` para el rol `authenticated` en tablas de inventario.
+- **Notificaciones:** Se implementó una lógica de "vencimiento inminente" que alerta 15 minutos antes de que un ticket expire, mejorando la proactividad de los agentes.
+
+### Errores detectados y Lecciones aprendidas
+
+- **Lección:** Las políticas RLS que usan `USING (true)` para usuarios autenticados son un antipatrón de seguridad si la tabla contiene datos que no pertenecen a todos los usuarios (ej. activos asignados).
+- **Lección:** El uso de un servicio centralizado para notificaciones del navegador facilita la gestión de permisos y evita la duplicidad de lógica en componentes React.
+
+### Pendientes
+
+- Aplicar las correcciones de RLS propuestas en el ADR-005.
+- Evaluar la refactorización de UI (Fase 4: shadcn/ui).
+
+---
+
 ## Sesión: 2026-04-25
 
 **Rama:** `fix/estabilizacion-seguridad-entorno`

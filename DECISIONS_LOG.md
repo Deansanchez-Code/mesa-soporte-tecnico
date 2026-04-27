@@ -1,5 +1,36 @@
 # Registro de Decisiones (Decisions Log)
 
+## ADR-005: Reforzamiento de Políticas RLS para Privacidad de Datos
+
+**Fecha:** 2026-04-27
+**Capa:** Base de Datos / Seguridad
+**Responsable:** Arquitecto de Software / Agente Senior
+**Estado:** Propuesta
+
+### Contexto
+
+Durante la auditoría de seguridad de la Fase 2, se detectaron políticas RLS excesivamente permisivas en tablas con datos sensibles. Específicamente, las tablas `assets`, `asset_events` y `users` permiten lectura total (`USING (true)`) a cualquier usuario autenticado, lo que expone inventarios, correos electrónicos y trazabilidad interna a roles que no lo requieren (ej. contratistas).
+
+### Opciones Consideradas
+
+1. **Mantener actual:** Facilita la depuración pero compromete la privacidad (No recomendado).
+2. **Restricción por Rol y Pertenencia:** Limitar la visibilidad de activos a sus dueños o personal de soporte, y restringir la visibilidad de usuarios a columnas públicas.
+
+### Decisión
+
+Se propone implementar las siguientes restricciones:
+
+- **`assets`:** Solo lectura para el usuario asignado (`assigned_to_user_id`) o personal de soporte (`agent`, `admin`, `superadmin`).
+- **`asset_events`:** Solo lectura para personal de soporte.
+- **`users`:** Aplicar CLS (Column Level Security) también al rol `authenticated` para ocultar `email` y otros campos privados, permitiendo solo la visibilidad de perfiles públicos.
+
+### Consecuencias
+
+- **Positivas:** Cumplimiento con estándares de privacidad y reducción de la superficie de ataque interna.
+- **Negativas:** Posible impacto en componentes de UI que dependan de la búsqueda global de activos (deben ser revisados).
+
+---
+
 ## [2026-04-25] Validación de Variables de Entorno (SMTP)
 
 - **Decisión:** Permitir que el proceso de build ignore la validación de Zod para `SMTP_USER` y `SMTP_PASS`.
