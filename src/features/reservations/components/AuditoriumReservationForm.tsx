@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, AlertTriangle, CheckCircle } from "lucide-react";
+import { Calendar, AlertTriangle, CheckCircle, Info } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
@@ -405,6 +405,22 @@ export default function AuditoriumReservationForm({
         </div>
 
         {/* Título */}
+        {selectedSpace === "1" && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 animate-in fade-in slide-in-from-top-2">
+            <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+            <div className="text-sm text-blue-800">
+              <p className="font-bold mb-0.5">Recordatorio de Conectividad</p>
+              <p>
+                Solo está autorizado el{" "}
+                <strong>equipo portátil del centro de formación</strong> para
+                conectar el cable HDMI óptico. Esto con el fin de prolongar la
+                vida útil del mismo y evitar el cambio constante entre
+                dispositivos.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-bold text-gray-700 mb-1">
             Título de la Actividad

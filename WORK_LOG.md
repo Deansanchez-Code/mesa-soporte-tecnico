@@ -10,7 +10,7 @@
 1. **Fase 1 (Calidad):** Implementación de pruebas extendidas para el calculador de SLA (`sla-extended.test.ts`). Se validaron casos de borde de cambio de año, Semana Santa y límites de jornada laboral.
 2. **Fase 2 (Seguridad):** Auditoría completa de políticas RLS. Se implementó la migración `20260427_secure_assets_and_users.sql` para corregir la visibilidad excesiva en `assets`, `asset_events` y `users` (ADR-005).
 3. **Fase 3 (UX):** Refactorización del sistema de notificaciones. Se corrigieron errores de tipos (`null` vs `boolean`) y advertencias de linter en `NotificationManager.tsx`.
-4. **Mantenimiento:** Limpieza de advertencias de Markdown en logs y documentación.
+4. **Mantenimiento:** Limpieza de advertencias de Markdown en logs y documentación. Se añadió aviso informativo en `AuditoriumReservationForm.tsx` sobre el uso del cable HDMI óptico.
 
 ### Cómo se desarrolló
 
