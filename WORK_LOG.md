@@ -35,7 +35,7 @@
 **Rama:** `fix/estabilizacion-seguridad-entorno`
 **Modo:** Diagnóstico y Fase 1 (Estabilización)
 
-### Qué se desarrolló (2026-04-25)
+### Qué se desarrolló (2026-04-25 - Estabilización)
 
 1. Se generó un diagnóstico inicial de la base de código (`DIAGNOSTICO.md`).
 2. Se implementó la Fase 1 del plan de mejora, centrada en seguridad y variables de entorno.
@@ -43,7 +43,7 @@
 4. Se implementó la Fase 2: Robustez Lógica (Festivos Colombia y Pruebas).
 5. Se implementó la Fase 3: Optimización y UX (Tabla Admin y Filtros).
 
-### Cómo se desarrolló (2026-04-25)
+### Cómo se desarrolló (2026-04-25 - Estabilización)
 
 - **Ajuste de Entorno (SMTP):** Se modificó la validación de Zod en `src/env.ts` para omitirla durante el `npm_lifecycle_event === 'build'` o si `SKIP_ENV_VALIDATION` está activo.
 - **Ajuste de Middleware (CSP):** Se refactorizó `src/middleware.ts` y `src/lib/supabase/middleware.ts` para generar un _nonce_ criptográfico único por cada petición.
