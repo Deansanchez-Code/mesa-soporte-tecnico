@@ -406,22 +406,42 @@ export default function AuditoriumReservationForm({
 
         {/* Título */}
         {selectedSpace === "1" && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 animate-in fade-in slide-in-from-top-2">
-            <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-800">
-              <p className="font-bold mb-0.5">Recordatorio de Conectividad</p>
-              <p>
-                Solo está autorizado el{" "}
-                <strong>equipo portátil del centro de formación</strong> para
-                conectar el cable HDMI óptico. Esto con el fin de prolongar la
-                vida útil del mismo y evitar el cambio constante entre
-                dispositivos.
-              </p>
+          <div className="relative group overflow-hidden bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-400 rounded-2xl p-6 shadow-lg shadow-amber-900/10 animate-in zoom-in-95 duration-500">
+            {/* Elemento decorativo de fondo */}
+            <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-amber-200/30 rounded-full blur-2xl group-hover:bg-amber-300/40 transition-all duration-700" />
+
+            <div className="relative flex gap-5">
+              <div className="flex-shrink-0">
+                <div className="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/40 animate-pulse">
+                  <AlertTriangle className="w-8 h-8 text-white" />
+                </div>
+              </div>
+
+              <div className="flex-grow">
+                <h4 className="text-amber-900 font-black text-lg tracking-tight mb-1 uppercase">
+                  ¡Aviso Crítico de Conectividad!
+                </h4>
+                <p className="text-amber-800 text-sm leading-relaxed font-medium">
+                  Para el uso del{" "}
+                  <span className="underline decoration-amber-500 decoration-2 underline-offset-2">
+                    cable HDMI óptico
+                  </span>
+                  , está estrictamente autorizado{" "}
+                  <strong>
+                    únicamente el equipo portátil del centro de formación
+                  </strong>
+                  .
+                </p>
+                <div className="mt-3 flex items-center gap-2 text-[11px] font-bold text-amber-700 bg-amber-200/50 w-fit px-3 py-1 rounded-full border border-amber-300/50">
+                  <div className="w-1.5 h-1.5 bg-amber-600 rounded-full animate-ping" />
+                  PROTECCIÓN DE VIDA ÚTIL DEL EQUIPO
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        <div>
+        <div className="mt-2">
           <label className="block text-sm font-bold text-gray-700 mb-1">
             Título de la Actividad
           </label>
