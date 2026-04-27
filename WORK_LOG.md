@@ -8,8 +8,9 @@
 ### Qué se desarrolló
 
 1. **Fase 1 (Calidad):** Implementación de pruebas extendidas para el calculador de SLA (`sla-extended.test.ts`). Se validaron casos de borde de cambio de año, Semana Santa y límites de jornada laboral.
-2. **Fase 2 (Seguridad):** Auditoría completa de políticas RLS. Se identificaron vulnerabilidades en `assets` y `users` que permiten visibilidad excesiva a usuarios autenticados.
-3. **Fase 3 (UX):** Refactorización del sistema de notificaciones. Se creó `NotificationService.ts` y se actualizó `NotificationManager.tsx` para usar alertas basadas en el fin de SLA esperado en lugar de solo el tiempo de creación.
+2. **Fase 2 (Seguridad):** Auditoría completa de políticas RLS. Se implementó la migración `20260427_secure_assets_and_users.sql` para corregir la visibilidad excesiva en `assets`, `asset_events` y `users` (ADR-005).
+3. **Fase 3 (UX):** Refactorización del sistema de notificaciones. Se corrigieron errores de tipos (`null` vs `boolean`) y advertencias de linter en `NotificationManager.tsx`.
+4. **Mantenimiento:** Limpieza de advertencias de Markdown en logs y documentación.
 
 ### Cómo se desarrolló
 
@@ -34,7 +35,7 @@
 **Rama:** `fix/estabilizacion-seguridad-entorno`
 **Modo:** Diagnóstico y Fase 1 (Estabilización)
 
-### Qué se desarrolló
+### Qué se desarrolló (2026-04-25)
 
 1. Se generó un diagnóstico inicial de la base de código (`DIAGNOSTICO.md`).
 2. Se implementó la Fase 1 del plan de mejora, centrada en seguridad y variables de entorno.
@@ -42,7 +43,7 @@
 4. Se implementó la Fase 2: Robustez Lógica (Festivos Colombia y Pruebas).
 5. Se implementó la Fase 3: Optimización y UX (Tabla Admin y Filtros).
 
-### Cómo se desarrolló
+### Cómo se desarrolló (2026-04-25)
 
 - **Ajuste de Entorno (SMTP):** Se modificó la validación de Zod en `src/env.ts` para omitirla durante el `npm_lifecycle_event === 'build'` o si `SKIP_ENV_VALIDATION` está activo.
 - **Ajuste de Middleware (CSP):** Se refactorizó `src/middleware.ts` y `src/lib/supabase/middleware.ts` para generar un _nonce_ criptográfico único por cada petición.

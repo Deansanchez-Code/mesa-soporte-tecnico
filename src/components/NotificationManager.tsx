@@ -31,8 +31,8 @@ export default function NotificationManager({
         const audio = new Audio(NOTIFICATION_SOUND);
         audio.volume = 0.4;
         audio.play().catch(() => {});
-      } catch (e) {
-        console.error("Audio error:", e);
+      } catch (error) {
+        console.error("System notification error:", error);
       }
     };
 
@@ -84,7 +84,7 @@ export default function NotificationManager({
           }
         });
       }
-    } catch (e) {}
+    } catch (_) {}
 
     const checkSLA = () => {
       const now = Date.now();
@@ -117,7 +117,7 @@ export default function NotificationManager({
               ? "🚨 SLA VIP VENCIDO"
               : "🚨 SLA VENCIDO";
             const msg = `El ticket #${ticket.ticket_code || ticket.id} ha superado el tiempo límite.`;
-            sendNotification(ticket, title, msg, true);
+            sendNotification(ticket, title, msg, ticket.is_vip_ticket ?? false);
             lastNotificationTime.current.set(ticket.id, now);
             hasUpdates = true;
           }
@@ -128,7 +128,7 @@ export default function NotificationManager({
             // Menos frecuente para no agobiar
             const title = "⚠️ VENCIMIENTO INMINENTE";
             const msg = `El ticket #${ticket.ticket_code || ticket.id} vencerá en ${minutesToExpiry} minutos.`;
-            sendNotification(ticket, title, msg, ticket.is_vip_ticket);
+            sendNotification(ticket, title, msg, ticket.is_vip_ticket ?? false);
             lastNotificationTime.current.set(ticket.id, now);
             hasUpdates = true;
           }
@@ -139,7 +139,7 @@ export default function NotificationManager({
         try {
           const obj = Object.fromEntries(lastNotificationTime.current);
           localStorage.setItem("notified_tickets_v2", JSON.stringify(obj));
-        } catch (e) {}
+        } catch (_) {}
       }
     };
 
