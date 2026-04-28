@@ -2,17 +2,17 @@
 
 ## Sesión: 2026-04-28
 
-**Rama:** `main` (por instrucción directa del usuario)
+**Rama:** `fix/trazabilidad-cancelacion-tickets` (PR generado para merge a `main`)
 **Modo:** Diagnóstico y Refactorización (GSD)
 
-### Qué se desarrolló
+### Qué se desarrolló (2026-04-28)
 
 1. **Refactorización de Cancelación de Reservas:** Se eliminó la lógica de "hard delete" en los tickets de soporte asociados a cancelaciones de auditorio (`reservationActions.ts`) y biblioteca (`libraryApprovalActions.ts`).
 2. **Implementación de Soft Update:** Los tickets ahora se actualizan al estado `CANCELADO` en lugar de borrarse. Se añade una nota de auditoría automática en el campo `description` con fecha, hora y el actor que realizó la cancelación.
 3. **Mejora de UX en Dashboard Admin:** Se añadió soporte visual para el estado `CANCELADO` (badge gris) y se excluyeron estos tickets del cálculo de alertas de vencimiento de SLA.
 4. **Mejora de Trazabilidad en Kanban:** La columna de "Resueltos" ahora incluye tickets `CANCELADO` de las últimas 12 horas, con badges y textos descriptivos específicos ("Reserva cancelada").
 
-### Cómo se desarrolló
+### Cómo se desarrolló (2026-04-28)
 
 - **Acciones de Servidor:** Se modificó `cancelReservationAction` y `cancelLibraryReservation` para realizar un `.update()` en la tabla `tickets`. Se integró un filtro `.not('status', 'in', '(...)')` para evitar procesar tickets ya cerrados.
 - **UI/UX:** Se actualizaron los filtros en `src/app/admin/page.tsx` y `src/app/dashboard/page.tsx` para manejar el nuevo estado de manera consistente con el ciclo de vida de los tickets.
@@ -33,14 +33,14 @@
 **Rama:** `feat/mejora-gradual-seguridad-calidad`
 **Modo:** Diagnóstico y Ejecución Gradual (Fases 1-3)
 
-### Qué se desarrolló
+### Qué se desarrolló (2026-04-27)
 
 1. **Fase 1 (Calidad):** Implementación de pruebas extendidas para el calculador de SLA (`sla-extended.test.ts`). Se validaron casos de borde de cambio de año, Semana Santa y límites de jornada laboral.
 2. **Fase 2 (Seguridad):** Auditoría completa de políticas RLS. Se implementó la migración `20260427_secure_assets_and_users.sql` para corregir la visibilidad excesiva en `assets`, `asset_events` y `users` (ADR-005).
 3. **Fase 3 (UX):** Refactorización del sistema de notificaciones. Se corrigieron errores de tipos (`null` vs `boolean`) y advertencias de linter en `NotificationManager.tsx`.
 4. **Mantenimiento:** Limpieza de advertencias de Markdown en logs y documentación. Se añadió aviso informativo en `AuditoriumReservationForm.tsx` sobre el uso del cable HDMI óptico. Se implementó la eliminación automática de tickets al cancelar reservas (usuarios y VIP).
 
-### Cómo se desarrolló
+### Cómo se desarrolló (2026-04-27)
 
 - **Tests de SLA:** Se diseñaron escenarios con `date-fns` simulando fechas críticas (31 Dic -> 2 Ene) y se confirmó el salto correcto de festivos colombianos.
 - **Auditoría RLS:** Se analizaron los scripts de migración y el `full_reset_db.sql`, detectando el uso recurrente de `USING (true)` para el rol `authenticated` en tablas de inventario.
