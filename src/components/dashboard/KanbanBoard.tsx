@@ -577,8 +577,16 @@ export function KanbanBoard({
                           )}
                           {ticket.ticket_code || `#${ticket.id}`}
                         </span>
-                        <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded border border-green-200">
-                          RESUELTO
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                            ticket.status === "CANCELADO"
+                              ? "bg-gray-100 text-gray-500 border-gray-200"
+                              : "bg-green-100 text-green-700 border-green-200"
+                          }`}
+                        >
+                          {ticket.status === "CANCELADO"
+                            ? "CANCELADO"
+                            : "RESUELTO"}
                         </span>
                         {ticket.is_vip_ticket && (
                           <span
@@ -610,7 +618,9 @@ export function KanbanBoard({
                     {formatName(ticket.users?.full_name)}
                   </h3>
                   <p className="text-xs text-gray-400 mt-1 italic">
-                    Ticket cerrado
+                    {ticket.status === "CANCELADO"
+                      ? "Reserva cancelada"
+                      : "Ticket cerrado"}
                   </p>
                 </div>
               ))}

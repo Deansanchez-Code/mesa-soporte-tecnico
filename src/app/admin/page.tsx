@@ -883,7 +883,8 @@ export default function AdminDashboard() {
 
                         const isResolved =
                           ticket.status === "RESUELTO" ||
-                          ticket.status === "CERRADO";
+                          ticket.status === "CERRADO" ||
+                          ticket.status === "CANCELADO";
                         const isExpiringSoon =
                           !isResolved &&
                           isAfter(new Date(), subHours(dueDate, 1)) &&
@@ -927,11 +928,13 @@ export default function AdminDashboard() {
                                   ticket.status === "RESUELTO" ||
                                   ticket.status === "CERRADO"
                                     ? "bg-green-100 text-green-700"
-                                    : ticket.status === "EN_PROGRESO"
-                                      ? "bg-blue-100 text-blue-700"
-                                      : ticket.status === "EN_ESPERA"
-                                        ? "bg-purple-100 text-purple-700"
-                                        : "bg-red-100 text-red-700"
+                                    : ticket.status === "CANCELADO"
+                                      ? "bg-gray-100 text-gray-500"
+                                      : ticket.status === "EN_PROGRESO"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : ticket.status === "EN_ESPERA"
+                                          ? "bg-purple-100 text-purple-700"
+                                          : "bg-red-100 text-red-700"
                                 }`}
                               >
                                 {ticket.status}

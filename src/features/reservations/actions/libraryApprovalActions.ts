@@ -228,22 +228,37 @@ export async function cancelLibraryReservation(id: number, reason: string) {
       },
     ]);
 
-    // --- AUTOMATIC TICKET RESOLUTION ---
+    // --- AUTOMATIC TICKET CANCELLATION (soft update, no hard delete) ---
     try {
       // Identify the associated ticket
       const { data: tickets } = await supabaseAdmin
         .from("tickets")
-        .select("id")
+        .select("id, description")
         .eq("user_id", reservation.user_id)
         .ilike("description", `%${reservation.title}%`)
+        .not("status", "in", '("CANCELADO","CERRADO","RESUELTO")')
         .order("created_at", { ascending: false })
         .limit(1);
 
       if (tickets && tickets.length > 0) {
-        await supabaseAdmin.from("tickets").delete().eq("id", tickets[0].id);
+        const ticketId = tickets[0].id;
+        const cancelNote = `Cancelado por coordinador de biblioteca. Motivo: ${reason}`;
+        const dateStr = new Date().toLocaleString("es-CO", {
+          timeZone: "America/Bogota",
+        });
+        const updatedDescription = `${tickets[0].description || ""}\n\n[${dateStr}] CANCELACIÓN AUTOMÁTICA: ${cancelNote}.`;
+
+        await supabaseAdmin
+          .from("tickets")
+          .update({
+            status: "CANCELADO",
+            description: updatedDescription,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", ticketId);
       }
     } catch (e) {
-      console.error("Auto Ticket Deletion Error: ", e);
+      console.error("Auto Ticket Cancellation Error: ", e);
     }
 
     revalidatePath("/dashboard");

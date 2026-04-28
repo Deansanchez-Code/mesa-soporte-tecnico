@@ -165,36 +165,48 @@ export async function cancelReservationAction(reservationId: number) {
     } catch (e) {
       console.error("Cancellation Email Error: ", e);
     }
-    // --- AUTOMATIC TICKET RESOLUTION ---
+    // --- AUTOMATIC TICKET CANCELLATION (soft update, no hard delete) ---
     try {
       // Identify the associated ticket(s)
       // We look for tickets from the reservation owner, in the "Reserva Auditorio" category,
       // and whose description contains the reservation title.
       const { data: tickets } = await supabase
         .from("tickets")
-        .select("id")
+        .select("id, description")
         .eq("user_id", reservation.user_id)
         .eq("category", "Reserva Auditorio")
         .ilike("description", `%${reservation.title}%`)
+        .not("status", "in", '("CANCELADO","CERRADO","RESUELTO")')
         .order("created_at", { ascending: false });
 
       if (tickets && tickets.length > 0) {
-        // We delete the most recent matching ticket to ensure the "cases tray" is cleaned up.
         const ticketId = tickets[0].id;
-        const { error: deleteError } = await supabase
+        const cancelNote = isOwner
+          ? "Cancelado por el usuario"
+          : `Cancelado por administrador (${publicUser?.full_name || "Administración"})`;
+        const dateStr = new Date().toLocaleString("es-CO", {
+          timeZone: "America/Bogota",
+        });
+        const updatedDescription = `${tickets[0].description || ""}\n\n[${dateStr}] CANCELACIÓN AUTOMÁTICA: ${cancelNote}.`;
+
+        const { error: updateError } = await supabase
           .from("tickets")
-          .delete()
+          .update({
+            status: "CANCELADO",
+            description: updatedDescription,
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", ticketId);
 
-        if (!deleteError) {
+        if (!updateError) {
           await Logger.info(
-            `Ticket #${ticketId} eliminado automáticamente tras cancelación de reserva #${reservationId}.`,
+            `Ticket #${ticketId} marcado como CANCELADO automáticamente tras cancelación de reserva #${reservationId}.`,
           );
         }
       }
     } catch (e) {
-      console.error("Auto Ticket Deletion Error: ", e);
-      await Logger.error("Error en eliminación automática de ticket", {
+      console.error("Auto Ticket Cancellation Error: ", e);
+      await Logger.error("Error en cancelación automática de ticket", {
         reservationId,
         error: e,
       });

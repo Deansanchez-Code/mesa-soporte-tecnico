@@ -179,7 +179,10 @@ export default function AgentDashboard() {
   );
 
   const resolvedTickets = tickets.filter((t) => {
-    const isResolved = t.status === "RESUELTO" || t.status === "CERRADO";
+    const isResolved =
+      t.status === "RESUELTO" ||
+      t.status === "CERRADO" ||
+      t.status === "CANCELADO";
     if (!isResolved) return false;
     const dateToCheck = new Date(t.updated_at || t.created_at || "");
     const diffTime = Math.abs(new Date().getTime() - dateToCheck.getTime());
