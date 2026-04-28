@@ -41,7 +41,7 @@ export function useReservations({
       const { data, error } = await supabase
         .from("reservations")
         .select("*, users(full_name, is_vip, role)")
-        .eq("status", "APPROVED")
+        .in("status", ["APPROVED", "PENDING"])
         .gte("start_time", startOfDay)
         .lte("start_time", endOfDay)
         .order("start_time");

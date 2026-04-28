@@ -24,3 +24,8 @@
 
 - **Contexto:** Eliminación automática de tickets al cancelar reservas.
 - **Aprendizaje:** La eliminación física (`.delete()`) es perjudicial para la auditoría y el análisis de negocio. Se aprendió que en sistemas de soporte, cada acción debe quedar registrada mediante cambios de estado (`status: 'CANCELADO'`) y notas automáticas, garantizando que el historial siempre sea consultable desde el dashboard de administración.
+
+## [Error] Fallo en detecci\u00f3n de conflictos por discrepancia de tipos (UI)
+
+- **Causa:** Uso de comparaci\u00f3n estricta (!==) entre el auditorium_id de la base de datos (a veces num\u00e9rico) y el estado del formulario (string).
+- **Aprendizaje:** Al trabajar con datos que pueden ser polim\u00f3rficos entre la base de datos y el estado de React, es fundamental normalizar los tipos (usando String() o Number()) antes de realizar comparaciones cr\u00edticas. Esto evitaba que los usuarios vieran bloqueos de horario que t\u00e9cnicamente exist\u00edan.

@@ -43,7 +43,7 @@ export default function AuditoriumReservationForm({
   const [description, setDescription] = useState("");
   const [isMultiDay, setIsMultiDay] = useState(false);
   const [selectedSpace, setSelectedSpace] = useState(
-    reservationToEdit?.auditorium_id || initialSpace || "1",
+    String(reservationToEdit?.auditorium_id || initialSpace || "1"),
   ); // 1: Auditorio, 2: Subdirección
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -102,7 +102,7 @@ export default function AuditoriumReservationForm({
         setSelectedResources(reservationToEdit.resources || []);
         setDescription(reservationToEdit.description || "");
         setIsMultiDay(sDate !== eDate);
-        setSelectedSpace(reservationToEdit.auditorium_id || "1");
+        setSelectedSpace(String(reservationToEdit.auditorium_id || "1"));
       } catch (e) {
         console.error("Error parsing reservation dates:", e);
       }
@@ -117,7 +117,7 @@ export default function AuditoriumReservationForm({
     // Detectar conflictos en el rango de fechas para el ESPACIO SELECCIONADO
     const foundConflicts = reservations.filter((r) => {
       if (reservationToEdit && r.id === reservationToEdit.id) return false;
-      if (r.auditorium_id !== selectedSpace) return false;
+      if (String(r.auditorium_id) !== String(selectedSpace)) return false;
 
       const rStart = new Date(r.start_time);
       const rEnd = new Date(r.end_time);
@@ -647,7 +647,8 @@ export default function AuditoriumReservationForm({
                   );
 
                   const isOccupied = reservations.some((r) => {
-                    if (r.auditorium_id !== selectedSpace) return false;
+                    if (String(r.auditorium_id) !== String(selectedSpace))
+                      return false;
                     const rStart = new Date(r.start_time);
                     const rEnd = new Date(r.end_time);
                     return (

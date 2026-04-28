@@ -38,7 +38,12 @@ function hasValidDescription(desc: string | null | undefined): boolean {
   return !blacklist.includes(normalized) && normalized.length > 0;
 }
 
-export async function cancelReservationAction(reservationId: number) {
+export async function cancelReservationAction(
+  reservationId: number,
+  options: { silent?: boolean } = {},
+) {
+  const { silent = false } = options;
+
   try {
     const supabase = await createClient();
 
@@ -120,7 +125,7 @@ export async function cancelReservationAction(reservationId: number) {
               ? `${victim.username.trim()}@sena.edu.co`.toLowerCase()
               : victim.email;
 
-          if (victimEmail && victimEmail.includes("@")) {
+          if (victimEmail && victimEmail.includes("@") && !silent) {
             await EmailService.send({
               to: victimEmail,
               subject: `⚠️ Cancelación por Prioridad: ${reservation.title}`,
@@ -142,7 +147,7 @@ export async function cancelReservationAction(reservationId: number) {
         .eq("id", reservationId)
         .single();
 
-      if (hasValidDescription(resDetails?.description)) {
+      if (hasValidDescription(resDetails?.description) && !silent) {
         const userDetails = resDetails?.users as unknown as {
           full_name: string;
         } | null;
@@ -316,7 +321,7 @@ export async function createReservationAction(
     const { data: conflicts } = await supabase
       .from("reservations")
       .select("id")
-      .eq("status", "APPROVED")
+      .in("status", ["APPROVED", "PENDING"])
       .eq("auditorium_id", auditorium_id || "1")
       .lt("start_time", end_time)
       .gt("end_time", start_time);
@@ -598,7 +603,7 @@ export async function updateReservationAction(
     const { data: conflicts } = await supabase
       .from("reservations")
       .select("id")
-      .eq("status", "APPROVED")
+      .in("status", ["APPROVED", "PENDING"])
       .eq("auditorium_id", auditorium_id || "1")
       .neq("id", id)
       .lt("start_time", end_time)
@@ -789,7 +794,7 @@ export async function createReservationBatchAction(
       let query = supabase
         .from("reservations")
         .select("*, users(id, full_name, is_vip, role)") // Select user details to check their status
-        .eq("status", "APPROVED")
+        .in("status", ["APPROVED", "PENDING"])
         .eq("auditorium_id", targetSpace)
         .lt("start_time", res.end_time)
         .gt("end_time", res.start_time);
@@ -824,9 +829,9 @@ export async function createReservationBatchAction(
             );
           }
 
-          // Atomic Cancellation of Conflicts
+          // Atomic Cancellation of Conflicts (Silent for Batch to avoid massive individual emails)
           for (const conflict of conflicts) {
-            await cancelReservationAction(conflict.id); // Re-use existing action to handle notifications/emails
+            await cancelReservationAction(conflict.id, { silent: true });
           }
         } else {
           throw new Error(

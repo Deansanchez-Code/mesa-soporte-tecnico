@@ -81,3 +81,14 @@ Se propone implementar las siguientes restricciones:
 - **Decisión:** Implementar un filtro dedicado para tickets "VIP" y un resaltado visual (ámbar pulsante) para tickets próximos a vencer (<1h).
 - **Razón:** Facilitar a los agentes la identificación inmediata de tickets que requieren acción prioritaria para cumplir el SLA.
 - **Impacto:** Reducción en el riesgo de incumplimiento de SLA y mejora en la eficiencia operativa.
+
+## [2026-04-28] Mejora en L\u00f3gica de Reservas y Mitigaci\u00f3n de Spam
+
+- **Decisi\u00f3n:**
+  1. Incluir el estado PENDING en todas las validaciones de conflicto de reserva.
+  2. Implementar un par\u00e1metro silent en cancelReservationAction para omitir notificaciones individuales durante anulaciones masivas por prioridad VIP.
+  3. Normalizar comparaciones de auditorium_id en el frontend para evitar fallos por discrepancia de tipos (String vs Number).
+- **Raz\u00f3n:** Los usuarios reportaban reservas solapadas (debido a que las solicitudes pendientes no bloqueaban nuevos intentos) y saturaci\u00f3n de correos (debido a notificaciones redundantes en procesos por lotes).
+- **Impacto:** Eliminaci\u00f3n de reservas duplicadas en el mismo horario, mejor visibilidad del estado real de ocupaci\u00f3n y reducci\u00f3n dr\u00e1stica del ruido por correos electr\u00f3nicos autom\u00e1ticos.
+- **Responsable:** Arquitecto / Desarrollador Fullstack.
+- **Estado:** Aceptado.
