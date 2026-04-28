@@ -1,15 +1,16 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { EmailService } from "@/lib/email/email-service";
-import ReservationConfirmation from "@/lib/email/templates/ReservationConfirmation";
-import SupportNotification from "@/lib/email/templates/SupportNotification";
-import VipCancellation from "@/lib/email/templates/VipCancellation";
+import { ReservationConfirmation } from "@/lib/email/templates/ReservationConfirmation";
+import { SupportNotification } from "@/lib/email/templates/SupportNotification";
+import { VipCancellation } from "@/lib/email/templates/VipCancellation";
+import { LibraryNotification } from "@/lib/email/templates/LibraryNotification";
 import { ReservationSchema } from "../schemas";
 import Logger from "@/lib/logger";
-import { LibraryNotification } from "@/lib/email/templates/LibraryNotification";
 
 function hasValidDescription(desc: string | null | undefined): boolean {
   if (!desc) return false;
@@ -172,10 +173,13 @@ export async function cancelReservationAction(
     }
     // --- AUTOMATIC TICKET CANCELLATION (soft update, no hard delete) ---
     try {
+      const adminSupabase = getSupabaseAdmin();
+
       // Identify the associated ticket(s)
       // We look for tickets from the reservation owner, in the "Reserva Auditorio" category,
       // and whose description contains the reservation title.
-      const { data: tickets } = await supabase
+      // Use Admin Client to bypass potential RLS restrictions on ticket status updates by contractors.
+      const { data: tickets } = await adminSupabase
         .from("tickets")
         .select("id, description")
         .eq("user_id", reservation.user_id)
@@ -194,7 +198,7 @@ export async function cancelReservationAction(
         });
         const updatedDescription = `${tickets[0].description || ""}\n\n[${dateStr}] CANCELACIÓN AUTOMÁTICA: ${cancelNote}.`;
 
-        const { error: updateError } = await supabase
+        const { error: updateError } = await adminSupabase
           .from("tickets")
           .update({
             status: "CANCELADO",
@@ -205,8 +209,10 @@ export async function cancelReservationAction(
 
         if (!updateError) {
           await Logger.info(
-            `Ticket #${ticketId} marcado como CANCELADO automáticamente tras cancelación de reserva #${reservationId}.`,
+            `Ticket #${ticketId} marcado como CANCELADO automáticamente (vía Admin) tras cancelación de reserva #${reservationId}.`,
           );
+        } else {
+          console.error("Error updating ticket status:", updateError);
         }
       }
     } catch (e) {
