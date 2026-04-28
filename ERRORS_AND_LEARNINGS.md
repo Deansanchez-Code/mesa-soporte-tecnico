@@ -19,3 +19,8 @@
 
 - **Causa:** Durante la resolución manual de conflictos en `src/env.ts`, se eliminó accidentalmente la firma de una función de flecha en un `.refine()`.
 - **Aprendizaje:** Tras resolver conflictos manualmente, es imperativo realizar una revisión visual de la sintaxis y ejecutar el linter antes de intentar el commit definitivo. Los pre-commit hooks (Husky/Lint-staged) son la última línea de defensa efectiva.
+
+## [Aprendizaje] Trazabilidad vs Limpieza (Hard vs Soft Delete)
+
+- **Contexto:** Eliminación automática de tickets al cancelar reservas.
+- **Aprendizaje:** La eliminación física (`.delete()`) es perjudicial para la auditoría y el análisis de negocio. Se aprendió que en sistemas de soporte, cada acción debe quedar registrada mediante cambios de estado (`status: 'CANCELADO'`) y notas automáticas, garantizando que el historial siempre sea consultable desde el dashboard de administración.

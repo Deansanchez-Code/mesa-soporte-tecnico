@@ -1,5 +1,32 @@
 # Registro de Decisiones (Decisions Log)
 
+## ADR-006: Transición de Hard Delete a Soft Update (Estados) en Tickets de Soporte
+
+**Fecha:** 2026-04-28
+**Capa:** Lógica de Negocio / Base de Datos
+**Responsable:** Tech Lead / Agente Senior
+**Estado:** Aceptada
+
+### Contexto
+
+El sistema eliminaba físicamente (`.delete()`) los tickets de soporte generados automáticamente al cancelar una reserva de auditorio o biblioteca. Esto provocaba una pérdida de trazabilidad histórica: en el dashboard de administración, el ticket simplemente desaparecía, impidiendo auditorías sobre por qué se canceló una solicitud o cuántas cancelaciones ocurren.
+
+### Opciones Consideradas
+
+1. **Mantener eliminación física:** Mantiene la base de datos limpia pero sin historial (Descartado).
+2. **Cambio a estado `CANCELADO` (Soft Update):** Actualizar el estado del ticket y mantenerlo en la base de datos con una nota descriptiva de la razón del cierre.
+
+### Decisión
+
+Se implementa la opción 2. Los tickets asociados a reservas canceladas pasan al estado `CANCELADO`. Además, se concatena en el campo `description` una nota de trazabilidad indicando la fecha, hora y el actor (Usuario, VIP o Administrador) que originó la cancelación.
+
+### Consecuencias
+
+- **Positivas:** Trazabilidad completa del ciclo de vida del ticket. Posibilidad de generar métricas sobre cancelaciones. Mejor UX para el administrador al no ver "registros fantasma" que desaparecen.
+- **Negativas:** Ligero incremento en el volumen de datos de la tabla `tickets` (despreciable frente al beneficio de la auditoría).
+
+---
+
 ## ADR-005: Reforzamiento de Políticas RLS para Privacidad de Datos
 
 **Fecha:** 2026-04-27

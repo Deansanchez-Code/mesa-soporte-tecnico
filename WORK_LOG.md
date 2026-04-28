@@ -1,5 +1,33 @@
 # Registro de Trabajo (Work Log)
 
+## Sesión: 2026-04-28
+
+**Rama:** `main` (por instrucción directa del usuario)
+**Modo:** Diagnóstico y Refactorización (GSD)
+
+### Qué se desarrolló
+
+1. **Refactorización de Cancelación de Reservas:** Se eliminó la lógica de "hard delete" en los tickets de soporte asociados a cancelaciones de auditorio (`reservationActions.ts`) y biblioteca (`libraryApprovalActions.ts`).
+2. **Implementación de Soft Update:** Los tickets ahora se actualizan al estado `CANCELADO` en lugar de borrarse. Se añade una nota de auditoría automática en el campo `description` con fecha, hora y el actor que realizó la cancelación.
+3. **Mejora de UX en Dashboard Admin:** Se añadió soporte visual para el estado `CANCELADO` (badge gris) y se excluyeron estos tickets del cálculo de alertas de vencimiento de SLA.
+4. **Mejora de Trazabilidad en Kanban:** La columna de "Resueltos" ahora incluye tickets `CANCELADO` de las últimas 12 horas, con badges y textos descriptivos específicos ("Reserva cancelada").
+
+### Cómo se desarrolló
+
+- **Acciones de Servidor:** Se modificó `cancelReservationAction` y `cancelLibraryReservation` para realizar un `.update()` en la tabla `tickets`. Se integró un filtro `.not('status', 'in', '(...)')` para evitar procesar tickets ya cerrados.
+- **UI/UX:** Se actualizaron los filtros en `src/app/admin/page.tsx` y `src/app/dashboard/page.tsx` para manejar el nuevo estado de manera consistente con el ciclo de vida de los tickets.
+
+### Errores detectados y Lecciones aprendidas (2026-04-28)
+
+- **Lección:** La eliminación física de registros vinculados a procesos de negocio (como reservas) destruye la trazabilidad histórica necesaria para métricas y auditorías. Siempre preferir "Soft Updates" o cambios de estado.
+- **Lección:** Al automatizar cambios de estado, es vital verificar el estado actual del registro para evitar inconsistencias (ej. no cancelar un ticket que ya fue resuelto manualmente por un agente).
+
+### Pendientes (2026-04-28)
+
+- Monitorear el volumen de tickets en la columna de "Resueltos" para ajustar el tiempo de persistencia si es necesario.
+
+---
+
 ## Sesión: 2026-04-27
 
 **Rama:** `feat/mejora-gradual-seguridad-calidad`
