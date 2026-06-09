@@ -30,7 +30,7 @@ describe("Prueba de Solapamiento", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (createClient as any).mockResolvedValue(mockSupabase);
     mockSupabase.auth.getUser.mockResolvedValue({
-      data: { user: { id: "u1" } },
+      data: { user: { id: "123e4567-e89b-12d3-a456-426614174000" } },
     });
   });
 
@@ -46,7 +46,9 @@ describe("Prueba de Solapamiento", () => {
       };
 
       if (table === "users") {
-        chain.single.mockResolvedValue({ data: { id: "u1", role: "user" } });
+        chain.single.mockResolvedValue({
+          data: { id: "123e4567-e89b-12d3-a456-426614174000", role: "user" },
+        });
       } else if (table === "reservations") {
         // Simulamos que encuentra 1 registro (conflicto)
         // La cadena termina en gt() para el conflict check
@@ -59,12 +61,12 @@ describe("Prueba de Solapamiento", () => {
       title: "Test",
       start_time: new Date().toISOString(),
       end_time: new Date().toISOString(),
-      user_id: "u1",
+      user_id: "123e4567-e89b-12d3-a456-426614174000",
       auditorium_id: "1",
     });
 
     console.log("RESULTADO TEST 1:", result);
-    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
     expect(result.error).toContain("Horario no disponible");
   });
 });

@@ -307,6 +307,7 @@ Configura/propon:
 - ESLint + TS, reglas estrictas.
 - No lógica de negocio en componentes (llevar a servicios/casos de uso).
 - Seguridad básica (XSS, sanitización).
+- Prevención de envíos múltiples (double-submit): usar referencias síncronas (`useRef`) para bloquear la interfaz, evitando depender exclusivamente de estados asíncronos (`useState`).
 - UX/UI:
   - Design System + Atomic Design.
   - Design tokens (colores, tipografías, spacing).
@@ -320,6 +321,7 @@ Configura/propon:
 - Arquitectura: separación de controladores, casos de uso, dominio, infraestructura.
 - Validación centralizada de entradas.
 - Manejo central de errores.
+- Operaciones en base de datos: evitar suposiciones de un solo registro (ej. modificar solo `array[0]`) si la lógica del negocio puede involucrar actualizaciones en lote. Iterar sobre todos los registros afectados.
 - Seguridad:
   - auth/roles,
   - no secretos en código,
