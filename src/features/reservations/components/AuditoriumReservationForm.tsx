@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Calendar, AlertTriangle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
@@ -46,6 +46,7 @@ export default function AuditoriumReservationForm({
     String(reservationToEdit?.auditorium_id || initialSpace || "1"),
   ); // 1: Auditorio, 2: Subdirección
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
   // useReservations Hook
@@ -160,6 +161,7 @@ export default function AuditoriumReservationForm({
     if (e) e.preventDefault();
 
     if (!user?.id) return;
+    if (submittingRef.current) return;
 
     if (conflicts.length > 0 && !isOverride) {
       // Check if ANY conflict is from a VIP user
@@ -178,6 +180,7 @@ export default function AuditoriumReservationForm({
       }
     }
 
+    submittingRef.current = true;
     setIsSubmitting(true);
 
     try {
@@ -245,39 +248,50 @@ export default function AuditoriumReservationForm({
       const isPending = !!(result as { pendingApproval?: boolean })
         ?.pendingApproval;
 
-      // Handle Support Tickets (Optimized Batch)
-      if (reservationToEdit && !isMultiDay) {
-        // Sync Single
-        const t = supportTicketsPayload[0];
+      // Helpers para nombres de espacio
+      const getSpaceName = (spaceId: string) => {
+        if (spaceId === "1") return "Auditorio";
+        if (spaceId === "3") return "Biblioteca";
+        return "Subdirección";
+      };
+
+      const spaceName = getSpaceName(selectedSpace);
+
+      // Handle Support Tickets
+      if (reservationToEdit) {
+        // Al editar (ya sea multi-día o de un solo día), actualizamos el ticket consolidado original
+        const datesString = supportTicketsPayload
+          .map((t) => t.date.split("-").reverse().join("-"))
+          .join(", ");
+        const primerDia = supportTicketsPayload[0];
+
+        const fullNewDescription = `Reserva de ${spaceName}: ${title}\nFechas: ${datesString}\nHora: ${primerDia.start} - ${primerDia.end}\nRecursos: ${selectedResources.join(
+          ", ",
+        )}\nDetalles: ${description}\n(ACTUALIZADO)`;
+
         await syncTicketWithReservation(reservationToEdit.title || "", {
-          title,
-          date: t.date,
-          start: t.start,
-          end: t.end,
-          resources: selectedResources,
-          description,
-          isoStart: t.isoStart,
+          fullNewDescription,
+          isoStart: primerDia.isoStart,
         });
       } else {
-        // Create Batch (New or Multi-day Edit)
+        // Create Batch (New)
         // Agrupar todas las fechas en un solo ticket para evitar spam
         const datesString = supportTicketsPayload
           .map((t) => t.date.split("-").reverse().join("-"))
           .join(", ");
 
-        // Usamos la primera fecha y hora como base para el evento en el ticket
         const primerDia = supportTicketsPayload[0];
 
         const ticketConsolidado = {
-          category: "Reserva Auditorio",
+          category: "Reserva Auditorio", // Mantenemos la categoría base por temas de filtrado en panel
           ticket_type: "REQ" as const,
-          description: `Reserva de ${selectedSpace === "1" ? "Auditorio" : "Subdirección de Centro"}: ${title}\nFechas: ${datesString}\nHora: ${primerDia.start} - ${primerDia.end}\nRecursos: ${selectedResources.join(", ")}\nDetalles: ${description}`,
+          description: `Reserva de ${spaceName}: ${title}\nFechas: ${datesString}\nHora: ${primerDia.start} - ${primerDia.end}\nRecursos: ${selectedResources.join(", ")}\nDetalles: ${description}`,
           user_id: user?.id || "",
-          location: selectedSpace === "1" ? "Auditorio" : "Subdirección",
+          location: spaceName,
           event_date: primerDia.isoStart,
         };
 
-        // Enviamos el ticket consolidado (se envia en un array porque la accion espera multiples)
+        // Enviamos el ticket consolidado
         await createBatchTickets([ticketConsolidado]);
       }
 
@@ -298,6 +312,7 @@ export default function AuditoriumReservationForm({
         error instanceof Error ? error.message : "Error desconocido";
       toast.error(`Error: ${message}`);
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
       setShowOverrideConfirm(false);
     }

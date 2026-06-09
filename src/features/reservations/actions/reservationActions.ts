@@ -189,30 +189,32 @@ export async function cancelReservationAction(
         .order("created_at", { ascending: false });
 
       if (tickets && tickets.length > 0) {
-        const ticketId = tickets[0].id;
-        const cancelNote = isOwner
-          ? "Cancelado por el usuario"
-          : `Cancelado por administrador (${publicUser?.full_name || "Administración"})`;
-        const dateStr = new Date().toLocaleString("es-CO", {
-          timeZone: "America/Bogota",
-        });
-        const updatedDescription = `${tickets[0].description || ""}\n\n[${dateStr}] CANCELACIÓN AUTOMÁTICA: ${cancelNote}.`;
+        for (const ticket of tickets) {
+          const ticketId = ticket.id;
+          const cancelNote = isOwner
+            ? "Cancelado por el usuario"
+            : `Cancelado por administrador (${publicUser?.full_name || "Administración"})`;
+          const dateStr = new Date().toLocaleString("es-CO", {
+            timeZone: "America/Bogota",
+          });
+          const updatedDescription = `${ticket.description || ""}\n\n[${dateStr}] CANCELACIÓN AUTOMÁTICA: ${cancelNote}.`;
 
-        const { error: updateError } = await adminSupabase
-          .from("tickets")
-          .update({
-            status: "CANCELADO",
-            description: updatedDescription,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", ticketId);
+          const { error: updateError } = await adminSupabase
+            .from("tickets")
+            .update({
+              status: "CANCELADO",
+              description: updatedDescription,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", ticketId);
 
-        if (!updateError) {
-          await Logger.info(
-            `Ticket #${ticketId} marcado como CANCELADO automáticamente (vía Admin) tras cancelación de reserva #${reservationId}.`,
-          );
-        } else {
-          console.error("Error updating ticket status:", updateError);
+          if (!updateError) {
+            await Logger.info(
+              `Ticket #${ticketId} marcado como CANCELADO automáticamente (vía Admin) tras cancelación de reserva #${reservationId}.`,
+            );
+          } else {
+            console.error("Error updating ticket status:", updateError);
+          }
         }
       }
     } catch (e) {

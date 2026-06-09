@@ -164,17 +164,13 @@ export function useReservations({
   const syncTicketWithReservation = async (
     oldTitle: string,
     newDetails: {
-      title: string;
-      date: string;
-      start: string;
-      end: string;
-      resources: string[];
-      description: string;
+      fullNewDescription: string;
       isoStart: string;
     },
   ) => {
-    // 1. Buscar el ticket por descripción antigua (título) y usuario
-    const oldDescSubstring = `Reserva de Auditorio: ${oldTitle}`;
+    // 1. Buscar el ticket por el título antiguo y usuario
+    // El título original puede estar en un ticket de Auditorio, Subdirección o Biblioteca.
+    const oldDescSubstring = `: ${oldTitle}`;
 
     const { data: tickets, error: searchError } = await supabase
       .from("tickets")
@@ -211,17 +207,11 @@ export function useReservations({
       }
     }
 
-    // 3. Formatear nueva descripción
-    const formattedDate = newDetails.date.split("-").reverse().join("-");
-    const newDescription = `Reserva de Auditorio: ${newDetails.title}\nFecha: ${formattedDate}\nHora: ${newDetails.start} - ${newDetails.end}\nRecursos: ${newDetails.resources.join(
-      ", ",
-    )}\nDetalles: ${newDetails.description}\n(ACTUALIZADO)`;
-
     // 4. Actualizar Ticket con sincronización total
     const { error: updateError } = await supabase
       .from("tickets")
       .update({
-        description: newDescription,
+        description: newDetails.fullNewDescription,
         event_date: newDetails.isoStart,
         status: newStatus,
         sla_status: slaStatus,
