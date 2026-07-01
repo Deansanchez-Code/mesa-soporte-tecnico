@@ -209,8 +209,8 @@ export default function AuditoriumReservationForm({
 
       for (let i = 0; i < datesToReserve.length; i++) {
         const date = datesToReserve[i];
-        const startDateObj = new Date(`${date}T${startTime}:00`);
-        const endDateObj = new Date(`${date}T${endTime}:00`);
+        const startDateObj = new Date(`${date}T${startTime}:00-05:00`);
+        const endDateObj = new Date(`${date}T${endTime}:00-05:00`);
         const startIso = startDateObj.toISOString();
         const endIso = endDateObj.toISOString();
 
@@ -655,10 +655,10 @@ export default function AuditoriumReservationForm({
                   const formatHour = (h: number) =>
                     h.toString().padStart(2, "0");
                   const slotStart = new Date(
-                    `${startDate}T${formatHour(hour)}:00:00`,
+                    `${startDate}T${formatHour(hour)}:00:00-05:00`,
                   );
                   const slotEnd = new Date(
-                    `${startDate}T${formatHour(hour + 1)}:00:00`,
+                    `${startDate}T${formatHour(hour + 1)}:00:00-05:00`,
                   );
 
                   const isOccupied = reservations.some((r) => {

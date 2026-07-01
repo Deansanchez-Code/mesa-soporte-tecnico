@@ -11,7 +11,10 @@ import {
   Copy,
   ExternalLink,
   CheckCircle2,
+  Clock,
+  Loader2,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
 import PanicButtonModal from "./PanicButtonModal";
 import LibraryApprovalModal from "@/features/reservations/components/LibraryApprovalModal";
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
@@ -160,6 +163,63 @@ export default function UserRequestForm({
     "1" | "2" | "3"
   >("1");
 
+  interface TodayReservation {
+    id: number;
+    start_time: string;
+    end_time: string;
+    title: string;
+    auditorium_id: string | number;
+    users: {
+      full_name: string;
+    } | null;
+  }
+
+  const [todayReservations, setTodayReservations] = useState<
+    TodayReservation[]
+  >([]);
+  const [loadingReservations, setLoadingReservations] = useState(true);
+
+  useEffect(() => {
+    const fetchTodayReservations = async () => {
+      try {
+        const now = new Date();
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const tomorrow = new Date(now);
+        tomorrow.setDate(now.getDate() + 1);
+
+        const { data } = await supabase
+          .from("reservations")
+          .select("*, users(full_name)")
+          .eq("status", "APPROVED")
+          .gte("start_time", yesterday.toISOString())
+          .lte("start_time", tomorrow.toISOString())
+          .order("start_time", { ascending: true });
+
+        if (data) {
+          const todayStr = now.toLocaleDateString("en-US", {
+            timeZone: "America/Bogota",
+          });
+          const typedData = data as unknown as TodayReservation[];
+          const filtered = typedData.filter((res) => {
+            const resDateStr = new Date(res.start_time).toLocaleDateString(
+              "en-US",
+              { timeZone: "America/Bogota" },
+            );
+            return resDateStr === todayStr;
+          });
+          setTodayReservations(filtered);
+        }
+      } catch (e) {
+        console.error("Error fetching today's reservations:", e);
+      } finally {
+        setLoadingReservations(false);
+      }
+    };
+
+    fetchTodayReservations();
+  }, []);
+
   const isAdmin = ["admin", "superadmin", "vip"].includes(
     ((user?.role as string) || "").toLowerCase(),
   );
@@ -209,8 +269,101 @@ export default function UserRequestForm({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-stretch max-w-5xl mx-auto">
-          {/* COLUMNA 1: RESERVAS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-stretch">
+          {/* COLUMNA 1: RESUMEN DE EVENTOS DE HOY */}
+          <div className="flex flex-col gap-8 h-full bg-slate-50/50 rounded-[3rem] p-4 lg:p-8 border border-slate-100/50">
+            <div className="flex items-center gap-3 px-4">
+              <div className="w-3 h-8 bg-sena-green rounded-full shadow-sm shadow-green-200" />
+              <h4 className="text-sm font-black uppercase tracking-[0.2em] text-gray-400 flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sena-green opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-sena-green"></span>
+                </span>
+                Eventos de Hoy
+              </h4>
+            </div>
+
+            <div className="bg-white p-6 rounded-[2rem] shadow-sm flex flex-col gap-4 flex-grow overflow-y-auto max-h-[380px] scrollbar-thin scrollbar-thumb-gray-200 min-h-[320px]">
+              {loadingReservations ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400">
+                  <Loader2 className="w-8 h-8 animate-spin text-sena-green" />
+                  <span className="text-xs font-bold">Cargando eventos...</span>
+                </div>
+              ) : todayReservations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400 text-center h-full">
+                  <Clock className="w-10 h-10 text-slate-300" />
+                  <span className="text-sm font-black text-slate-700">
+                    No hay reservas
+                  </span>
+                  <span className="text-xs">
+                    No se han registrado eventos para hoy.
+                  </span>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {todayReservations.map((res) => {
+                    const start = new Date(res.start_time);
+                    const end = new Date(res.end_time);
+                    const formatTime = (d: Date) =>
+                      d.toLocaleTimeString("es-CO", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true,
+                        timeZone: "America/Bogota",
+                      });
+
+                    const isLib = String(res.auditorium_id) === "3";
+                    const isSub = String(res.auditorium_id) === "2";
+
+                    return (
+                      <div
+                        key={res.id}
+                        className={`p-4 rounded-2xl border border-l-4 shadow-sm flex flex-col gap-1.5 transition-all hover:scale-[1.01] ${
+                          isLib
+                            ? "bg-purple-50/50 border-purple-100 border-l-purple-600"
+                            : isSub
+                              ? "bg-orange-50/50 border-orange-100 border-l-sena-orange"
+                              : "bg-blue-50/50 border-blue-100 border-l-sena-blue"
+                        }`}
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="font-black text-sm text-slate-800 leading-tight line-clamp-2">
+                            {res.title}
+                          </span>
+                          <span
+                            className={`text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full shrink-0 ${
+                              isLib
+                                ? "bg-purple-100 text-purple-700"
+                                : isSub
+                                  ? "bg-orange-100 text-sena-orange"
+                                  : "bg-blue-100 text-sena-blue"
+                            }`}
+                          >
+                            {isLib
+                              ? "Biblioteca"
+                              : isSub
+                                ? "Subdirección"
+                                : "Auditorio"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs font-semibold text-slate-500 mt-1">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>{`${formatTime(start)} - ${formatTime(end)}`}</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          Por: {res.users?.full_name || "Funcionario"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* COLUMNA 2: RESERVAS */}
           <div className="flex flex-col gap-8 h-full bg-slate-50/50 rounded-[3rem] p-4 lg:p-8 border border-slate-100/50">
             <div className="flex items-center gap-3 px-4">
               <div className="w-3 h-8 bg-sena-blue rounded-full shadow-sm shadow-blue-200" />
@@ -289,7 +442,7 @@ export default function UserRequestForm({
             </div>
           </div>
 
-          {/* COLUMNA 2: INFO & SERVICIOS */}
+          {/* COLUMNA 3: INFO & SERVICIOS */}
           <div className="flex flex-col gap-8 h-full">
             <div className="flex items-center gap-3 px-4">
               <div className="w-3 h-8 bg-pink-500 rounded-full shadow-sm shadow-pink-200" />

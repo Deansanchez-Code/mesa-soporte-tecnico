@@ -22,6 +22,7 @@ import {
   Trash2,
   Pencil,
   X as CloseIcon,
+  Clock,
 } from "lucide-react";
 import {
   TimeBlock,
@@ -80,7 +81,8 @@ export default function CalendarView({
     fetchEnd,
   });
 
-  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [selectedDay, setSelectedDay] = useState<Date>(new Date());
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] =
     useState<Assignment | null>(null);
   const [assignmentToDelete, setAssignmentToDelete] =
@@ -225,8 +227,9 @@ export default function CalendarView({
               onClick={() => {
                 setSelectedDay(day);
                 setSelectedAssignment(null);
+                setIsModalOpen(true);
               }}
-              className={`bg-white min-h-[120px] p-2 flex flex-col gap-1 transition-colors cursor-pointer 
+              className={`bg-white min-h-[50px] md:min-h-[120px] p-1.5 md:p-2 flex flex-col gap-1 transition-colors cursor-pointer 
                 ${isHolidayDay ? "bg-red-50/20 border-red-400 ring-2 ring-inset ring-red-200" : ""}
                 hover:bg-gray-50`}
             >
@@ -274,7 +277,7 @@ export default function CalendarView({
               </div>
 
               {/* ASSIGNMENTS LIST */}
-              <div className="flex-1 flex flex-col gap-2 mt-2">
+              <div className="flex-grow hidden md:flex flex-col gap-2 mt-2">
                 {areaName.toUpperCase().includes("AUDITORIO") ||
                 areaName.toUpperCase().includes("SUBDIRECCIÓN") ||
                 areaName.toUpperCase().includes("BIBLIOTECA")
@@ -424,7 +427,7 @@ export default function CalendarView({
       </div>
 
       {/* DAY DETAILS MODAL */}
-      {selectedDay && (
+      {selectedDay && isModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-y-auto max-h-[90vh] animate-in zoom-in-95 scrollbar-thin scrollbar-thumb-gray-200">
             <div className="bg-sena-blue p-4 flex justify-between items-center text-white">
@@ -439,7 +442,7 @@ export default function CalendarView({
               </div>
               <button
                 onClick={() => {
-                  setSelectedDay(null);
+                  setIsModalOpen(false);
                   setSelectedAssignment(null);
                 }}
                 className="p-2 hover:bg-white/10 rounded-full transition-colors"
@@ -795,7 +798,7 @@ export default function CalendarView({
             <div className="p-4 bg-gray-50 border-t flex justify-center">
               <button
                 onClick={() => {
-                  setSelectedDay(null);
+                  setIsModalOpen(false);
                   setSelectedAssignment(null);
                 }}
                 className="bg-white px-6 py-2 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors shadow-sm"
@@ -806,6 +809,86 @@ export default function CalendarView({
           </div>
         </div>
       )}
+
+      {/* MOBILE EVENT LIST FOR SELECTED DAY */}
+      <div className="block md:hidden border-t border-gray-200 p-4 bg-gray-50">
+        <h4 className="font-bold text-sm text-gray-700 mb-3 capitalize flex items-center gap-1.5">
+          <Clock className="w-4 h-4 text-sena-blue" />
+          Eventos del {format(selectedDay, "EEEE d 'de' MMMM", { locale: es })}:
+        </h4>
+        <div className="space-y-3">
+          {(() => {
+            const dayStr = formatDateForDB(selectedDay);
+            const dayAssignments = assignments.filter(
+              (a) => a.assignment_date === dayStr,
+            );
+
+            if (dayAssignments.length === 0) {
+              return (
+                <p className="text-xs text-gray-500 italic py-4 text-center bg-white rounded-xl border border-gray-100">
+                  No hay eventos programados para este día.
+                </p>
+              );
+            }
+
+            return dayAssignments
+              .sort(
+                (a, b) =>
+                  new Date(a.start_time || 0).getTime() -
+                  new Date(b.start_time || 0).getTime(),
+              )
+              .map((assign) => {
+                const isPending = assign.status === "PENDING";
+                const isLib = areaName.toUpperCase().includes("BIBLIOTECA");
+                const isSub = areaName.toUpperCase().includes("SUBDIRECCIÓN");
+
+                return (
+                  <div
+                    key={assign.id}
+                    className={`p-4 rounded-2xl border border-l-4 shadow-sm flex flex-col gap-1.5 ${
+                      isPending
+                        ? "bg-gray-50/75 border-l-gray-400 border-gray-200"
+                        : isLib
+                          ? "bg-purple-50/50 border-l-purple-600 border-purple-100"
+                          : isSub
+                            ? "bg-orange-50/50 border-l-sena-orange border-orange-100"
+                            : "bg-blue-50/50 border-l-blue-600 border-blue-100"
+                    }`}
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="font-bold text-xs text-slate-800 leading-tight">
+                        {assign.title || assign.instructor.full_name}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono shrink-0">
+                        {assign.start_time
+                          ? `${format(new Date(assign.start_time), "HH:mm")} - ${format(new Date(assign.end_time || ""), "HH:mm")}`
+                          : TIME_BLOCKS[assign.time_block as TimeBlock]
+                              ?.label || ""}
+                      </span>
+                    </div>
+                    {assign.instructor?.full_name && (
+                      <span className="text-[10px] text-slate-500 mt-1">
+                        Responsable: {assign.instructor.full_name}
+                      </span>
+                    )}
+                    {assign.resources && assign.resources.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {assign.resources.map((r, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[8px] bg-white px-2 py-0.5 rounded border border-slate-100 text-slate-600 font-medium"
+                          >
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+          })()}
+        </div>
+      </div>
       {/* Confirmation Dialogs */}
       <ConfirmationDialog
         isOpen={showDeleteConfirm}
