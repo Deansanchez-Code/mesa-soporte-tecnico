@@ -49,6 +49,27 @@ export default function AuditoriumReservationForm({
   const submittingRef = useRef(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  const [summaryData, setSummaryData] = useState<{
+    title: string;
+    spaceName: string;
+    dates: string;
+    timeRange: string;
+    status: "APPROVED" | "PENDING";
+  } | null>(null);
+  const [countdown, setCountdown] = useState(5);
+
+  useEffect(() => {
+    if (summaryData === null) return;
+    if (countdown <= 0) {
+      onSuccess();
+      return;
+    }
+    const timer = setTimeout(() => {
+      setCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [summaryData, countdown, onSuccess]);
+
   // useReservations Hook
   const {
     reservations,
@@ -304,7 +325,18 @@ export default function AuditoriumReservationForm({
         toast.success("Reserva(s) confirmada(s) con éxito.");
       }
 
-      onSuccess();
+      const datesString = supportTicketsPayload
+        .map((t) => t.date.split("-").reverse().join("-"))
+        .join(", ");
+
+      setSummaryData({
+        title,
+        spaceName,
+        dates: datesString,
+        timeRange: `${startTime} - ${endTime}`,
+        status: isPending ? "PENDING" : "APPROVED",
+      });
+      setCountdown(5);
     } catch (error: unknown) {
       setIsSuccess(false); // Reset success on error just in case
       console.error(error);
@@ -826,6 +858,84 @@ export default function AuditoriumReservationForm({
           variant="warning"
           isLoading={isSubmitting}
         />
+
+        {summaryData && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border-2 border-sena-green/20">
+              {/* Cabecera del Resumen */}
+              <div className="bg-gradient-to-r from-sena-green to-emerald-600 p-6 text-white text-center relative">
+                <div className="mx-auto w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-3 shadow-inner">
+                  <CheckCircle className="w-10 h-10 text-white" />
+                </div>
+                <h3 className="text-2xl font-black tracking-tight">
+                  ¡Reserva Exitosa!
+                </h3>
+                <p className="text-xs text-green-50 mt-1 font-semibold uppercase tracking-wider">
+                  {summaryData.status === "PENDING"
+                    ? "Pendiente de Aprobación"
+                    : "Confirmada"}
+                </p>
+              </div>
+
+              {/* Cuerpo del Resumen */}
+              <div className="p-8 space-y-6">
+                <div className="space-y-4 text-left">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                      Evento / Actividad
+                    </span>
+                    <span className="text-lg font-black text-slate-800 leading-tight block mt-0.5">
+                      {summaryData.title}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                        Espacio
+                      </span>
+                      <span className="text-sm font-bold text-slate-700 block mt-0.5">
+                        {summaryData.spaceName}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                        Horario
+                      </span>
+                      <span className="text-sm font-bold text-slate-700 block mt-0.5">
+                        {summaryData.timeRange}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-100 pt-4">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                      Fecha(s)
+                    </span>
+                    <span className="text-sm font-bold text-slate-700 block mt-0.5">
+                      {summaryData.dates}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Botón de Cierre Manual & Cuenta Regresiva */}
+                <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onSuccess()}
+                    className="w-full py-3.5 bg-sena-green hover:bg-[#2d8500] text-white rounded-2xl font-bold shadow-lg shadow-green-900/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] cursor-pointer"
+                  >
+                    Cerrar Ventana
+                  </button>
+                  <p className="text-center text-[10px] text-slate-400 font-bold tracking-wider">
+                    Cerrando automáticamente en{" "}
+                    <span className="text-sena-orange">{countdown}s</span>...
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </form>
   );
