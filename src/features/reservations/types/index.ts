@@ -3,7 +3,7 @@ export interface Reservation {
   title: string;
   start_time: string;
   end_time: string;
-  status: "APPROVED" | "CANCELLED";
+  status: "APPROVED" | "CANCELLED" | "PENDING";
   user_id: string;
   auditorium_id?: string;
   resources?: string[];

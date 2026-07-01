@@ -2,6 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { Ticket } from "@/app/admin/admin.types";
 import { TicketEvent, PauseReason, TimelineItem } from "../types";
+import {
+  calculateSLADueDate,
+  calculateBusinessMinutesBetween,
+} from "@/lib/domain/sla-calculator";
 
 interface UseTicketDetailsProps {
   ticket: Ticket;
@@ -137,16 +141,20 @@ export function useTicketDetails({
   const handleResume = async () => {
     setProcessingAction(true);
     try {
-      // 1. Calculate how much time the ticket was paused
+      // 1. Calculate how much business time the ticket was paused
       const now = new Date();
       let newExpectedEndAt = ticket.sla_expected_end_at;
 
       if (ticket.sla_last_paused_at && ticket.sla_expected_end_at) {
-        const lastPausedAt = new Date(ticket.sla_last_paused_at);
-        const pauseDurationMs = now.getTime() - lastPausedAt.getTime();
-        const currentExpectedEnd = new Date(ticket.sla_expected_end_at);
-        const adjustedEnd = new Date(
-          currentExpectedEnd.getTime() + pauseDurationMs,
+        const businessPauseMinutes = calculateBusinessMinutesBetween(
+          ticket.sla_last_paused_at,
+          now,
+        );
+
+        // Sumamos las horas correspondientes de pausa laboral al vencimiento del SLA
+        const adjustedEnd = calculateSLADueDate(
+          ticket.sla_expected_end_at,
+          businessPauseMinutes / 60,
         );
         newExpectedEndAt = adjustedEnd.toISOString();
       }

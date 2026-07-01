@@ -194,16 +194,31 @@ export async function cancelReservationAction(
           const cancelNote = isOwner
             ? "Cancelado por el usuario"
             : `Cancelado por administrador (${publicUser?.full_name || "Administración"})`;
-          const dateStr = new Date().toLocaleString("es-CO", {
-            timeZone: "America/Bogota",
-          });
-          const updatedDescription = `${ticket.description || ""}\n\n[${dateStr}] CANCELACIÓN AUTOMÁTICA: ${cancelNote}.`;
 
+          // 1. Insertar el evento de cambio de estado en ticket_events
+          const { error: eventError } = await adminSupabase
+            .from("ticket_events")
+            .insert({
+              ticket_id: ticketId,
+              actor_id: publicUser?.id || null,
+              action_type: "STATUS_CHANGE",
+              old_value: "PENDIENTE", // O el estado previo del ticket, asumimos que no estaba cancelado
+              new_value: "CANCELADO",
+              comment: `CANCELACIÓN AUTOMÁTICA: ${cancelNote}.`,
+            });
+
+          if (eventError) {
+            console.error(
+              "Error creating ticket cancellation event:",
+              eventError,
+            );
+          }
+
+          // 2. Actualizar el estado del ticket sin modificar description
           const { error: updateError } = await adminSupabase
             .from("tickets")
             .update({
               status: "CANCELADO",
-              description: updatedDescription,
               updated_at: new Date().toISOString(),
             })
             .eq("id", ticketId);

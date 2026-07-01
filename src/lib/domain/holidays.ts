@@ -27,92 +27,106 @@ function getEaster(year: number): Date {
   return new Date(year, month0, day);
 }
 
-function getEmilianiDate(year: number, month0: number, day: number): Date {
-  const date = new Date(year, month0, day);
-  const dow = getDay(date); // 0=Sun, 1=Mon
-  if (dow === 1) return date; // already Monday
-  // If moving to next Monday
-  // Actually Emiliani law says: if it falls on Mon, stays. If not, moves to next Mon.
-  // Wait, some are fixed. Emiliani applies to specific ones.
-  // The function moves it to next Monday relative to the original date.
-  const daysUntiNextMonday = (8 - dow) % 7;
-  // if dow=0(Sun), need 1 day -> Mon. (8-0)%7 = 1. Correct.
-  // if dow=2(Tue), need 6 days. (8-2)%7 = 6. Correct.
-  // if dow=1(Mon), (8-1)%7 = 0. Correct.
-  if (daysUntiNextMonday === 0) return date;
-  return addDays(date, daysUntiNextMonday);
+export function getColombiaLocalDateString(date: Date): string {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = dtf.formatToParts(date);
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  return `${year}-${month}-${day}`;
 }
 
-export function getColombianHolidays(year: number): Date[] {
-  const holidays: Date[] = [];
+function getEmilianiDateString(
+  year: number,
+  month0: number,
+  day: number,
+): string {
+  const date = new Date(year, month0, day);
+  const dow = date.getDay(); // 0 = Sun, 1 = Mon
+  const fmt = (y: number, m: number, d: number) => {
+    return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  };
 
-  // 1. Fixed Holidays (Unless they fall on weekend? No, Fixed means Fixed in date, but paid.
-  // Wait, in Colombia some are "Fixed" (Immune to Emiliani) and some Move.
+  if (dow === 1) return fmt(year, month0, day);
+  const daysUntilNextMonday = (8 - dow) % 7;
+  const emilianiDate = new Date(
+    date.getTime() + daysUntilNextMonday * 24 * 60 * 60 * 1000,
+  );
+  return fmt(
+    emilianiDate.getFullYear(),
+    emilianiDate.getMonth(),
+    emilianiDate.getDate(),
+  );
+}
 
-  // Fixed:
-  holidays.push(new Date(year, 0, 1)); // 1 Jan
-  holidays.push(new Date(year, 4, 1)); // 1 May
-  holidays.push(new Date(year, 6, 20)); // 20 Jul
-  holidays.push(new Date(year, 7, 7)); // 7 Aug
-  holidays.push(new Date(year, 11, 8)); // 8 Dec
-  holidays.push(new Date(year, 11, 25)); // 25 Dec
+export function getColombianHolidaysStrings(year: number): string[] {
+  const holidays: string[] = [];
+
+  const fmt = (y: number, m: number, d: number) => {
+    return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  };
+
+  // 1. Fixed Holidays
+  holidays.push(fmt(year, 0, 1)); // 1 Jan
+  holidays.push(fmt(year, 4, 1)); // 1 May
+  holidays.push(fmt(year, 6, 20)); // 20 Jul
+  holidays.push(fmt(year, 7, 7)); // 7 Aug
+  holidays.push(fmt(year, 11, 8)); // 8 Dec
+  holidays.push(fmt(year, 11, 25)); // 25 Dec
 
   // 2. Emiliani Law (Moved to next Monday)
-  // 6 Jan (Reyes)
-  holidays.push(getEmilianiDate(year, 0, 6));
-  // 19 Mar (San Jose)
-  holidays.push(getEmilianiDate(year, 2, 19));
-  // 29 Jun (San Pedro y San Pablo)
-  holidays.push(getEmilianiDate(year, 5, 29));
-  // 15 Aug (Asuncion)
-  holidays.push(getEmilianiDate(year, 7, 15));
-  // 12 Oct (Raza)
-  holidays.push(getEmilianiDate(year, 9, 12));
-  // 1 Nov (Todos Santos)
-  holidays.push(getEmilianiDate(year, 10, 1));
-  // 11 Nov (Cartagena)
-  holidays.push(getEmilianiDate(year, 10, 11));
+  holidays.push(getEmilianiDateString(year, 0, 6)); // 6 Jan
+  holidays.push(getEmilianiDateString(year, 2, 19)); // 19 Mar
+  holidays.push(getEmilianiDateString(year, 5, 29)); // 29 Jun
+  holidays.push(getEmilianiDateString(year, 7, 15)); // 15 Aug
+  holidays.push(getEmilianiDateString(year, 9, 12)); // 12 Oct
+  holidays.push(getEmilianiDateString(year, 10, 1)); // 1 Nov
+  holidays.push(getEmilianiDateString(year, 10, 11)); // 11 Nov
 
   // 3. Easter Related
   const easter = getEaster(year);
 
-  // Jueves Santo (Fixed relative to Easter)
-  holidays.push(addDays(easter, -3));
-  // Viernes Santo (Fixed relative to Easter)
-  holidays.push(addDays(easter, -2));
+  // Jueves Santo
+  const holyThursday = new Date(easter.getTime() - 3 * 24 * 60 * 60 * 1000);
+  holidays.push(
+    fmt(
+      holyThursday.getFullYear(),
+      holyThursday.getMonth(),
+      holyThursday.getDate(),
+    ),
+  );
+
+  // Viernes Santo
+  const holyFriday = new Date(easter.getTime() - 2 * 24 * 60 * 60 * 1000);
+  holidays.push(
+    fmt(holyFriday.getFullYear(), holyFriday.getMonth(), holyFriday.getDate()),
+  );
 
   // Emiliani Easter Related (Ascension, Corpus, Sagrado Corazon)
-  // Ascension: Easter + 39 days? Actually 40 days after Easter Sunday. Ideally always Monday?
-  // Traditionally Thursday (40 days), moved to Monday (+43 days from Sunday)
+  const ascension = new Date(easter.getTime() + 43 * 24 * 60 * 60 * 1000);
   holidays.push(
-    getEmilianiDate(
-      year,
-      getMonth(addDays(easter, 39)),
-      getDate(addDays(easter, 39)),
-    ),
-  ); // Ascension (Thu -> Mon)
-  // Wait, simpler: it's always observed on the Monday.
-  // Ascension is 43 days after Easter (Sunday) in Colombia practice?
-  // Let's stick to: Original Date -> Emiliani.
-  // Ascension is 39 days after Easter (Thursday).
-  // Corpus Christi is 60 days after Easter (Thursday).
-  // Sagrado Corazon is 68 days after Easter (Friday).
+    fmt(ascension.getFullYear(), ascension.getMonth(), ascension.getDate()),
+  );
 
-  // Correction:
-  // Ascensión del Señor: 43 días después de Domingo de Pascua (Lunes)
-  // Corpus Christi: 64 días después de Domingo de Pascua (Lunes)
-  // Sagrado Corazón: 71 días después de Domingo de Pascua (Lunes)
-  // Using direct addition for the observed Monday
+  const corpus = new Date(easter.getTime() + 64 * 24 * 60 * 60 * 1000);
+  holidays.push(fmt(corpus.getFullYear(), corpus.getMonth(), corpus.getDate()));
 
-  holidays.push(addDays(easter, 43));
-  holidays.push(addDays(easter, 64));
-  holidays.push(addDays(easter, 71));
+  const sagrado = new Date(easter.getTime() + 71 * 24 * 60 * 60 * 1000);
+  holidays.push(
+    fmt(sagrado.getFullYear(), sagrado.getMonth(), sagrado.getDate()),
+  );
 
   return holidays;
 }
 
 export function isColombianHoliday(date: Date): boolean {
-  const year = getYear(date);
-  const holidays = getColombianHolidays(year);
-  return holidays.some((h) => isSameDay(h, date));
+  const colDateStr = getColombiaLocalDateString(date);
+  const year = parseInt(colDateStr.split("-")[0], 10);
+  const holidays = getColombianHolidaysStrings(year);
+  return holidays.includes(colDateStr);
 }

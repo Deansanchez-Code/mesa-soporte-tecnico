@@ -183,28 +183,26 @@ export default function AdminDashboard() {
   const handleAddComment = async (ticketId: number, comment: string) => {
     if (!selectedTicket || !currentUser) return;
 
-    const timestamp = new Date().toLocaleString();
-    const actor = currentUser.full_name || "Usuario";
-    const auditLog = `\n\n[${timestamp}] SEGUIMIENTO: ${comment} (Por: ${actor})`;
+    // 1. Insertar el evento de comentario en ticket_events
+    const { error: eventError } = await supabase.from("ticket_events").insert({
+      ticket_id: ticketId,
+      actor_id: currentUser.id,
+      action_type: "COMMENT_ADDED",
+      comment: comment,
+    });
 
-    const newDescription = (selectedTicket.description || "") + auditLog;
-
-    const { error } = await supabase
-      .from("tickets")
-      .update({
-        description: newDescription,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", ticketId);
-
-    if (error) {
-      console.error(error);
-      alert("Error guardando comentario.");
-      throw error;
+    if (eventError) {
+      console.error(eventError);
+      alert("Error al guardar el comentario.");
+      throw eventError;
     }
 
-    // Actualizar estado local para ver cambios inmediatamente
-    setSelectedTicket({ ...selectedTicket, description: newDescription });
+    // 2. Actualizar el updated_at del ticket
+    await supabase
+      .from("tickets")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", ticketId);
+
     fetchData(); // Refresh list (background)
   };
 
@@ -212,32 +210,41 @@ export default function AdminDashboard() {
   const handleUpdateStatus = async (ticketId: number, newStatus: string) => {
     if (!selectedTicket || !currentUser) return;
 
-    const timestamp = new Date().toLocaleString();
-    const actor = currentUser.full_name || "Usuario";
-    const auditLog = `\n\n[${timestamp}] SEGUIMIENTO: Cambio de estado a ${newStatus} (Por: ${actor})`;
+    // 1. Insertar el evento de cambio de estado en ticket_events
+    const { error: eventError } = await supabase.from("ticket_events").insert({
+      ticket_id: ticketId,
+      actor_id: currentUser.id,
+      action_type: "STATUS_CHANGE",
+      old_value: selectedTicket.status,
+      new_value: newStatus,
+      comment: `Cambio de estado a ${newStatus}`,
+    });
 
-    const newDescription = (selectedTicket.description || "") + auditLog;
+    if (eventError) {
+      console.error(eventError);
+      alert("Error al registrar el cambio de estado.");
+      throw eventError;
+    }
 
-    const { error } = await supabase
+    // 2. Actualizar el estado del ticket en tickets
+    const { error: ticketError } = await supabase
       .from("tickets")
       .update({
         status: newStatus,
-        description: newDescription,
         updated_at: new Date().toISOString(),
       })
       .eq("id", ticketId);
 
-    if (error) {
-      console.error(error);
-      alert("Error actualizando estado.");
-      throw error;
+    if (ticketError) {
+      console.error(ticketError);
+      alert("Error actualizando estado del ticket.");
+      throw ticketError;
     }
 
     // Actualizar estado local
     setSelectedTicket({
       ...selectedTicket,
       status: newStatus,
-      description: newDescription,
     });
     fetchData();
   };

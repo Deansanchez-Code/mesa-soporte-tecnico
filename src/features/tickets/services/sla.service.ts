@@ -48,7 +48,7 @@ export class SlaService {
 
       if (dateMatch && timeMatch) {
         const [d, m, y] = dateMatch[1].split("-");
-        const eventDate = new Date(`${y}-${m}-${d}T${timeMatch[1]}`);
+        const eventDate = new Date(`${y}-${m}-${d}T${timeMatch[1]}:00-05:00`);
 
         const hoursDiff =
           (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);

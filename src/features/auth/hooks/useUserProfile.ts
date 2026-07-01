@@ -41,12 +41,13 @@ export function useUserProfile() {
         const { data: dbUser } = await supabase
           .from("users")
           .select(
-            "id, full_name, is_vip, perm_manage_assignments, perm_create_assets, perm_transfer_assets, perm_decommission_assets",
+            "id, role, full_name, is_vip, perm_manage_assignments, perm_create_assets, perm_transfer_assets, perm_decommission_assets",
           )
           .eq("auth_id", user.id)
           .single();
 
         const metadataRole = user.user_metadata?.role?.toLowerCase();
+        const finalRole = dbUser?.role || user.user_metadata?.role || "user";
         const isVipMetadata = !!(
           user.user_metadata?.is_vip || metadataRole === "vip"
         );
@@ -64,13 +65,14 @@ export function useUserProfile() {
             id: dbUser?.id || user.id, // Ensure we always have an ID for ownership checks
             full_name: dbUser?.full_name || user.user_metadata?.full_name, // Prioridad DB
             is_vip: !!(dbUser?.is_vip || isVipMetadata),
+            role: finalRole,
             email: user.email,
             perm_create_assets: dbUser?.perm_create_assets,
             perm_transfer_assets: dbUser?.perm_transfer_assets,
             perm_decommission_assets: dbUser?.perm_decommission_assets,
           },
           loading: false,
-          role: user.user_metadata?.role || "user",
+          role: finalRole,
         });
       } catch (error) {
         console.error("Error fetching user profile:", error);
