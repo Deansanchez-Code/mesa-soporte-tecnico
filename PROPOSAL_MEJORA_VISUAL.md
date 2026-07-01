@@ -6,7 +6,15 @@ Esta propuesta detalla las mejoras visuales, estéticas y de usabilidad sugerida
 
 ## 🎨 Resumen de las Mejoras Clave
 
-### 1. Tipografía y Fundamentos de Layout
+### 1. Simplificación del Dashboard (Eliminación de Soporte Técnico)
+
+- **Estado de la Modificación:** Se ha **removido por completo** la columna e interfaz de reporte de Soporte Técnico en el menú principal, ya que el servicio técnico se gestionará exclusivamente por canales de correo corporativos.
+- **Ajuste de Grid a 2 Columnas:** Al eliminar esta columna, el layout del panel de selección pasa de 3 a **2 columnas principales**, lo que permite una simetría y balance perfectos:
+  1.  **Columna Izquierda (Reservas & Espacios):** Acceso directo para reservar el Auditorio, la Subdirección y la Biblioteca.
+  2.  **Columna Derecha (Servicios & Consulta):** Acceso rápido para la visualización en tiempo real de Disponibilidad de Ambientes.
+- **¿Por qué mejora?:** Menos opciones reducen la sobrecarga cognitiva del usuario. El nuevo diseño de 2 columnas aprovecha mejor el ancho de pantalla en monitores y tablets, distribuyendo el peso visual equitativamente y guiando al usuario sin distracciones hacia las funcionalidades activas de reservas e información.
+
+### 2. Tipografía y Fundamentos de Layout
 
 - **Estado Actual:** Uso de tipografías genéricas (`Arial`, `Helvetica`, `sans-serif`) y layouts estándar con bordes rígidos.
 - **Propuesta de Mejora:**
@@ -14,7 +22,7 @@ Esta propuesta detalla las mejoras visuales, estéticas y de usabilidad sugerida
   - Implementar layouts más orgánicos con bordes muy redondeados (`rounded-2xl` y `rounded-3xl`) y espaciados dinámicos que se adapten con mayor fluidez a distintos dispositivos.
 - **¿Por qué mejora?:** La tipografía es el 70% del diseño de interfaz. Un tipo de letra moderno cambia drásticamente la percepción del software, haciéndolo ver como un producto de software moderno de calidad empresarial.
 
-### 2. Paleta de Colores Elevada y Degradados (Gradients)
+### 3. Paleta de Colores Elevada y Degradados (Gradients)
 
 - **Estado Actual:** Bloques de color plano basados en los colores corporativos del SENA (`#39a900`, `#fc7323`, `#043263`).
 - **Propuesta de Mejora:**
@@ -22,7 +30,7 @@ Esta propuesta detalla las mejoras visuales, estéticas y de usabilidad sugerida
   - Utilizar tonos HSL personalizados con menor saturación de fondo para evitar la fatiga visual.
 - **¿Por qué mejora?:** Los colores corporativos aplicados de forma plana pueden sentirse rígidos o toscos. La transición hacia degradados y paletas HSL suavizadas eleva el aspecto estético, aportando dinamismo sin perder la identidad de la marca SENA.
 
-### 3. Profundidad Visual y Glassmorphism (Vidrio Esmerilado)
+### 4. Profundidad Visual y Glassmorphism (Vidrio Esmerilado)
 
 - **Estado Actual:** Tarjetas completamente blancas sobre fondos planos grises, lo que da un aspecto bidimensional.
 - **Propuesta de Mejora:**
@@ -31,16 +39,16 @@ Esta propuesta detalla las mejoras visuales, estéticas y de usabilidad sugerida
   - Aplicar sombras más suaves y difusas (`shadow-xl shadow-slate-100/50`) en lugar de bordes marcados.
 - **¿Por qué mejora?:** El uso de capas translúcidas y sombras sutiles genera profundidad visual ("eje Z"), facilitando que el usuario distinga jerarquías y se concentre en el contenido de la tarjeta activa.
 
-### 4. Rediseño del Dashboard de Selección
+### 5. Rediseño del Dashboard de Selección (Tarjetas Interactivas)
 
-- **Estado Actual:** Tres columnas con tarjetas de selección de servicio simples y un botón flotante de pánico.
+- **Estado Actual:** Tarjetas con sombreados simples y bordes básicos.
 - **Propuesta de Mejora:**
   - Rediseñar las tarjetas de selección para que parezcan "baldosas interactivas" con micro-interacciones (efecto de escala suave al pasar el cursor, brillos dinámicos en los bordes y cambio de color del icono en hover).
   - Reorganizar los iconos (`lucide-react`) haciéndolos más grandes y envolviéndolos en contenedores con degradados suaves alineados al tipo de servicio.
   - Incorporar indicadores de estado dinámicos (ej: un punto verde parpadeante si hay disponibilidad del auditorio en tiempo real).
 - **¿Por qué mejora?:** Hace que el proceso de decisión del usuario sea mucho más interactivo y agradable. Las micro-animaciones guían la mirada y confirman la interactividad del elemento de forma intuitiva.
 
-### 5. Formularios e Ingreso Pulido (UX de Entrada)
+### 6. Formularios e Ingreso Pulido (UX de Entrada)
 
 - **Estado Actual:** Campos de entrada sencillos y botones estándar de enviar.
 - **Propuesta de Mejora:**
@@ -55,6 +63,7 @@ Esta propuesta detalla las mejoras visuales, estéticas y de usabilidad sugerida
 
 | Componente                  | Cambio Propuesto                                                      | Impacto en Usabilidad (UX)                                                  |
 | :-------------------------- | :-------------------------------------------------------------------- | :-------------------------------------------------------------------------- |
+| **Grid del Dashboard**      | Transición de 3 columnas a **2 columnas balanceadas**.                | Mayor simetría, simplicidad visual y enfoque en las acciones reales.        |
 | **Fondo General**           | Malla de degradado con patrón de puntos SVG.                          | Reduce la monotonía del fondo y centra la atención en la tarjeta principal. |
 | **Tipografía**              | Cambiar a `Plus Jakarta Sans`.                                        | Mayor legibilidad y estética limpia en pantallas de alta resolución.        |
 | **Tarjetas Principales**    | Glassmorphism y bordes `rounded-3xl` con sombras suaves.              | Interfaz con sensación premium que transmite profesionalismo y modernidad.  |

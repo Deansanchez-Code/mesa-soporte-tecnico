@@ -209,42 +209,8 @@ export default function UserRequestForm({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-stretch">
-          {/* COLUMNA 1: SOPORTE TÉCNICO */}
-          <div className="flex flex-col gap-8 h-full">
-            <div className="flex items-center gap-3 px-4">
-              <div className="w-3 h-8 bg-sena-green rounded-full shadow-sm shadow-green-200" />
-              <h4 className="text-sm font-black uppercase tracking-[0.2em] text-gray-400">
-                Soporte & Tecnología
-              </h4>
-            </div>
-
-            <button
-              onClick={() => setShowSupportRedirect(true)}
-              className="group relative bg-white p-10 rounded-[2.5rem] shadow-sm hover:shadow-2xl border-2 border-slate-100 hover:border-sena-green transition-all duration-500 flex flex-col items-center text-center gap-6 h-full min-h-[420px] justify-center overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-48 h-48 bg-green-50 rounded-full -mr-24 -mt-24 group-hover:scale-150 transition-transform duration-700 opacity-40 blur-2xl" />
-
-              <div className="relative z-10 bg-green-50 p-8 rounded-[2rem] group-hover:bg-sena-green group-hover:scale-110 transition-all duration-500 shadow-inner">
-                <Monitor className="w-16 h-16 text-sena-green group-hover:text-white" />
-              </div>
-              <div className="relative z-10 space-y-4">
-                <h3 className="text-3xl font-black text-slate-800 group-hover:text-sena-green transition-colors leading-tight">
-                  Servicio Técnico
-                </h3>
-                <p className="text-base text-slate-500 leading-relaxed font-medium">
-                  Atención especializada para fallas en equipos, conectividad,
-                  desarrollo de software o soporte de impresión.
-                </p>
-              </div>
-
-              <div className="mt-6 flex items-center gap-3 text-sena-green font-black text-sm opacity-0 group-hover:opacity-100 transition-all translate-y-4 group-hover:translate-y-0 duration-500 bg-green-50 px-6 py-2 rounded-full border border-green-100">
-                CONTACTAR SOPORTE <Send className="w-4 h-4 ml-1" />
-              </div>
-            </button>
-          </div>
-
-          {/* COLUMNA 2: RESERVAS */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-stretch max-w-5xl mx-auto">
+          {/* COLUMNA 1: RESERVAS */}
           <div className="flex flex-col gap-8 h-full bg-slate-50/50 rounded-[3rem] p-4 lg:p-8 border border-slate-100/50">
             <div className="flex items-center gap-3 px-4">
               <div className="w-3 h-8 bg-sena-blue rounded-full shadow-sm shadow-blue-200" />
@@ -323,7 +289,7 @@ export default function UserRequestForm({
             </div>
           </div>
 
-          {/* COLUMNA 3: INFO & SERVICIOS */}
+          {/* COLUMNA 2: INFO & SERVICIOS */}
           <div className="flex flex-col gap-8 h-full">
             <div className="flex items-center gap-3 px-4">
               <div className="w-3 h-8 bg-pink-500 rounded-full shadow-sm shadow-pink-200" />
