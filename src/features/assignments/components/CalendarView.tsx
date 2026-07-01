@@ -81,7 +81,7 @@ export default function CalendarView({
     fetchEnd,
   });
 
-  const [selectedDay, setSelectedDay] = useState<Date>(new Date());
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] =
     useState<Assignment | null>(null);
@@ -814,11 +814,15 @@ export default function CalendarView({
       <div className="block md:hidden border-t border-gray-200 p-4 bg-gray-50">
         <h4 className="font-bold text-sm text-gray-700 mb-3 capitalize flex items-center gap-1.5">
           <Clock className="w-4 h-4 text-sena-blue" />
-          Eventos del {format(selectedDay, "EEEE d 'de' MMMM", { locale: es })}:
+          Eventos del{" "}
+          {format(selectedDay || new Date(), "EEEE d 'de' MMMM", {
+            locale: es,
+          })}
+          :
         </h4>
         <div className="space-y-3">
           {(() => {
-            const dayStr = formatDateForDB(selectedDay);
+            const dayStr = formatDateForDB(selectedDay || new Date());
             const dayAssignments = assignments.filter(
               (a) => a.assignment_date === dayStr,
             );
