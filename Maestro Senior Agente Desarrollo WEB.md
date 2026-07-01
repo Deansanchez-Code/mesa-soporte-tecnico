@@ -307,6 +307,7 @@ Configura/propon:
 - ESLint + TS, reglas estrictas.
 - No lógica de negocio en componentes (llevar a servicios/casos de uso).
 - Seguridad básica (XSS, sanitización).
+- **Seguridad en la Validación de Roles:** Nunca validar privilegios o restringir componentes en el frontend basándose exclusivamente en metadatos editables por el cliente (como `user_metadata` del JWT de Supabase). Consultar y validar siempre el rol leyendo directamente la tabla pública de usuarios protegida por RLS.
 - Prevención de envíos múltiples (double-submit): usar referencias síncronas (`useRef`) para bloquear la interfaz, evitando depender exclusivamente de estados asíncronos (`useState`).
 - UX/UI:
   - Design System + Atomic Design.
@@ -321,6 +322,8 @@ Configura/propon:
 - Arquitectura: separación de controladores, casos de uso, dominio, infraestructura.
 - Validación centralizada de entradas.
 - Manejo central de errores.
+- **Calibración Horaria y SLA (Huso Horario):** En sistemas que requieran cálculos de horas hábiles, plazos o SLAs, nunca usar funciones de tiempo locales de la máquina del servidor (como `getHours()` nativo de JS) en entornos cloud que corren por defecto en UTC. Realizar todas las operaciones de fechas convirtiendo explícitamente al huso horario de la región del negocio (ej. `America/Bogota` para Colombia, UTC-5).
+- **Cálculo de Pausas del SLA:** Las pausas del SLA no se extienden de forma cruda en milisegundos de tiempo calendario real. Únicamente se debe sumar el tiempo de pausa transcurrido _dentro de las horas laborales hábiles_ de la jornada de la empresa, evitando regalar tiempo de resolución extra por fines de semana o noches.
 - Operaciones en base de datos: evitar suposiciones de un solo registro (ej. modificar solo `array[0]`) si la lógica del negocio puede involucrar actualizaciones en lote. Iterar sobre todos los registros afectados.
 - Seguridad:
   - auth/roles,
@@ -333,6 +336,8 @@ Configura/propon:
 ### 8.3 Base de datos
 
 - Modelo claro: normalización adecuada, relaciones explícitas.
+- **Uso de Tablas de Auditoría Estructuradas:** Evitar el antipatrón de concatenar notas, logs o comentarios históricos dentro de columnas de texto de tablas principales (como `description` en `tickets`). Utilizar siempre tablas de eventos dedicadas (`ticket_events`, `audit_logs`) para asegurar la concurrencia, habilitar reportes estructurados y evitar la exposición de notas internas al cliente.
+- **Agregaciones Eficientes:** En APIs que calculen estadísticas o reportes de uso (métricas), evitar descargar colecciones completas de datos para procesarlas en memoria con bucles del servidor. Utilizar agregaciones nativas de la base de datos (`GROUP BY`, `COUNT`, `AVG`) o seleccionar exclusivamente las columnas de forma selectiva.
 - Índices en campos críticos.
 - Seguridad: usuarios con permisos mínimos, cifrado de datos sensibles.
 - Backups y restauración probada.
