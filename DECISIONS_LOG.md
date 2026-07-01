@@ -92,3 +92,40 @@ Se propone implementar las siguientes restricciones:
 - **Impacto:** Eliminación de reservas duplicadas en el mismo horario, mejor visibilidad del estado real de ocupación y reducción drástica del ruido por correos electrónicos automáticos.
 - **Responsable:** Arquitecto / Desarrollador Fullstack.
 - **Estado:** Aceptado.
+
+---
+
+## ADR-007: Reestructuración Visual del Portal de Reservas, Sincronización Horaria y Modal de Autocierre
+
+**Fecha:** 2026-07-01
+**Capa:** Interfaz de Usuario (UI/UX) / Lógica de Negocio
+**Responsable:** Agente Senior / Diseñador UX/UI
+**Estado:** Aceptada
+
+### Contexto (ADR-007)
+
+1. El servicio de Soporte Técnico se gestionará de manera externa por canales de correo electrónico, por lo que la tarjeta en el panel de selección de servicios quedó obsoleta y causaba confusión.
+2. Los usuarios que acceden desde celulares encontraban la cuadrícula del calendario demasiado densa y con desbordamiento de texto, lo que dificultaba la legibilidad y la interacción táctil.
+3. Se reportaron discrepancias en las horas de reserva que figuraban en los correos electrónicos de confirmación en comparación con la hora del sistema, debido a que el objeto `Date` de Javascript se inicializaba sin forzar la zona horaria de Colombia (UTC-5), sufriendo desfases según la zona horaria del cliente o servidor.
+4. Tras registrar una reserva de manera exitosa, el sistema solo mostraba una alerta en toast, sin dar un feedback detallado y estructurado de la reserva creada al usuario antes de redirigirlo.
+
+### Opciones Consideradas (ADR-007)
+
+1. **Mantener layouts planos y notificaciones básicas:** No resolvía los problemas de legibilidad móvil, el desfase horario ni la falta de confirmación visual del usuario.
+2. **Reestructuración integral y calibración horaria:**
+   - Reemplazar la tarjeta de soporte por un widget interactivo de "Eventos de Hoy".
+   - Ocultar textos extensos en el calendario móvil y desplegar un resumen diario inline bajo la cuadrícula.
+   - Forzar el offset `-05:00` en todas las conversiones e instanciaciones de Date en el formulario de reservas.
+   - Agregar un modal de resumen de reserva con autocierre de 5 segundos tras un envío exitoso.
+
+### Decisión (ADR-007)
+
+Se implementa la opción 2 para mejorar la experiencia de usuario y robustez horaria global. Se rediseña el layout principal a 3 columnas sustituyendo soporte por el widget dinámico "Eventos de Hoy", se crea una versión responsive para el calendario de ambientes/reservas, se alinea la zona horaria en el front a UTC-5 y se añade el modal con cuenta regresiva.
+
+### Consecuencias (ADR-007)
+
+- **Positivas:**
+  - Reducción del spam visual y mejora de usabilidad táctil en móviles.
+  - Sincronización absoluta de horarios entre BD, formulario y correos.
+  - Mayor feedback informativo al usuario que confirma visualmente los detalles de su reserva recién creada.
+- **Negativas:** Ninguna.

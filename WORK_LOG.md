@@ -92,3 +92,33 @@
 ### Pendientes (2026-04-25)
 
 - Continuar con la Fase 2 del Diagnóstico: Pruebas unitarias para el calculador de SLA y E2E para flujos críticos.
+
+---
+
+## Sesión: 2026-07-01
+
+**Rama:** `visual-improvement-proposal`
+**Modo:** Diagnóstico y Optimización de UX/UI
+
+### Qué se desarrolló (2026-07-01)
+
+1. **Eliminación y Reemplazo de Soporte Técnico:** Se removió la tarjeta obsoleta de reporte técnico en `UserRequestForm.tsx`. En su lugar, se implementó el widget dinámico "Eventos de Hoy", el cual consulta en tiempo real las reservas aprobadas del día en curso en formato de tarjetas compactas y visuales categorizadas por espacio.
+2. **Optimización del Calendario Móvil:** Se rediseñó `CalendarView.tsx` para ocultar la lista densa de asignaciones en celulares, reduciendo el alto mínimo de las celdas a 50px y habilitando una sección inferior de visualización de eventos inline para el día seleccionado.
+3. **Calibración de Husos Horarios (Timezone Fix):** Se forzó el huso horario de Colombia (`-05:00`) al instanciar objetos `Date` en `AuditoriumReservationForm.tsx`, eliminando desfases en el calendario y en el contenido de los correos automáticos enviados a los usuarios.
+4. **Modal de Confirmación de Reserva con Autocierre:** Se implementó una ventana modal interactiva con una cuenta regresiva de 5 segundos tras registrar una reserva, brindando al usuario un resumen detallado y la posibilidad de cierre manual rápido.
+
+### Cómo se desarrolló (2026-07-01)
+
+- **UI/UX:** Se actualizaron `CalendarView.tsx` y `UserRequestForm.tsx` con clases responsivas de Tailwind y validaciones de tipos estrictas para evitar problemas de linter.
+- **Sincronización horaria:** Se corrigieron los constructores de fechas en el frontend forzando el formato ISO `YYYY-MM-DDTHH:mm:ss-05:00`.
+
+### Errores detectados y Lecciones aprendidas (2026-07-01)
+
+- **Error de Linter/Build:** Pre-commit hooks fallaron inicialmente debido a una referencia no importada (`Clock` en `CalendarView.tsx`) y uso del tipo implícito `any` en `UserRequestForm.tsx`.
+- **Solución/Lección:** Siempre importar todos los componentes/iconos utilizados y definir contratos de interfaz estrictos (`TodayReservation`) en lugar de evadir el chequeo con `any` en TS.
+- **Desfase Horario:** Crear fechas con `new Date("YYYY-MM-DDTHH:mm")` delega la interpretación al huso horario local de la máquina del cliente, causando desfases en bases de datos centralizadas o servidores con diferente hora base (UTC).
+- **Solución/Lección:** Incluir siempre el offset de la zona horaria objetivo (ej: `-05:00`) para garantizar consistencia.
+
+### Pendientes (2026-07-01)
+
+- Continuar con el rediseño tipográfico de la plataforma importando Plus Jakarta Sans.
