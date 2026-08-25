@@ -36,6 +36,8 @@ interface DashboardContentProps {
 }
 
 import LibraryApprovalModal from "@/features/reservations/components/LibraryApprovalModal";
+import UpcomingReservationBanner from "@/components/UpcomingReservationBanner";
+import { useUpcomingReservationAlert } from "@/hooks/useUpcomingReservationAlert";
 
 export default function DashboardContent({
   viewMode,
@@ -61,11 +63,20 @@ export default function DashboardContent({
   showFreezer,
   loading,
 }: DashboardContentProps) {
+  const { upcomingAlert, dismissAlert } = useUpcomingReservationAlert(profile);
+
   return (
     <>
       <LibraryApprovalModal
         userEmail={currentUser?.email || (profile?.email as string) || ""}
       />
+      {upcomingAlert && profile && (
+        <UpcomingReservationBanner
+          alertData={upcomingAlert}
+          userProfile={profile}
+          onDismiss={dismissAlert}
+        />
+      )}
       {viewMode === "ENVIRONMENTS" ? (
         <div className="animate-in fade-in zoom-in-95 duration-300 h-full pb-10">
           <AssignmentManager

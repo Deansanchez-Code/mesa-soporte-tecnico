@@ -253,6 +253,57 @@ export async function cancelReservationAction(
   }
 }
 
+export async function confirmReservationAction(reservationId: number) {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+
+    const { data: reservation } = await supabase
+      .from("reservations")
+      .select("user_id, title")
+      .eq("id", reservationId)
+      .single();
+
+    if (!reservation) throw new Error("Reserva no encontrada");
+
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("auth_id", user.id)
+      .single();
+
+    const isOwner = publicUser?.id === reservation.user_id;
+    const isAdmin = ["admin", "superadmin"].includes(
+      publicUser?.role?.toLowerCase() || "",
+    );
+
+    if (!isOwner && !isAdmin) {
+      throw new Error(
+        "Solo el titular de la reserva puede confirmar su asistencia.",
+      );
+    }
+
+    const { error } = await supabase
+      .from("reservations")
+      .update({ status: "CONFIRMED" })
+      .eq("id", reservationId);
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? err.message : "Error al confirmar la reserva";
+    return { success: false, error: message };
+  }
+}
+
 interface PublicUser {
   id: string;
   role: string | null;
