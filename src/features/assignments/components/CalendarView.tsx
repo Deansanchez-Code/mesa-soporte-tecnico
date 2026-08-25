@@ -45,6 +45,7 @@ export default function CalendarView({
   canDeleteAuditorium,
   user,
   onEdit,
+  onCreateForDate,
 }: {
   areaId: number;
   areaName: string;
@@ -52,6 +53,7 @@ export default function CalendarView({
   canDeleteAuditorium: boolean;
   user?: UserProfile["profile"];
   onEdit?: (assign: Assignment) => void;
+  onCreateForDate?: (date: Date) => void;
 }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"week" | "month">("week"); // Default to week
@@ -229,6 +231,16 @@ export default function CalendarView({
                 setSelectedAssignment(null);
                 setIsModalOpen(true);
               }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                if (onCreateForDate) {
+                  onCreateForDate(day);
+                } else {
+                  setSelectedDay(day);
+                  setSelectedAssignment(null);
+                  setIsModalOpen(true);
+                }
+              }}
               className={`bg-white min-h-[50px] md:min-h-[120px] p-1.5 md:p-2 flex flex-col gap-1 transition-colors cursor-pointer 
                 ${isHolidayDay ? "bg-red-50/20 border-red-400 ring-2 ring-inset ring-red-200" : ""}
                 hover:bg-gray-50`}
@@ -309,6 +321,7 @@ export default function CalendarView({
                               e.stopPropagation();
                               setSelectedDay(day);
                               setSelectedAssignment(assign);
+                              setIsModalOpen(true);
                             }}
                             style={{ height: `${heightPx}px` }}
                             className={`group relative text-[10px] p-2 rounded-lg border border-l-[3px] shadow-sm flex flex-col justify-start min-h-[40px] overflow-hidden mb-1 hover:shadow-md transition-all ${
@@ -366,6 +379,7 @@ export default function CalendarView({
                                 e.stopPropagation();
                                 setSelectedDay(day);
                                 setSelectedAssignment(assign);
+                                setIsModalOpen(true);
                               }
                             }}
                             className={`group relative text-[10px] p-1.5 rounded border border-l-4 shadow-sm transition-all overflow-hidden flex flex-col justify-center min-h-[36px]
@@ -436,9 +450,19 @@ export default function CalendarView({
                   {format(selectedDay, "EEEE d 'de' MMMM", { locale: es })}
                 </h4>
                 <p className="text-[10px] text-white/70 uppercase tracking-widest font-bold">
-                  {(isHoliday(selectedDay) ? "Día Festivo - " : "") +
-                    "Detalle de Programación"}
+                  {selectedAssignment
+                    ? "Evento Seleccionado"
+                    : (isHoliday(selectedDay) ? "Día Festivo - " : "") +
+                      "Detalle de Programación"}
                 </p>
+                {selectedAssignment && (
+                  <button
+                    onClick={() => setSelectedAssignment(null)}
+                    className="text-[10px] text-blue-200 hover:text-white underline mt-0.5 block"
+                  >
+                    Ver todos los eventos del día
+                  </button>
+                )}
               </div>
               <button
                 onClick={() => {

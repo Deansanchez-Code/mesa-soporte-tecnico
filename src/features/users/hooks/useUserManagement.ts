@@ -196,8 +196,70 @@ export function useUserManagement(onRefresh: () => void) {
     } catch (error: unknown) {
       console.error("Error deleting user:", error);
       const errMsg =
-        error instanceof Error ? error.message : "Error desconoodo";
+        error instanceof Error ? error.message : "Error desconocido";
       toast.error("Error al desactivar", { description: errMsg });
+    }
+  };
+
+  const handleToggleUserActive = async (user: Agent | User) => {
+    const targetState = !user.is_active;
+    const actionName = targetState ? "HABILITAR" : "DESACTIVAR";
+
+    if (
+      !confirm(
+        `¿Seguro que deseas ${actionName} a ${user.full_name || user.username}?\n\n${
+          targetState
+            ? "El usuario podrá ingresar nuevamente y conservará todo su historial previo."
+            : "El usuario ya no podrá ingresar, pero conservará su historial intacto."
+        }`,
+      )
+    )
+      return;
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("No hay sesión activa");
+
+      const payload = {
+        id: user.auth_id || user.id,
+        is_active: targetState,
+        full_name: user.full_name,
+        username: user.username,
+        role: user.role,
+        area: user.area,
+        is_vip: user.is_vip,
+        employment_type: user.employment_type,
+        job_category: user.job_category,
+      };
+
+      const response = await fetch("/api/admin/users", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.error || "Error al cambiar estado");
+
+      toast.success(
+        targetState ? "Usuario Habilitado" : "Usuario Desactivado",
+        {
+          description: targetState
+            ? `El usuario ${user.username} ha sido reactivado.`
+            : `El usuario ${user.username} ha sido inhabilitado.`,
+        },
+      );
+      onRefresh();
+    } catch (error: unknown) {
+      const errMsg =
+        error instanceof Error ? error.message : "Error desconocido";
+      toast.error("Error al cambiar estado", { description: errMsg });
     }
   };
 
@@ -209,6 +271,7 @@ export function useUserManagement(onRefresh: () => void) {
     handleCreateOrUpdateUser,
     handleEditUser,
     handleDeleteUser,
+    handleToggleUserActive,
     resetUserForm,
   };
 }

@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus, FileSpreadsheet, Search, Edit, Trash2 } from "lucide-react";
+import {
+  UserPlus,
+  FileSpreadsheet,
+  Search,
+  Edit,
+  Trash2,
+  Power,
+} from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase/client";
 import { User, ConfigItem, StaffUploadRow } from "@/app/admin/admin.types";
@@ -33,6 +40,7 @@ export default function StaffTab({
     handleCreateOrUpdateUser,
     handleEditUser,
     handleDeleteUser,
+    handleToggleUserActive,
     resetUserForm,
   } = useUserManagement(onRefresh);
 
@@ -179,6 +187,9 @@ export default function StaffTab({
                   Ubicación
                 </th>
                 <th className="px-6 py-3 font-semibold text-gray-600">VIP</th>
+                <th className="px-6 py-3 font-semibold text-gray-600">
+                  Estado
+                </th>
                 {currentUserRole !== "admin" && (
                   <th className="px-6 py-3 font-semibold text-gray-600 text-right">
                     Acciones
@@ -201,7 +212,12 @@ export default function StaffTab({
                   );
                 })
                 .map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
+                  <tr
+                    key={user.id}
+                    className={`hover:bg-gray-50 ${
+                      user.is_active === false ? "bg-red-50/40 opacity-75" : ""
+                    }`}
+                  >
                     <td className="px-6 py-3 font-medium text-gray-900">
                       {formatName(user.full_name)}
                     </td>
@@ -218,9 +234,35 @@ export default function StaffTab({
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
+                    <td className="px-6 py-3">
+                      {user.is_active !== false ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800">
+                          Activo
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800">
+                          Inactivo
+                        </span>
+                      )}
+                    </td>
                     {currentUserRole !== "admin" && (
                       <td className="px-6 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleToggleUserActive(user)}
+                            className={`p-1.5 rounded transition ${
+                              user.is_active !== false
+                                ? "text-amber-600 hover:bg-amber-50"
+                                : "text-emerald-600 hover:bg-emerald-50"
+                            }`}
+                            title={
+                              user.is_active !== false
+                                ? "Desactivar acceso (conserva historial)"
+                                : "Habilitar acceso (restaurar cuenta)"
+                            }
+                          >
+                            <Power className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => handleEditUser(user)}
                             className="p-1 hover:bg-gray-100 rounded text-blue-600 transition"
@@ -231,7 +273,7 @@ export default function StaffTab({
                           <button
                             onClick={() => handleDeleteUser(user.id)}
                             className="p-1 hover:bg-gray-100 rounded text-red-600 transition"
-                            title="Eliminar"
+                            title="Eliminar permanentemente/Baja"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

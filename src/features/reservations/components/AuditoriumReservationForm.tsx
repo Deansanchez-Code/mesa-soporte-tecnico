@@ -17,6 +17,7 @@ interface AuditoriumReservationFormProps {
   onSuccess: () => void;
   reservationToEdit?: Reservation;
   initialSpace?: string;
+  initialDate?: string;
 }
 
 // Helper to get local date string YYYY-MM-DD
@@ -33,15 +34,22 @@ export default function AuditoriumReservationForm({
   onSuccess,
   reservationToEdit,
   initialSpace,
+  initialDate,
 }: AuditoriumReservationFormProps) {
-  const [startDate, setStartDate] = useState(getLocalDateString());
-  const [finalDate, setFinalDate] = useState(getLocalDateString());
+  const [startDate, setStartDate] = useState(
+    initialDate || getLocalDateString(),
+  );
+  const [finalDate, setFinalDate] = useState(
+    initialDate || getLocalDateString(),
+  );
   const [startTime, setStartTime] = useState("07:00");
   const [endTime, setEndTime] = useState("08:00");
   const [title, setTitle] = useState("");
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [isMultiDay, setIsMultiDay] = useState(false);
+  const [isWeeklyRepeat, setIsWeeklyRepeat] = useState(false);
+  const [repeatWeeks, setRepeatWeeks] = useState(2);
   const [selectedSpace, setSelectedSpace] = useState(
     String(reservationToEdit?.auditorium_id || initialSpace || "1"),
   ); // 1: Auditorio, 2: Subdirección
@@ -209,7 +217,14 @@ export default function AuditoriumReservationForm({
       // We pass the isOverride flag to the backend to handle it atomically.
 
       const datesToReserve: string[] = [];
-      if (isMultiDay) {
+      if (isWeeklyRepeat) {
+        const [sY, sM, sD] = startDate.split("-").map(Number);
+        const current = new Date(sY, sM - 1, sD);
+        for (let w = 0; w < Math.min(repeatWeeks, 12); w++) {
+          datesToReserve.push(getLocalDateString(current));
+          current.setDate(current.getDate() + 7);
+        }
+      } else if (isMultiDay) {
         const [sY, sM, sD] = startDate.split("-").map(Number);
         const [eY, eM, eD] = finalDate.split("-").map(Number);
         const current = new Date(sY, sM - 1, sD);
@@ -507,24 +522,45 @@ export default function AuditoriumReservationForm({
             <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
               <Calendar className="w-4 h-4" /> Fechas
             </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="multiDay"
-                checked={isMultiDay}
-                onChange={(e) => setIsMultiDay(e.target.checked)}
-                className="w-4 h-4 text-sena-green rounded focus:ring-sena-green"
-              />
-              <label htmlFor="multiDay" className="text-xs text-gray-600">
-                Reserva de varios días
-              </label>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  id="multiDay"
+                  checked={isMultiDay}
+                  onChange={(e) => {
+                    setIsMultiDay(e.target.checked);
+                    if (e.target.checked) setIsWeeklyRepeat(false);
+                  }}
+                  className="w-4 h-4 text-sena-green rounded focus:ring-sena-green"
+                />
+                <label htmlFor="multiDay" className="text-xs text-gray-600">
+                  Días seguidos
+                </label>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  id="weeklyRepeat"
+                  checked={isWeeklyRepeat}
+                  onChange={(e) => {
+                    setIsWeeklyRepeat(e.target.checked);
+                    if (e.target.checked) setIsMultiDay(false);
+                  }}
+                  className="w-4 h-4 text-sena-green rounded focus:ring-sena-green"
+                />
+                <label htmlFor="weeklyRepeat" className="text-xs text-gray-600">
+                  Repetir semanalmente
+                </label>
+              </div>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">
-                Fecha Inicio
+                {isWeeklyRepeat ? "Fecha Primera Sesión" : "Fecha Inicio"}
               </label>
               <input
                 type="date"
@@ -532,7 +568,8 @@ export default function AuditoriumReservationForm({
                 min={getLocalDateString()}
                 onChange={(e) => {
                   setStartDate(e.target.value);
-                  if (!isMultiDay) setFinalDate(e.target.value);
+                  if (!isMultiDay && !isWeeklyRepeat)
+                    setFinalDate(e.target.value);
                 }}
                 className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-sena-green outline-none"
               />
@@ -549,6 +586,24 @@ export default function AuditoriumReservationForm({
                   onChange={(e) => setFinalDate(e.target.value)}
                   className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-sena-green outline-none"
                 />
+              </div>
+            )}
+            {isWeeklyRepeat && (
+              <div className="animate-in fade-in slide-in-from-left-2">
+                <label className="block text-xs text-gray-500 mb-1">
+                  Número de Semanas
+                </label>
+                <select
+                  value={repeatWeeks}
+                  onChange={(e) => setRepeatWeeks(Number(e.target.value))}
+                  className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-sena-green outline-none bg-white"
+                >
+                  {[2, 3, 4, 6, 8, 12].map((w) => (
+                    <option key={w} value={w}>
+                      {w} semanas seguidas
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
           </div>
