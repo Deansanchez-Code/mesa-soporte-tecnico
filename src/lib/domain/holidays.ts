@@ -1,12 +1,3 @@
-import {
-  addDays,
-  getDate,
-  getDay,
-  getMonth,
-  getYear,
-  isSameDay,
-} from "date-fns";
-
 function getEaster(year: number): Date {
   const a = year % 19;
   const b = Math.floor(year / 100);
