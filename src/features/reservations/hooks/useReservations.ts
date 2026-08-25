@@ -59,15 +59,15 @@ export function useReservations({
       if (!userId) return false;
       const { data, error } = await supabase
         .from("users")
-        .select("is_vip")
-        .eq("auth_id", userId)
+        .select("is_vip, role")
+        .or(`auth_id.eq.${userId},id.eq.${userId}`)
         .maybeSingle();
 
       if (error) throw error;
-      return data?.is_vip || false;
+      return !!data?.is_vip || data?.role?.toLowerCase() === "vip";
     },
     enabled: !!userId,
-    staleTime: 1000 * 60 * 10, // VIP status doesn't change often
+    staleTime: 1000 * 60 * 2, // 2 mins
   });
 
   // 3. Mutation para Cancelar con Optimismo

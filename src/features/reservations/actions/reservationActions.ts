@@ -852,9 +852,35 @@ export async function createReservationBatchAction(
             );
           }
 
-          // Atomic Cancellation of Conflicts (Silent for Batch to avoid massive individual emails)
+          // Intelligent Trimming / Rescheduling or Atomic Cancellation of Conflicts
           for (const conflict of conflicts) {
-            await cancelReservationAction(conflict.id, { silent: true });
+            const vipStart = new Date(res.start_time).getTime();
+            const vipEnd = new Date(res.end_time).getTime();
+            const confStart = new Date(conflict.start_time).getTime();
+            const confEnd = new Date(conflict.end_time).getTime();
+
+            if (vipStart <= confStart && vipEnd >= confEnd) {
+              // VIP covers full duration -> Cancel entirely
+              await cancelReservationAction(conflict.id, { silent: true });
+            } else if (vipStart <= confStart && vipEnd < confEnd) {
+              // VIP overlaps start of existing -> Trim existing start to vipEnd
+              await supabase
+                .from("reservations")
+                .update({ start_time: new Date(vipEnd).toISOString() })
+                .eq("id", conflict.id);
+            } else if (vipStart > confStart && vipEnd >= confEnd) {
+              // VIP overlaps end of existing -> Trim existing end to vipStart
+              await supabase
+                .from("reservations")
+                .update({ end_time: new Date(vipStart).toISOString() })
+                .eq("id", conflict.id);
+            } else if (vipStart > confStart && vipEnd < confEnd) {
+              // VIP in middle -> Adjust existing end to vipStart
+              await supabase
+                .from("reservations")
+                .update({ end_time: new Date(vipStart).toISOString() })
+                .eq("id", conflict.id);
+            }
           }
         } else {
           throw new Error(

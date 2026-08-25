@@ -48,8 +48,11 @@ export function useUserProfile() {
 
         const metadataRole = user.user_metadata?.role?.toLowerCase();
         const finalRole = dbUser?.role || user.user_metadata?.role || "user";
-        const isVipMetadata = !!(
-          user.user_metadata?.is_vip || metadataRole === "vip"
+        const isVipUser = !!(
+          dbUser?.is_vip ||
+          finalRole?.toLowerCase() === "vip" ||
+          user.user_metadata?.is_vip ||
+          metadataRole === "vip"
         );
 
         setState({
@@ -64,7 +67,7 @@ export function useUserProfile() {
             ...user.user_metadata,
             id: dbUser?.id || user.id, // Ensure we always have an ID for ownership checks
             full_name: dbUser?.full_name || user.user_metadata?.full_name, // Prioridad DB
-            is_vip: !!(dbUser?.is_vip || isVipMetadata),
+            is_vip: isVipUser,
             role: finalRole,
             email: user.email,
             perm_create_assets: dbUser?.perm_create_assets,

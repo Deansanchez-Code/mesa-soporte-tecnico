@@ -32,6 +32,10 @@ export default function AssignmentManager({
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [editingRes, setEditingRes] = useState<Assignment | null>(null);
 
+  const [selectedDateForCreate, setSelectedDateForCreate] = useState<
+    string | undefined
+  >(undefined);
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReservationModalOpen, setIsReservationModalOpen] = useState(false);
@@ -246,6 +250,22 @@ export default function AssignmentManager({
             canDeleteAuditorium={canDeleteAuditorium}
             user={user}
             onEdit={(res) => setEditingRes(res)}
+            onCreateForDate={(date) => {
+              const y = date.getFullYear();
+              const m = String(date.getMonth() + 1).padStart(2, "0");
+              const d = String(date.getDate()).padStart(2, "0");
+              setSelectedDateForCreate(`${y}-${m}-${d}`);
+
+              if (
+                selectedEnv?.name.toUpperCase().includes("AUDITORIO") ||
+                selectedEnv?.name.toUpperCase().includes("SUBDIRECCIÓN") ||
+                selectedEnv?.name.toUpperCase().includes("BIBLIOTECA")
+              ) {
+                setIsReservationModalOpen(true);
+              } else {
+                setIsModalOpen(true);
+              }
+            }}
           />
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-gray-400">
@@ -259,10 +279,16 @@ export default function AssignmentManager({
       {isModalOpen && selectedEnv && (
         <BulkAssignmentModal
           isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedDateForCreate(undefined);
+          }}
           environmentId={selectedEnv.id}
           environmentName={selectedEnv.name}
-          onSuccess={() => setRefreshTrigger((prev) => prev + 1)}
+          onSuccess={() => {
+            setSelectedDateForCreate(undefined);
+            setRefreshTrigger((prev) => prev + 1);
+          }}
         />
       )}
 
@@ -272,6 +298,7 @@ export default function AssignmentManager({
           <div className="bg-white w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95">
             <AuditoriumReservationForm
               user={user}
+              initialDate={selectedDateForCreate}
               initialSpace={
                 selectedEnv.name.toUpperCase().includes("AUDITORIO")
                   ? "1"
@@ -279,9 +306,13 @@ export default function AssignmentManager({
                     ? "2"
                     : "3"
               }
-              onCancel={() => setIsReservationModalOpen(false)}
+              onCancel={() => {
+                setIsReservationModalOpen(false);
+                setSelectedDateForCreate(undefined);
+              }}
               onSuccess={() => {
                 setIsReservationModalOpen(false);
+                setSelectedDateForCreate(undefined);
                 setRefreshTrigger((prev) => prev + 1);
               }}
             />
