@@ -391,6 +391,40 @@ export async function createReservationAction(
       }
     }
 
+    // Validación de Remodelación / Mantenimiento
+    if ((auditorium_id || "1") === "1" && !isAdmin) {
+      const { data: mSetting } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "auditorium_maintenance")
+        .maybeSingle();
+
+      if (mSetting?.value) {
+        const mConfig = mSetting.value as unknown as {
+          is_active: boolean;
+          start_date: string;
+          end_date?: string | null;
+        };
+
+        if (mConfig.is_active && mConfig.start_date) {
+          const resDate = new Date(start_time).toLocaleDateString("en-CA", {
+            timeZone: "America/Bogota",
+          });
+          const mStart = mConfig.start_date;
+          const mEnd = mConfig.end_date || "2026-12-31";
+
+          if (resDate >= mStart && resDate <= mEnd) {
+            const endMsg = mConfig.end_date
+              ? `hasta el ${mConfig.end_date}`
+              : "por el resto de la vigencia 2026";
+            throw new Error(
+              `El Auditorio se encuentra fuera de servicio por remodelación a partir del ${mStart} (${endMsg}). Para más información, diríjase a la Coordinación Académica o de Formación.`,
+            );
+          }
+        }
+      }
+    }
+
     // 3. Conflict Check (Scoped to specific space)
     const { data: conflicts } = await supabase
       .from("reservations")
@@ -815,6 +849,43 @@ export async function createReservationBatchAction(
         }
       }
 
+      // Validación de Remodelación / Mantenimiento
+      if ((data.auditorium_id || "1") === "1" && !isAdmin) {
+        const { data: mSetting } = await supabase
+          .from("system_settings")
+          .select("value")
+          .eq("key", "auditorium_maintenance")
+          .maybeSingle();
+
+        if (mSetting?.value) {
+          const mConfig = mSetting.value as unknown as {
+            is_active: boolean;
+            start_date: string;
+            end_date?: string | null;
+          };
+
+          if (mConfig.is_active && mConfig.start_date) {
+            const resDate = new Date(data.start_time).toLocaleDateString(
+              "en-CA",
+              {
+                timeZone: "America/Bogota",
+              },
+            );
+            const mStart = mConfig.start_date;
+            const mEnd = mConfig.end_date || "2026-12-31";
+
+            if (resDate >= mStart && resDate <= mEnd) {
+              const endMsg = mConfig.end_date
+                ? `hasta el ${mConfig.end_date}`
+                : "por el resto de la vigencia 2026";
+              throw new Error(
+                `El Auditorio se encuentra fuera de servicio por remodelación a partir del ${mStart} (${endMsg}). Para más información, diríjase a la Coordinación Académica o de Formación.`,
+              );
+            }
+          }
+        }
+      }
+
       validReservations.push(data);
     }
 
@@ -1135,5 +1206,93 @@ export async function createReservationBatchAction(
         : String(error || "Error en creación masiva"));
     await Logger.error("Batch Reservation Creation Failed", { error });
     return { error: String(errorMsg) };
+  }
+}
+
+export async function getAuditoriumMaintenanceAction() {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "auditorium_maintenance")
+      .maybeSingle();
+
+    if (data && data.value) {
+      return { success: true, config: data.value };
+    }
+    return {
+      success: true,
+      config: {
+        is_active: false,
+        space_id: "1",
+        start_date: "2026-09-01",
+        end_date: null,
+        custom_title: "Auditorio en Remodelación",
+        custom_message: "",
+      },
+    };
+  } catch (err: unknown) {
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error al consultar configuración de remodelación",
+    };
+  }
+}
+
+export async function saveAuditoriumMaintenanceAction(config: {
+  is_active: boolean;
+  space_id: string;
+  start_date: string;
+  end_date?: string | null;
+  custom_title?: string;
+  custom_message?: string;
+}) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select("role")
+      .eq("auth_id", user.id)
+      .single();
+
+    const isAdmin = ["admin", "superadmin"].includes(
+      publicUser?.role?.toLowerCase() || "",
+    );
+    if (!isAdmin) {
+      throw new Error(
+        "Solo administradores pueden configurar el estado de remodelación/mantenimiento.",
+      );
+    }
+
+    const adminSupabase = getSupabaseAdmin();
+    const { error } = await adminSupabase.from("system_settings").upsert(
+      {
+        key: "auditorium_maintenance",
+        value: config,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    );
+
+    if (error) throw error;
+
+    revalidatePath("/dashboard");
+    revalidatePath("/admin");
+    return { success: true };
+  } catch (err: unknown) {
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error al guardar configuración de remodelación",
+    };
   }
 }

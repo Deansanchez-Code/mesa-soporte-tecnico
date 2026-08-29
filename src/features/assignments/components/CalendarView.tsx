@@ -23,6 +23,7 @@ import {
   Pencil,
   X as CloseIcon,
   Clock,
+  Plus,
 } from "lucide-react";
 import {
   TimeBlock,
@@ -819,13 +820,31 @@ export default function CalendarView({
                     );
                   })}
             </div>
-            <div className="p-4 bg-gray-50 border-t flex justify-center">
+            <div className="p-4 bg-gray-50 border-t flex justify-between items-center gap-3">
+              {onCreateForDate && (
+                <button
+                  onClick={() => {
+                    const target = selectedDay;
+                    setIsModalOpen(false);
+                    setSelectedAssignment(null);
+                    onCreateForDate(target);
+                  }}
+                  className="bg-sena-green hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  {areaName.toUpperCase().includes("AUDITORIO") ||
+                  areaName.toUpperCase().includes("SUBDIRECCIÓN") ||
+                  areaName.toUpperCase().includes("BIBLIOTECA")
+                    ? "Reservar esta fecha"
+                    : "Asignar esta fecha"}
+                </button>
+              )}
               <button
                 onClick={() => {
                   setIsModalOpen(false);
                   setSelectedAssignment(null);
                 }}
-                className="bg-white px-6 py-2 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors shadow-sm"
+                className="bg-white px-6 py-2 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors shadow-sm ml-auto cursor-pointer"
               >
                 CERRAR
               </button>

@@ -10,6 +10,11 @@ import { Reservation } from "../types";
 
 import { UserProfile } from "@/features/auth/hooks/useUserProfile";
 import { Skeleton } from "@/components/Skeleton";
+import {
+  getAuditoriumMaintenanceConfig,
+  DEFAULT_AUDITORIUM_MAINTENANCE,
+} from "../services/maintenanceService";
+import { SpaceMaintenanceConfig } from "../types";
 
 interface AuditoriumReservationFormProps {
   user: UserProfile["profile"];
@@ -133,6 +138,40 @@ export default function AuditoriumReservationForm({
 
   const [conflicts, setConflicts] = useState<Reservation[]>([]);
   const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
+
+  const [maintenanceConfig, setMaintenanceConfig] =
+    useState<SpaceMaintenanceConfig>(DEFAULT_AUDITORIUM_MAINTENANCE);
+
+  // Cargar configuración de mantenimiento
+  useEffect(() => {
+    getAuditoriumMaintenanceConfig().then((cfg) => {
+      setMaintenanceConfig(cfg);
+    });
+  }, []);
+
+  // Sincronizar reactivamente cuando initialDate o initialSpace cambian (ej. doble clic en calendario)
+  useEffect(() => {
+    if (initialDate && !reservationToEdit) {
+      setStartDate(initialDate);
+      setFinalDate(initialDate);
+    }
+  }, [initialDate, reservationToEdit]);
+
+  useEffect(() => {
+    if (initialSpace && !reservationToEdit) {
+      setSelectedSpace(initialSpace);
+    }
+  }, [initialSpace, reservationToEdit]);
+
+  // Verificar si las fechas seleccionadas caen en remodelación del auditorio
+  const isAuditoriumMaintenanceActive =
+    selectedSpace === "1" &&
+    maintenanceConfig.is_active &&
+    targetDates.some((d) => {
+      const start = maintenanceConfig.start_date;
+      const end = maintenanceConfig.end_date || "2026-12-31";
+      return d >= start && d <= end;
+    });
 
   // Initialize form if editing
   useEffect(() => {
@@ -871,6 +910,37 @@ export default function AuditoriumReservationForm({
           </div>
         )}
 
+        {/* ALERTA DE REMODELACIÓN / FUERA DE SERVICIO */}
+        {isAuditoriumMaintenanceActive &&
+          !["admin", "superadmin"].includes(
+            ((user?.role as string) || "").toLowerCase(),
+          ) && (
+            <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-5 space-y-2 animate-in fade-in slide-in-from-bottom-2">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="font-black text-amber-900 text-sm uppercase">
+                    Auditorio en Remodelación / Fuera de Servicio
+                  </h4>
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    Las fechas seleccionadas caen dentro del periodo de obras y
+                    adecuaciones del auditorio (a partir del{" "}
+                    <strong>{maintenanceConfig.start_date}</strong>
+                    {maintenanceConfig.end_date
+                      ? ` hasta el ${maintenanceConfig.end_date}`
+                      : " por el resto de la vigencia 2026"}
+                    ).
+                  </p>
+                  <p className="text-xs text-amber-900 font-semibold pt-1">
+                    🚫 Las reservas se encuentran suspendidas. Para eventos
+                    especiales, remítase a la Coordinación Académica o de
+                    Formación.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
         {(selectedSpace === "3" &&
           (() => {
             const userEmail = ((user?.email as string) || "").toLowerCase();
@@ -929,10 +999,22 @@ export default function AuditoriumReservationForm({
             <button
               type="submit"
               disabled={
-                isSubmitting || loading || (!title && conflicts.length === 0)
+                isSubmitting ||
+                loading ||
+                (!title && conflicts.length === 0) ||
+                (isAuditoriumMaintenanceActive &&
+                  !["admin", "superadmin"].includes(
+                    ((user?.role as string) || "").toLowerCase(),
+                  ))
               }
               className={`flex-1 px-4 py-4 rounded-2xl font-bold text-white shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2 ${
-                isSubmitting || loading || (!title && conflicts.length === 0)
+                isSubmitting ||
+                loading ||
+                (!title && conflicts.length === 0) ||
+                (isAuditoriumMaintenanceActive &&
+                  !["admin", "superadmin"].includes(
+                    ((user?.role as string) || "").toLowerCase(),
+                  ))
                   ? "bg-gray-300 cursor-not-allowed shadow-none"
                   : "bg-sena-green hover:bg-green-700 shadow-green-900/20 shadow-lg hover:scale-[1.02]"
               }`}

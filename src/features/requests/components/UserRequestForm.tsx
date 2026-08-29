@@ -18,6 +18,12 @@ import { supabase } from "@/lib/supabase/client";
 import PanicButtonModal from "./PanicButtonModal";
 import LibraryApprovalModal from "@/features/reservations/components/LibraryApprovalModal";
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
+import AuditoriumMaintenanceModal from "@/features/reservations/components/AuditoriumMaintenanceModal";
+import {
+  getAuditoriumMaintenanceConfig,
+  DEFAULT_AUDITORIUM_MAINTENANCE,
+} from "@/features/reservations/services/maintenanceService";
+import { SpaceMaintenanceConfig } from "@/features/reservations/types";
 import AssignmentManager from "@/features/assignments/components/AssignmentManager";
 import { User } from "./types";
 
@@ -220,6 +226,16 @@ export default function UserRequestForm({
     fetchTodayReservations();
   }, []);
 
+  const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
+  const [maintenanceConfig, setMaintenanceConfig] =
+    useState<SpaceMaintenanceConfig>(DEFAULT_AUDITORIUM_MAINTENANCE);
+
+  useEffect(() => {
+    getAuditoriumMaintenanceConfig().then((cfg) => {
+      setMaintenanceConfig(cfg);
+    });
+  }, []);
+
   const isAdmin = ["admin", "superadmin", "vip"].includes(
     ((user?.role as string) || "").toLowerCase(),
   );
@@ -376,11 +392,25 @@ export default function UserRequestForm({
               {/* AUDITORIO */}
               <button
                 onClick={() => {
+                  if (
+                    maintenanceConfig.is_active &&
+                    !["admin", "superadmin"].includes(
+                      ((user?.role as string) || "").toLowerCase(),
+                    )
+                  ) {
+                    setShowMaintenanceModal(true);
+                    return;
+                  }
                   setSelectedReservationSpace("1");
                   handleViewChange("RESERVATION");
                 }}
-                className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-sena-blue transition-all duration-300 text-left w-full h-full"
+                className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-sena-blue transition-all duration-300 text-left w-full h-full relative"
               >
+                {maintenanceConfig.is_active && (
+                  <span className="absolute top-4 right-4 bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-300 shadow-2xs animate-pulse">
+                    En Remodelación
+                  </span>
+                )}
                 <div className="bg-blue-50 p-5 rounded-2xl group-hover:bg-sena-blue transition-all duration-300 group-hover:rotate-6">
                   <Calendar className="w-10 h-10 text-sena-blue group-hover:text-white" />
                 </div>
@@ -609,6 +639,12 @@ export default function UserRequestForm({
           )}
         </div>
       </div>
+
+      <AuditoriumMaintenanceModal
+        isOpen={showMaintenanceModal}
+        onClose={() => setShowMaintenanceModal(false)}
+        config={maintenanceConfig}
+      />
     </div>
   );
 }

@@ -37,6 +37,12 @@ import ContractorsTab from "@/features/contractors/components/ContractorsTab";
 import MetricsTab from "@/features/monitoring/components/MetricsTab";
 import ShiftsTab from "@/features/shifts/components/ShiftsTab";
 import AuditTab from "@/features/audit/components/AuditTab";
+import {
+  getAuditoriumMaintenanceAction,
+  saveAuditoriumMaintenanceAction,
+} from "@/features/reservations/actions/reservationActions";
+import { SpaceMaintenanceConfig } from "@/features/reservations/types";
+import { toast } from "sonner";
 
 import {
   Agent,
@@ -136,6 +142,24 @@ export default function AdminDashboard() {
     categories: ConfigItem[];
   }>({ areas: [], categories: [] });
   const [newConfigItem, setNewConfigItem] = useState("");
+
+  const [maintenanceConfig, setMaintenanceConfig] =
+    useState<SpaceMaintenanceConfig>({
+      is_active: false,
+      space_id: "1",
+      start_date: "2026-09-01",
+      end_date: null,
+      custom_title: "Auditorio en Remodelación",
+      custom_message: "",
+    });
+
+  useEffect(() => {
+    getAuditoriumMaintenanceAction().then((res) => {
+      if (res?.config) {
+        setMaintenanceConfig(res.config as unknown as SpaceMaintenanceConfig);
+      }
+    });
+  }, []);
 
   // Estados Modales
   const [showAssetModal, setShowAssetModal] = useState(false);
@@ -1292,6 +1316,133 @@ export default function AdminDashboard() {
                     </li>
                   ))}
                 </ul>
+              </div>
+
+              {/* REMODELACIÓN / MANTENIMIENTO AUDITORIO */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-amber-200 md:col-span-2">
+                <div className="flex items-center justify-between mb-4 border-b pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700">
+                      <ShieldAlert className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-800 text-base">
+                        Pausa de Reservas / Remodelación de Auditorio
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        Bloquea la opción de reservar el auditorio y muestra el
+                        aviso institucional a los usuarios.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const updated = {
+                          ...maintenanceConfig,
+                          is_active: !maintenanceConfig.is_active,
+                        };
+                        const res =
+                          await saveAuditoriumMaintenanceAction(updated);
+                        if (res?.error) {
+                          toast.error(res.error);
+                          return;
+                        }
+                        setMaintenanceConfig(updated);
+                        toast.success(
+                          updated.is_active
+                            ? "Bloqueo de auditorio por remodelación ACTIVADO."
+                            : "Auditorio HABILITADO para reservas.",
+                        );
+                      } catch (err: unknown) {
+                        toast.error(
+                          err instanceof Error
+                            ? err.message
+                            : "Error al guardar",
+                        );
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer ${
+                      maintenanceConfig.is_active
+                        ? "bg-red-600 hover:bg-red-700 text-white"
+                        : "bg-gray-100 hover:bg-gray-200 text-gray-700 border"
+                    }`}
+                  >
+                    {maintenanceConfig.is_active
+                      ? "DESACTIVAR PAUSA"
+                      : "ACTIVAR PAUSA"}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
+                      Fecha de Inicio de Obras / Pausa *
+                    </label>
+                    <input
+                      type="date"
+                      value={maintenanceConfig.start_date}
+                      onChange={(e) =>
+                        setMaintenanceConfig({
+                          ...maintenanceConfig,
+                          start_date: e.target.value,
+                        })
+                      }
+                      className="border p-2.5 rounded-lg w-full text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
+                      Fecha Estimada de Fin (Opcional)
+                    </label>
+                    <input
+                      type="date"
+                      value={maintenanceConfig.end_date || ""}
+                      onChange={(e) =>
+                        setMaintenanceConfig({
+                          ...maintenanceConfig,
+                          end_date: e.target.value || null,
+                        })
+                      }
+                      className="border p-2.5 rounded-lg w-full text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <span className="text-[10px] text-gray-400 mt-1 block">
+                      {maintenanceConfig.end_date
+                        ? "Indica fecha estimada de reapertura."
+                        : "Sin fecha: Bloqueará por el resto de la vigencia 2026."}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res =
+                          await saveAuditoriumMaintenanceAction(
+                            maintenanceConfig,
+                          );
+                        if (res?.error) {
+                          toast.error(res.error);
+                          return;
+                        }
+                        toast.success(
+                          "Configuración de remodelación guardada exitosamente.",
+                        );
+                      } catch (err: unknown) {
+                        toast.error(
+                          err instanceof Error
+                            ? err.message
+                            : "Error al guardar",
+                        );
+                      }
+                    }}
+                    className="bg-sena-green hover:bg-green-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+                  >
+                    Guardar Configuración
+                  </button>
+                </div>
               </div>
             </section>
           )}

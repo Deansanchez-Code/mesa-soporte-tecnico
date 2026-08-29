@@ -14,3 +14,12 @@ export interface Reservation {
     role?: string;
   };
 }
+
+export interface SpaceMaintenanceConfig {
+  is_active: boolean;
+  space_id: string; // '1': Auditorio
+  start_date: string; // YYYY-MM-DD
+  end_date?: string | null; // YYYY-MM-DD (optional)
+  custom_title?: string;
+  custom_message?: string;
+}
