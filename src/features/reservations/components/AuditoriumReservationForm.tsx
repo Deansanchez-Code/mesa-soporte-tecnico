@@ -78,6 +78,45 @@ export default function AuditoriumReservationForm({
     return () => clearTimeout(timer);
   }, [summaryData, countdown, onSuccess]);
 
+  // Calculate effective final date for query (multi-day or weekly repeat)
+  const effectiveFinalDate = (() => {
+    if (isMultiDay) return finalDate;
+    if (isWeeklyRepeat && startDate) {
+      const [sY, sM, sD] = startDate.split("-").map(Number);
+      const endD = new Date(sY, sM - 1, sD);
+      endD.setDate(endD.getDate() + (Math.min(repeatWeeks, 12) - 1) * 7);
+      return getLocalDateString(endD);
+    }
+    return startDate;
+  })();
+
+  // Calculate the exact list of target dates
+  const targetDates = (() => {
+    const dates: string[] = [];
+    if (isWeeklyRepeat && startDate) {
+      const [sY, sM, sD] = startDate.split("-").map(Number);
+      const current = new Date(sY, sM - 1, sD);
+      for (let w = 0; w < Math.min(repeatWeeks, 12); w++) {
+        dates.push(getLocalDateString(current));
+        current.setDate(current.getDate() + 7);
+      }
+    } else if (isMultiDay && startDate && finalDate) {
+      const [sY, sM, sD] = startDate.split("-").map(Number);
+      const [eY, eM, eD] = finalDate.split("-").map(Number);
+      const current = new Date(sY, sM - 1, sD);
+      const end = new Date(eY, eM - 1, eD);
+      let safetyCounter = 0;
+      while (current <= end && safetyCounter < 31) {
+        dates.push(getLocalDateString(current));
+        current.setDate(current.getDate() + 1);
+        safetyCounter++;
+      }
+    } else if (startDate) {
+      dates.push(startDate);
+    }
+    return dates;
+  })();
+
   // useReservations Hook
   const {
     reservations,
@@ -89,7 +128,7 @@ export default function AuditoriumReservationForm({
   } = useReservations({
     userId: user?.id || "",
     startDate,
-    finalDate: isMultiDay ? finalDate : startDate,
+    finalDate: effectiveFinalDate,
   });
 
   const [conflicts, setConflicts] = useState<Reservation[]>([]);
@@ -139,27 +178,29 @@ export default function AuditoriumReservationForm({
     }
   }, [reservationToEdit]);
 
-  // 2. Detectar conflictos visuales UI (Múltiples días)
+  // 2. Detectar conflictos visuales UI (Múltiples días o Semanales)
   useEffect(() => {
     if (isSuccess || isSubmitting) return;
-    if (!startTime || !endTime || !startDate) return;
+    if (!startTime || !endTime || !startDate || targetDates.length === 0)
+      return;
 
-    // Detectar conflictos en el rango de fechas para el ESPACIO SELECCIONADO
+    const targetDateSet = new Set(targetDates);
+
+    // Detectar conflictos en los días exactos a reservar para el ESPACIO SELECCIONADO
     const foundConflicts = reservations.filter((r) => {
       if (reservationToEdit && r.id === reservationToEdit.id) return false;
       if (String(r.auditorium_id) !== String(selectedSpace)) return false;
 
       const rStart = new Date(r.start_time);
       const rEnd = new Date(r.end_time);
+      const rDateStr = getLocalDateString(rStart);
 
-      // Si es multi-día, debemos verificar si las HORAS chocan en CUALQUIERA de los días reservados
-      // Como el backend crea una reserva por día, simplemente comparamos los intervalos de tiempo.
-      // Primero, normalizamos el conflicto potencial a las mismas horas pero comparando con el rango del backend.
+      // Solo si la reserva existente cae en uno de los días que estamos intentando reservar
+      if (!targetDateSet.has(rDateStr)) return false;
 
       const [sH, sM] = startTime.split(":").map(Number);
       const [eH, eM] = endTime.split(":").map(Number);
 
-      // Verificamos si las horas de 'r' se solapan con las horas seleccionadas [startTime, endTime]
       const rStartHours = rStart.getHours() + rStart.getMinutes() / 60;
       const rEndHours = rEnd.getHours() + rEnd.getMinutes() / 60;
       const selectedStartHours = sH + sM / 60;
@@ -178,11 +219,14 @@ export default function AuditoriumReservationForm({
     startDate,
     finalDate,
     isMultiDay,
+    isWeeklyRepeat,
+    repeatWeeks,
     reservations,
     reservationToEdit,
     selectedSpace,
     isSuccess,
     isSubmitting,
+    targetDates,
   ]);
 
   // 3. Handle Submit
@@ -216,28 +260,7 @@ export default function AuditoriumReservationForm({
       // NOTE: We no longer manually cancel conflicts here.
       // We pass the isOverride flag to the backend to handle it atomically.
 
-      const datesToReserve: string[] = [];
-      if (isWeeklyRepeat) {
-        const [sY, sM, sD] = startDate.split("-").map(Number);
-        const current = new Date(sY, sM - 1, sD);
-        for (let w = 0; w < Math.min(repeatWeeks, 12); w++) {
-          datesToReserve.push(getLocalDateString(current));
-          current.setDate(current.getDate() + 7);
-        }
-      } else if (isMultiDay) {
-        const [sY, sM, sD] = startDate.split("-").map(Number);
-        const [eY, eM, eD] = finalDate.split("-").map(Number);
-        const current = new Date(sY, sM - 1, sD);
-        const end = new Date(eY, eM - 1, eD);
-        let safetyCounter = 0;
-        while (current <= end && safetyCounter < 31) {
-          datesToReserve.push(getLocalDateString(current));
-          current.setDate(current.getDate() + 1);
-          safetyCounter++;
-        }
-      } else {
-        datesToReserve.push(startDate);
-      }
+      const datesToReserve: string[] = targetDates;
 
       // Build Payload Data
       const reservationsPayload = [];
@@ -600,13 +623,44 @@ export default function AuditoriumReservationForm({
                 >
                   {[2, 3, 4, 6, 8, 12].map((w) => (
                     <option key={w} value={w}>
-                      {w} semanas seguidas
+                      {w} semanas (1 sesión cada 7 días)
                     </option>
                   ))}
                 </select>
               </div>
             )}
           </div>
+
+          {(isWeeklyRepeat || (isMultiDay && targetDates.length > 1)) && (
+            <div className="mt-4 pt-3 border-t border-gray-100 animate-in fade-in">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                  {isWeeklyRepeat
+                    ? `Sesiones a reservar (${targetDates.length} semanas, cada 7 días):`
+                    : `Días continuos a reservar (${targetDates.length} días):`}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                {targetDates.map((dateStr, idx) => {
+                  const [y, m, d] = dateStr.split("-").map(Number);
+                  const dateObj = new Date(y, m - 1, d);
+                  const dayName = dateObj.toLocaleDateString("es-CO", {
+                    weekday: "short",
+                  });
+                  const formatted = `${dayName.toUpperCase()} ${d}/${m}/${y}`;
+                  return (
+                    <span
+                      key={dateStr}
+                      className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                      {formatted}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Horas */}
