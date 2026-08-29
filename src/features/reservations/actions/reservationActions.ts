@@ -1263,7 +1263,7 @@ export async function saveAuditoriumMaintenanceAction(config: {
 
     const { data: publicUser } = await supabase
       .from("users")
-      .select("role")
+      .select("id, role")
       .eq("auth_id", user.id)
       .single();
 
@@ -1325,6 +1325,46 @@ export async function saveAuditoriumMaintenanceAction(config: {
           .from("reservations")
           .update({ status: "CANCELLED" })
           .in("id", resIds);
+
+        // 2.1 Cancelar automáticamente los tickets de soporte asociados en la bandeja de los técnicos
+        try {
+          for (const res of activeReservations) {
+            const { data: ticketsToCancel } = await adminSupabase
+              .from("tickets")
+              .select("id")
+              .eq("user_id", res.user_id)
+              .eq("category", "Reserva Auditorio")
+              .ilike("description", `%${res.title}%`)
+              .not("status", "in", '("CANCELADO","CERRADO","RESUELTO")');
+
+            if (ticketsToCancel && ticketsToCancel.length > 0) {
+              for (const t of ticketsToCancel) {
+                await adminSupabase.from("ticket_events").insert({
+                  ticket_id: t.id,
+                  actor_id: publicUser?.id || null,
+                  action_type: "STATUS_CHANGE",
+                  old_value: "PENDIENTE",
+                  new_value: "CANCELADO",
+                  comment:
+                    "CANCELACIÓN AUTOMÁTICA: Reserva cancelada por obras de remodelación en Auditorio.",
+                });
+
+                await adminSupabase
+                  .from("tickets")
+                  .update({
+                    status: "CANCELADO",
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", t.id);
+              }
+            }
+          }
+        } catch (ticketErr) {
+          console.error(
+            "Error cancelling support tickets during maintenance sweep:",
+            ticketErr,
+          );
+        }
 
         // 3. Agrupar las reservas afectadas por usuario
         interface UserGroup {
