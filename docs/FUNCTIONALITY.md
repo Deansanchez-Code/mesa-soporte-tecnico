@@ -38,6 +38,7 @@ Centro de operaciones para Administradores y Agentes.
 ### Configuración
 
 - **Catálogos**: Gestión de Áreas y Categorías de tickets.
+- **Pausa de Reservas / Remodelaciones**: Panel de administración para suspender o habilitar reservas de espacios (Auditorio) por obras o mantenimientos, con control de fecha de inicio y fecha estimada de reapertura.
 
 ## 3. Portal Público
 
@@ -46,10 +47,12 @@ Interfaz simplificada para usuarios finales.
 - **Reporte de Fallas**: Formulario sencillo para crear tickets, escaneando QR o manual.
 - **Consulta de Estado**: Verificación del estado de sus tickets reportados.
 
-## 4. Reserva de Auditorios
+## 4. Reserva de Espacios (Auditorio, Subdirección y Biblioteca)
 
-Módulo para la gestión de espacios comunes.
+Módulo para la gestión y apartado de espacios físicos institucionales.
 
-- **Calendario Interactivo**: Visualización de disponibilidad por día/semana.
-- **Formulario de Reserva**: Solicitud de espacio con selección de horario y recursos (Video Beam, Sonido, PC).
-- **Validaciones**: Prevención de conflictos de horario y validación de disponibilidad de agentes para soporte.
+- **Calendario Interactivo**: Visualización de disponibilidad mensual/semanal con detección rápida por doble clic o botón contextual para reservar una fecha específica directamente.
+- **Reservas Semanales y Multi-Día**: Posibilidad de programar sesiones recurrentes cada 7 días (cada semana) o bloques de días seguidos con previsualización visual de sesiones e intervalos exactos.
+- **Validaciones de Conflicto Atómicas**: Prevención precisa de solapamientos solo contra las fechas programadas en el servidor y cliente.
+- **Control de Remodelación y Mantenimiento**: Bloqueo preventivo de reservas ante obras de infraestructura, con avisos informativos, regla de vigencia 2026 y escalamiento con Coordinación Académica o de Formación.
+- **Prioridad y Sobrescritura VIP**: Mecanismo de reasignación y cancelación ordenada en caso de eventos prioritarios.

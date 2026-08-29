@@ -1,5 +1,40 @@
 # Registro de Trabajo (Work Log)
 
+## Sesión: 2026-08-29
+
+**Rama:** `fix/weekly-reservations-validation`
+**Modo:** Optimización de Reservas & Pausa por Remodelación
+
+### Qué se desarrolló (2026-08-29)
+
+1. **Corrección y Optimización de Reservas Semanales:**
+   - Se ajustó el hook de reservas para abarcar el rango completo de semanas al solicitar repetición semanal (`effectiveFinalDate`).
+   - Se corrigió la detección de conflictos en el formulario para comparar únicamente contra los días exactos programados (`targetDates`) evitando falsos positivos por días intermedios.
+   - Se añadió un componente de etiquetas visuales para previsualizar cada una de las sesiones programadas (ej. `VIE 6/3/2026`).
+
+2. **Carga Reactiva de Fecha por Doble Clic:**
+   - Sincronización reactiva con `useEffect` en `AuditoriumReservationForm.tsx` al cambiar `initialDate` o `initialSpace`.
+   - Inclusión de botón rápido "Reservar esta fecha" en el modal de detalle de día en `CalendarView.tsx`.
+
+3. **Módulo de Pausa de Reservas por Remodelación (Auditorio):**
+   - Configuración en tabla `system_settings` (`auditorium_maintenance`) y servicios de cliente/servidor.
+   - Regla de negocio de vigencia 2026 en caso de no definir fecha fin, o indicación de fecha estimada de reapertura.
+   - Componente `AuditoriumMaintenanceModal.tsx` con mensaje institucional, disculpas y redirección a Coordinación Académica/Formación.
+   - Bloqueo en tres niveles: Tarjeta principal de selección, formulario de reservas y acciones de servidor (`reservationActions.ts`).
+   - Módulo de administración en la pestaña de configuración de `/admin`.
+
+### Cómo se desarrolló (2026-08-29)
+
+- **Backend:** Actualización de `createReservationAction` y `createReservationBatchAction` para validar rangos de remodelación y creación de `getAuditoriumMaintenanceAction` y `saveAuditoriumMaintenanceAction`.
+- **Frontend / UI:** Integración de modales, sincronización de estados reactivos y renderizado condicional con feedback en tiempo real.
+
+### Errores detectados y Lecciones aprendidas (2026-08-29)
+
+- **Lección:** Cuando un formulario maneja repeticiones por saltos de días (cada 7 días), la validación de conflictos visual debe construirse por conjunto de fechas exactas (`Set<string>`) y no por comparación ciega de rangos horarios continuos.
+- **Lección:** Las props de inicialización (`initialDate`) en modales reutilizables requieren sincronizadores con `useEffect` si el componente puede permanecer montado entre diferentes aperturas.
+
+---
+
 ## Sesión: 2026-04-28
 
 **Rama:** `fix/trazabilidad-cancelacion-tickets` (PR generado para merge a `main`)
