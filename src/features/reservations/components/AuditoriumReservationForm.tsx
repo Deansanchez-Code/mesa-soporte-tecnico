@@ -680,7 +680,7 @@ export default function AuditoriumReservationForm({
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                {targetDates.map((dateStr, idx) => {
+                {targetDates.map((dateStr) => {
                   const [y, m, d] = dateStr.split("-").map(Number);
                   const dateObj = new Date(y, m - 1, d);
                   const dayName = dateObj.toLocaleDateString("es-CO", {
