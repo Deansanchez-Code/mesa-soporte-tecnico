@@ -38,10 +38,26 @@ export async function updateSession(
     },
   );
 
-  // IMPORTANT: DO NOT REMOVE auth.getUser()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // PROTEGER CONTRA TIMEOUTS EN VERCEL EDGE (Timeout de 2.5s)
+  let user = null;
+  try {
+    const userPromise = supabase.auth.getUser();
+    const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>(
+      (_, reject) =>
+        setTimeout(
+          () => reject(new Error("Supabase auth timeout in middleware")),
+          2500,
+        ),
+    );
+
+    const result = await Promise.race([userPromise, timeoutPromise]);
+    user = result.data.user;
+  } catch (err) {
+    console.warn("⚠️ Middleware auth check warning / timeout:", err);
+    // Si hay timeout o error de red hacia Supabase, dejamos continuar la petición
+    // para que AuthGuard en cliente o los Server Components manejen la autenticación
+    return supabaseResponse;
+  }
 
   if (
     !user &&
