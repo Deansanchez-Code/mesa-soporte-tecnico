@@ -19,11 +19,10 @@
 
 ### Decisión (ADR-007)
 
-Se implementa la opción 2:
-
 - Se crea la clave `auditorium_maintenance` en `system_settings` con soporte para `start_date`, `end_date` opcional y bandera `is_active`.
 - Se bloquea en el selector inicial con un modal informativo (`AuditoriumMaintenanceModal.tsx`), en el formulario (`AuditoriumReservationForm.tsx`) y en las acciones del servidor (`reservationActions.ts`).
 - Se reestructura la comprobación de conflictos para evaluar únicamente conjuntos de fechas puntuales (`targetDates`).
+- **Barrido automático de cancelaciones:** Al activar la pausa, el backend cancela todas las reservas activas en el rango y despacha un solo correo consolidado por cada usuario afectado (`MaintenanceCancellationNotification.tsx`) en lugar de saturar la bandeja con un correo individual por reserva.
 
 ### Consecuencias (ADR-007)
 

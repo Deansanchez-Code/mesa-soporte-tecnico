@@ -1349,11 +1349,20 @@ export default function AdminDashboard() {
                           return;
                         }
                         setMaintenanceConfig(updated);
-                        toast.success(
-                          updated.is_active
-                            ? "Bloqueo de auditorio por remodelación ACTIVADO."
-                            : "Auditorio HABILITADO para reservas.",
-                        );
+                        if (updated.is_active) {
+                          if (res.cancelledCount && res.cancelledCount > 0) {
+                            toast.warning(
+                              `Pausa ACTIVADA. Se cancelaron ${res.cancelledCount} reserva(s) y se notificó a ${res.usersNotified} usuario(s) por correo consolidado.`,
+                              { duration: 8000 },
+                            );
+                          } else {
+                            toast.success(
+                              "Bloqueo de auditorio por remodelación ACTIVADO (sin reservas previas por cancelar).",
+                            );
+                          }
+                        } else {
+                          toast.success("Auditorio HABILITADO para reservas.");
+                        }
                       } catch (err: unknown) {
                         toast.error(
                           err instanceof Error

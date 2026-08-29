@@ -23,6 +23,13 @@
    - Bloqueo en tres niveles: Tarjeta principal de selección, formulario de reservas y acciones de servidor (`reservationActions.ts`).
    - Módulo de administración en la pestaña de configuración de `/admin`.
 
+4. **Barrido Automático de Reservas y Notificación Consolidada por Usuario:**
+   - Al activar la suspensión desde el panel de administración, el servidor ejecuta un barrido automático de todas las reservas existentes en estado `APPROVED` o `PENDING` dentro del periodo de remodelación.
+   - Pasa automáticamente las reservas al estado `CANCELLED`.
+   - Agrupa las reservas canceladas por cada funcionario afectado (`Map<userId, UserGroup>`).
+   - Envía **un único correo electrónico consolidado por usuario** mediante la plantilla `MaintenanceCancellationNotification.tsx`, listando todas sus sesiones afectadas, las disculpas institucionales y los canales de contacto con la Coordinación Académica/Formación.
+   - Registra notificaciones internas en la tabla `user_notifications` y retroalimenta al administrador en pantalla con el número exacto de reservas canceladas y usuarios notificados.
+
 ### Cómo se desarrolló (2026-08-29)
 
 - **Backend:** Actualización de `createReservationAction` y `createReservationBatchAction` para validar rangos de remodelación y creación de `getAuditoriumMaintenanceAction` y `saveAuditoriumMaintenanceAction`.

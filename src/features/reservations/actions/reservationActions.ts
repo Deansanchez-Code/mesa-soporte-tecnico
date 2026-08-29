@@ -9,6 +9,10 @@ import { ReservationConfirmation } from "@/lib/email/templates/ReservationConfir
 import { SupportNotification } from "@/lib/email/templates/SupportNotification";
 import { VipCancellation } from "@/lib/email/templates/VipCancellation";
 import { LibraryNotification } from "@/lib/email/templates/LibraryNotification";
+import {
+  MaintenanceCancellationNotification,
+  ReservationItem,
+} from "@/lib/email/templates/MaintenanceCancellationNotification";
 import { ReservationSchema } from "../schemas";
 import Logger from "@/lib/logger";
 
@@ -1284,9 +1288,176 @@ export async function saveAuditoriumMaintenanceAction(config: {
 
     if (error) throw error;
 
+    let cancelledCount = 0;
+    let usersNotified = 0;
+
+    // --- BARRIDO DE RESERVAS Y CANCELACIÓN CONSOLIDADA POR USUARIO ---
+    if (config.is_active && config.start_date) {
+      const spaceTarget = config.space_id || "1";
+      const startDateTime = `${config.start_date}T00:00:00-05:00`;
+      const endDateTime = config.end_date
+        ? `${config.end_date}T23:59:59-05:00`
+        : "2026-12-31T23:59:59-05:00";
+
+      // 1. Buscar todas las reservas activas en el auditorio dentro de la ventana de suspensión
+      const { data: activeReservations, error: fetchErr } = await adminSupabase
+        .from("reservations")
+        .select(
+          "id, title, start_time, end_time, user_id, users(full_name, email, username)",
+        )
+        .eq("auditorium_id", spaceTarget)
+        .in("status", ["APPROVED", "PENDING"])
+        .gte("start_time", new Date(startDateTime).toISOString())
+        .lte("start_time", new Date(endDateTime).toISOString())
+        .order("start_time", { ascending: true });
+
+      if (fetchErr) {
+        console.error(
+          "Error fetching reservations for maintenance sweep:",
+          fetchErr,
+        );
+      } else if (activeReservations && activeReservations.length > 0) {
+        cancelledCount = activeReservations.length;
+        const resIds = activeReservations.map((r) => r.id);
+
+        // 2. Cancelar todas las reservas afectadas en la base de datos
+        await adminSupabase
+          .from("reservations")
+          .update({ status: "CANCELLED" })
+          .in("id", resIds);
+
+        // 3. Agrupar las reservas afectadas por usuario
+        interface UserGroup {
+          userId: string;
+          userName: string;
+          email: string;
+          reservations: ReservationItem[];
+        }
+
+        const userGroupsMap = new Map<string, UserGroup>();
+
+        for (const res of activeReservations) {
+          const u = (
+            res as unknown as {
+              users: {
+                full_name: string;
+                email: string;
+                username: string;
+              } | null;
+            }
+          ).users;
+          const uId = res.user_id;
+          const userEmail =
+            u?.email || `${u?.username || "usuario"}@sena.edu.co`;
+          const userName = u?.full_name || "Funcionario";
+
+          const startDateObj = new Date(res.start_time);
+          const endDateObj = new Date(res.end_time);
+
+          const dateStr = startDateObj.toLocaleDateString("es-CO", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+            timeZone: "America/Bogota",
+          });
+
+          const timeStr = `${startDateObj.toLocaleTimeString("es-CO", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "America/Bogota",
+          })} - ${endDateObj.toLocaleTimeString("es-CO", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "America/Bogota",
+          })}`;
+
+          const resItem: ReservationItem = {
+            id: res.id,
+            title: res.title,
+            date: dateStr,
+            timeRange: timeStr,
+          };
+
+          if (!userGroupsMap.has(uId)) {
+            userGroupsMap.set(uId, {
+              userId: uId,
+              userName,
+              email: userEmail,
+              reservations: [resItem],
+            });
+          } else {
+            userGroupsMap.get(uId)!.reservations.push(resItem);
+          }
+        }
+
+        // 4. Formatear fechas para el correo
+        const formatHumanDate = (dStr: string) => {
+          try {
+            const [y, m, d] = dStr.split("-").map(Number);
+            const date = new Date(y, m - 1, d);
+            return date.toLocaleDateString("es-CO", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            });
+          } catch {
+            return dStr;
+          }
+        };
+
+        const humanStart = formatHumanDate(config.start_date);
+        const humanEnd = config.end_date
+          ? formatHumanDate(config.end_date)
+          : null;
+
+        // 5. Enviar exactamente UN correo consolidado por usuario
+        for (const group of userGroupsMap.values()) {
+          try {
+            // Notificación interna en la BD
+            await adminSupabase.from("user_notifications").insert([
+              {
+                user_id: group.userId,
+                title: "Reserva(s) Cancelada(s) por Remodelación",
+                message: `Tus ${group.reservations.length} reserva(s) del Auditorio a partir del ${humanStart} han sido canceladas debido a obras de remodelación física.`,
+              },
+            ]);
+
+            // Envío de correo electrónico consolidado
+            await EmailService.send({
+              to: group.email,
+              subject:
+                "⚠️ Aviso Importante: Cancelación de Reservas por Remodelación de Auditorio",
+              react: MaintenanceCancellationNotification({
+                userName: group.userName,
+                startDate: humanStart,
+                endDate: humanEnd,
+                reservations: group.reservations,
+              }),
+            });
+
+            usersNotified++;
+          } catch (mailErr) {
+            console.error(
+              `Error sending maintenance email to ${group.email}:`,
+              mailErr,
+            );
+          }
+        }
+
+        await Logger.info(
+          `Barrido de remodelación: ${cancelledCount} reservas canceladas y ${usersNotified} usuarios notificados por correo consolidado.`,
+        );
+      }
+    }
+
     revalidatePath("/dashboard");
     revalidatePath("/admin");
-    return { success: true };
+    return {
+      success: true,
+      cancelledCount,
+      usersNotified,
+    };
   } catch (err: unknown) {
     return {
       error:
