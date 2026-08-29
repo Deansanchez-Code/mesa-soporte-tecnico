@@ -43,11 +43,16 @@ describe("Prueba de Solapamiento", () => {
         lt: vi.fn().mockReturnThis(),
         gt: vi.fn().mockReturnThis(),
         single: vi.fn(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null }),
       };
 
       if (table === "users") {
         chain.single.mockResolvedValue({
           data: { id: "123e4567-e89b-12d3-a456-426614174000", role: "user" },
+        });
+      } else if (table === "system_settings") {
+        chain.maybeSingle.mockResolvedValue({
+          data: { value: { is_active: false } },
         });
       } else if (table === "reservations") {
         // Simulamos que encuentra 1 registro (conflicto)
@@ -59,8 +64,8 @@ describe("Prueba de Solapamiento", () => {
 
     const result = await createReservationAction({
       title: "Test",
-      start_time: new Date().toISOString(),
-      end_time: new Date().toISOString(),
+      start_time: "2026-09-02T10:00:00-05:00",
+      end_time: "2026-09-02T12:00:00-05:00",
       user_id: "123e4567-e89b-12d3-a456-426614174000",
       auditorium_id: "1",
     });

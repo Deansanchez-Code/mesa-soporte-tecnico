@@ -1,23 +1,23 @@
 # Registro de Decisiones (Decisions Log)
 
-## ADR-007: Gestión de Mantenimiento / Pausa de Espacios y Optimización de Reservas Semanales
+## ADR-008: Gestión de Mantenimiento / Pausa de Espacios y Optimización de Reservas Semanales
 
 **Fecha:** 2026-08-29
 **Capa:** Lógica de Negocio / Base de Datos / UI
 **Responsable:** Tech Lead / Fullstack Engineer
 **Estado:** Aceptada
 
-### Contexto (ADR-007)
+### Contexto (ADR-008)
 
 1. Ante remodelaciones o mantenimientos físicos en el Auditorio, se requería una vía para pausar la creación de reservas a partir de una fecha determinada, informar a los usuarios con un mensaje institucional (disculpas y escalamiento a Coordinación Académica/Formación) y aplicar la regla de bloqueo por el resto de la vigencia 2026 cuando no haya fecha final.
 2. Las reservas semanales presentaban problemas de consulta en rango de semanas y falsos positivos de conflicto visual al no evaluar las fechas exactas de las sesiones programadas.
 
-### Opciones Consideradas (ADR-007)
+### Opciones Consideradas (ADR-008)
 
 1. **Hardcoding de fechas en el código:** Rápido de desplegar pero inflexible ante cambios de cronograma de obras.
 2. **Configuración dinámica en `system_settings` con validación multi-nivel:** Almacenar el estado en base de datos (`auditorium_maintenance`), exponer su control al panel de administración y validar concurrentemente en la interfaz y en Server Actions.
 
-### Decisión (ADR-007)
+### Decisión (ADR-008)
 
 - Se crea la clave `auditorium_maintenance` en `system_settings` con soporte para `start_date`, `end_date` opcional y bandera `is_active`.
 - Se bloquea en el selector inicial con un modal informativo (`AuditoriumMaintenanceModal.tsx`), en el formulario (`AuditoriumReservationForm.tsx`) y en las acciones del servidor (`reservationActions.ts`).
@@ -25,7 +25,7 @@
 - **Barrido automático de cancelaciones:** Al activar la pausa, el backend cancela todas las reservas activas en el rango y despacha un solo correo consolidado por cada usuario afectado (`MaintenanceCancellationNotification.tsx`) en lugar de saturar la bandeja con un correo individual por reserva.
 - **Cancelación en Bandeja de Técnicos:** Todos los tickets de soporte activos vinculados a las reservas canceladas pasan a estado `CANCELADO` con su correspondiente evento de auditoría en `ticket_events`.
 
-### Consecuencias (ADR-007)
+### Consecuencias (ADR-008)
 
 - **Positivas:** Control total para los administradores sin necesidad de nuevos despliegues de código; información clara y transparente a los usuarios; prevención de reservas indebidas durante obras.
 - **Negativas:** Ninguna identificada.
