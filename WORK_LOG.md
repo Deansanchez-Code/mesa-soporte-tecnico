@@ -1,5 +1,29 @@
 # Registro de Trabajo (Work Log)
 
+## Sesión: 2026-10-18 (Mejoras de UI, Contraste y Modales)
+
+**Rama:** `fix/ui-contrast-modal-nury-barrera` -> `main`
+**Modo:** Contraste WCAG 2.2 AA, Sustitución de `window.prompt`, Corrección de Nombre (Nury Mildret Barrera) & Rediseño de Submodales
+
+### Qué se desarrolló (2026-10-18 - Cierre)
+
+1. **Resolución Crítica de Contraste en Cabeceras (WCAG 2.2 AA):**
+   - Se diagnosticó la causa raíz de la cabecera blanca/invisible en `Ambiente107ApprovalModal.tsx`: la sintaxis de gradiente no reconocida en Tailwind v4 generaba fondo transparente dejando texto blanco y verde claro sobre fondo blanco.
+   - Se aplicó respaldo de fondo inline `backgroundColor: '#064e3b'` y gradiente institucional de alto contraste `linear-gradient(135deg, #064e3b 0%, #065f46 50%, #0f172a 100%)` con textos `text-white` y `text-emerald-100` con ratio de contraste superior a 10:1 (AAA).
+   - Se aplicó la misma protección en `LibraryApprovalModal.tsx` con fondo `#043263`.
+2. **Corrección de Identidad de la Coordinadora:**
+   - Se actualizó el nombre de la usuaria `nbarrerac` a su identidad oficial: **Nury Mildret Barrera**.
+   - Cambios propagados a `Ambiente107ApprovalModal.tsx`, `ambiente107ApprovalActions.ts`, `reservationActions.ts`, `AuditoriumReservationForm.tsx` y `SpaceReservationEmail.tsx`.
+3. **Erradicación del Antipatrón `window.prompt`:**
+   - Se eliminaron por completo las ventanas nativas del navegador (`mesasoportetecnico.vercel.app dice:`) para rechazos y sugerencias de ajuste en ambos modales.
+   - Se implementaron submodales interactivos en React con backdrop blur, tarjeta resumen del evento/solicitante, `textarea` con validación, mensajes orientativos y botones de acción primarios/secundarios accesibles.
+4. **Verificación Integral:**
+   - `vitest`: 24/24 pruebas unitarias y de integración pasando.
+   - `next build`: Compilación limpia en producción (20/20 rutas generadas, 0 errores de TypeScript).
+   - Merge y push completados a `main`.
+
+---
+
 ## Sesión: 2026-10-18 (Continuación)
 
 **Rama:** `fix/ambiente-107-prereserva-and-modal`

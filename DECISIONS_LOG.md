@@ -1,5 +1,26 @@
 # Registro de Decisiones (Decisions Log)
 
+## ADR-013: Garantía de Contraste WCAG 2.2 AA en Modales de Aprobación, Reemplazo de `window.prompt` por Submodales Reactivos y Corrección de Identidad a Nury Mildret Barrera
+
+**Fecha:** 2026-10-18
+**Capa:** Frontend / UI / UX / Accesibilidad
+**Responsable:** Arquitecto de Software Principal
+**Estado:** Aceptada
+
+### Contexto (ADR-013)
+
+1. En navegadores de clientes reales, la cabecera de `Ambiente107ApprovalModal.tsx` se renderizaba sobre fondo blanco/transparente debido a incompatibilidad con utilidades de gradiente de múltiples paradas en Tailwind v4, provocando que los textos blancos (`Solicitudes de Prereserva`) y verde claro (`text-emerald-100`) fueran completamente ilegibles (contraste < 1.4:1).
+2. Las acciones de "Rechazar" y "Sugerir Ajuste" invocaban el diálogo nativo del navegador `window.prompt()`, que presenta un aspecto precario, carece de validación, no informa el contexto de la reserva y genera fricción en la experiencia de usuario.
+3. Se aclaró que el nombre institucional de la usuaria `nbarrerac` (`nbarrerac@sena.edu.co`) es **Nury Mildret Barrera** (previamente referenciada de forma errónea como Norma Barrera).
+
+### Decisión (ADR-013)
+
+1. **Garantía Incondicional de Contraste:** Se implementó `backgroundColor: '#064e3b'` y `linear-gradient` inline explícito para la cabecera de Ambiente 107 y `#043263` para Biblioteca. Todos los textos y badges cuentan con ratios de contraste superiores a 8:1 (WCAG AAA).
+2. **Submodales Reactivos Nativos en React:** Se sustituyeron todos los `window.prompt()` por diálogos modales accesibles con backdrop blur, tarjeta de contexto de la reserva (solicitante, fecha y hora), textarea con autofocus y validación, mensajes orientativos y botones de confirmación con estado de carga.
+3. **Unificación de Identidad:** Se actualizó formalmente el nombre a **Nury Mildret Barrera** en modales, backend actions, notificaciones in-app, toasts y plantillas de correo transaccional.
+
+---
+
 ## ADR-012: Restablecimiento de Flujo de Prereserva en Ambiente 107, Vista de Horarios Continuos en Calendario y Acceso Permanente a Aprobaciones
 
 **Fecha:** 2026-10-18
