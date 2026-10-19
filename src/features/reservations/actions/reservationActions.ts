@@ -369,6 +369,16 @@ export async function createReservationAction(
         );
     }
 
+    // 0. Validación de Tiempo Pasado: No se pueden realizar reservas en tiempo pasado
+    const now = new Date();
+    const fiveMinutesBuffer = new Date(now.getTime() - 5 * 60 * 1000);
+    const reservationStart = new Date(start_time);
+    if (reservationStart < fiveMinutesBuffer) {
+      throw new Error(
+        "No es posible realizar reservas en fechas u horarios del pasado. Por favor selecciona un horario futuro.",
+      );
+    }
+
     // Validación de Fines de Semana para Funcionarios Normales
     const isVip =
       !!publicUser?.is_vip || publicUser?.role?.toLowerCase() === "vip";
@@ -978,6 +988,17 @@ export async function createReservationBatchAction(
       }
 
       validReservations.push(data);
+    }
+
+    // Validación de Tiempo Pasado para reservas en lote
+    const now = new Date();
+    const fiveMinutesBuffer = new Date(now.getTime() - 5 * 60 * 1000);
+    for (const res of validReservations) {
+      if (new Date(res.start_time) < fiveMinutesBuffer) {
+        throw new Error(
+          `No es posible realizar reservas en fechas u horarios del pasado (detectado en fecha ${new Date(res.start_time).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}).`,
+        );
+      }
     }
 
     // 3. Global Conflict Check and RBAC

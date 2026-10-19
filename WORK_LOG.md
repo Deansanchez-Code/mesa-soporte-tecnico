@@ -1,5 +1,32 @@
 # Registro de Trabajo (Work Log)
 
+## Sesión: 2026-10-18 (Bloqueo de Reservas en Tiempo Pasado & Paleta Institucional SENA)
+
+**Rama:** `fix/reservation-past-time-and-ui-contrast`
+**Modo:** Bloqueo de Tiempo Pasado (Frontend & Backend), Paleta Institucional SENA & Respaldo de Contraste en Modal de Confirmación
+
+### Qué se desarrolló (2026-10-18 - Extensión)
+
+1. **Restricción Estricta de Reservas en Tiempo Pasado:**
+   - **Frontend (`AuditoriumReservationForm.tsx`):**
+     - Detección de fechas pasadas (`min={todayStr}`) y cálculo de slots horarios ya transcurridos para la fecha en curso (`isPastSlot`).
+     - Deshabilitación de opciones de horas pasadas en el selector de `startTime`, indicando `(No disponible - Pasado)`.
+     - Inicialización inteligente de `startTime` a la siguiente hora hábil cuando la fecha seleccionada es hoy.
+     - Banner de advertencia de alto contraste (`bg-amber-50 border-amber-300 text-amber-900`) cuando se detecta un horario en el pasado.
+     - Bloqueo y deshabilitación del botón "Confirmar Reserva" ante cualquier selección de tiempo pasado.
+   - **Backend (`reservationActions.ts`):**
+     - Validación en servidor en `createReservationAction` y `createReservationBatchAction` con margen de tolerancia de 5 minutos por latencia de red. Lanza excepción de negocio si `start_time` es anterior a `now - 5 min`.
+   - **Pruebas (`reservation-conflict.test.ts`):**
+     - Añadido caso de prueba automatizado para verificar el rechazo de reservas en tiempo pasado (25/25 vitest tests pasando).
+2. **Garantía de Contraste en Modal de Confirmación y Paleta SENA:**
+   - En `AuditoriumReservationForm.tsx`, se aplicó estilo inline con gradiente y color sólido institucional (`#2d8500` / `#39a900` para aprobadas y `#043263` para pendientes).
+   - Textos de cabecera en blanco puro con drop-shadow, badges de estado de alto contraste y eliminación del fondo transparente que dejaba el texto flotando sobre blanco.
+   - Etiquetas del cuerpo con contraste WCAG 2.2 AA (`text-slate-600` para títulos de campo, `text-slate-900` para valores y `#043263` para el nombre del espacio).
+   - Botón de cierre en verde institucional (`#39a900` / `bg-sena-green`) y cuenta regresiva en naranja SENA (`#fc7323`).
+   - Aplicada la misma protección a `AuditoriumMaintenanceModal.tsx` (`#d97706`) y `UpcomingReservationBanner.tsx` (`#fc7323`).
+
+---
+
 ## Sesión: 2026-10-18 (Mejoras de UI, Contraste y Modales)
 
 **Rama:** `fix/ui-contrast-modal-nury-barrera` -> `main`

@@ -77,7 +77,14 @@ export default function UpcomingReservationBanner({
       <div className="fixed bottom-6 right-6 z-[90] max-w-md w-full animate-in slide-in-from-bottom-5 duration-300">
         <div className="bg-white rounded-3xl shadow-2xl border-2 border-sena-orange/30 overflow-hidden">
           {/* Header del Aviso */}
-          <div className="bg-gradient-to-r from-amber-500 to-sena-orange p-4 text-white flex items-center justify-between">
+          <div
+            className="p-4 text-white flex items-center justify-between bg-[#fc7323]"
+            style={{
+              backgroundColor: "#fc7323",
+              backgroundImage:
+                "linear-gradient(135deg, #f59e0b 0%, #fc7323 100%)",
+            }}
+          >
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 animate-pulse" />
               <span className="font-bold text-sm tracking-wide">

@@ -38,7 +38,14 @@ export default function AuditoriumMaintenanceModal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border-2 border-amber-200 animate-in zoom-in-95 duration-200">
         {/* Encabezado */}
-        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-6 text-white text-center relative">
+        <div
+          className="p-6 text-white text-center relative bg-[#d97706]"
+          style={{
+            backgroundColor: "#d97706",
+            backgroundImage:
+              "linear-gradient(135deg, #d97706 0%, #ea580c 50%, #d97706 100%)",
+          }}
+        >
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"

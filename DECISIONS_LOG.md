@@ -1,5 +1,30 @@
 # Registro de Decisiones (Decisions Log)
 
+## ADR-014: Prohibición de Reservas en Tiempo Pasado (Validación Fullstack) y Aplicación Estricta de Paleta Institucional SENA en Modales
+
+**Fecha:** 2026-10-18
+**Capa:** Lógica de Negocio / Frontend / Backend / Accesibilidad
+**Responsable:** Arquitecto de Software Principal
+**Estado:** Aceptada
+
+### Contexto (ADR-014)
+
+1. En el formulario de reservas [`AuditoriumReservationForm.tsx`](file:///d:/mesa-soporte-tecnico/src/features/reservations/components/AuditoriumReservationForm.tsx), el modal de confirmación final mostraba una cabecera blanca con el texto "CONFIRMADA" en verde claro casi invisible, debido a la falta de compilación de gradientes con variables de tema en Tailwind v4.
+2. Era posible seleccionar fechas u horarios ya transcurridos (por ejemplo, hora de inicio a las 07:00 AM cuando la hora actual es posterior), y el servidor en [`reservationActions.ts`](file:///d:/mesa-soporte-tecnico/src/features/reservations/actions/reservationActions.ts) no contaba con una validación que rechazara inserciones con `start_time < now`.
+3. Se requirió asegurar que todas las vistas empleen la paleta corporativa oficial del desarrollo (`#39a900` verde SENA, `#043263` azul SENA, `#fc7323` naranja SENA y `#f4f4f4` gris SENA).
+
+### Decisión (ADR-014)
+
+1. **Bloqueo de Tiempo Pasado Multicapa:**
+   - **Frontend:** Se calcula `isPastSlot` para deshabilitar selectores de horas pasadas cuando la fecha es hoy, inicializar la hora de inicio en la hora hábil siguiente, mostrar alerta de advertencia y deshabilitar el botón de envío.
+   - **Backend:** En `createReservationAction` y `createReservationBatchAction`, se valida `start_time >= now - 5min` arrojando error descriptivo.
+2. **Paleta SENA y Contraste en Modal de Confirmación:**
+   - Se aplicó respaldo inline con gradientes oficiales (`#2d8500` - `#39a900` para confirmadas y `#043263` para pendientes).
+   - Títulos en blanco puro con drop-shadow, badges semánticos, labels en `text-slate-600` (WCAG AAA) y botón en `#39a900`.
+   - Se protegió también `AuditoriumMaintenanceModal.tsx` (`#d97706`) y `UpcomingReservationBanner.tsx` (`#fc7323`).
+
+---
+
 ## ADR-013: Garantía de Contraste WCAG 2.2 AA en Modales de Aprobación, Reemplazo de `window.prompt` por Submodales Reactivos y Corrección de Identidad a Nury Mildret Barrera
 
 **Fecha:** 2026-10-18

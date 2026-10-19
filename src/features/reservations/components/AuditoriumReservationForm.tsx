@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Calendar, AlertTriangle, CheckCircle } from "lucide-react";
+import { Calendar, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
@@ -41,14 +41,41 @@ export default function AuditoriumReservationForm({
   initialSpace,
   initialDate,
 }: AuditoriumReservationFormProps) {
+  const todayStr = getLocalDateString();
   const [startDate, setStartDate] = useState(
-    initialDate || getLocalDateString(),
+    initialDate && initialDate >= todayStr ? initialDate : todayStr,
   );
   const [finalDate, setFinalDate] = useState(
-    initialDate || getLocalDateString(),
+    initialDate && initialDate >= todayStr ? initialDate : todayStr,
   );
-  const [startTime, setStartTime] = useState("07:00");
-  const [endTime, setEndTime] = useState("08:00");
+
+  // Helper para verificar si un horario en una fecha específica ya pasó
+  const isPastSlot = (dateStr: string, timeStr: string) => {
+    if (!dateStr || !timeStr) return false;
+    const [h, m] = timeStr.split(":").map(Number);
+    const [y, mon, d] = dateStr.split("-").map(Number);
+    const slotDate = new Date(y, mon - 1, d, h, m, 0);
+    return slotDate.getTime() <= Date.now();
+  };
+
+  // Calcular hora de inicio por defecto futura si la fecha seleccionada es hoy
+  const getInitialStartTime = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const nextHour = currentHour >= 7 && currentHour < 21 ? currentHour + 1 : 7;
+    return `${nextHour.toString().padStart(2, "0")}:00`;
+  };
+
+  const getInitialEndTime = (start: string) => {
+    const startH = parseInt(start.split(":")[0]);
+    const nextH = Math.min(22, startH + 1);
+    return `${nextH.toString().padStart(2, "0")}:00`;
+  };
+
+  const [startTime, setStartTime] = useState(getInitialStartTime());
+  const [endTime, setEndTime] = useState(
+    getInitialEndTime(getInitialStartTime()),
+  );
   const [title, setTitle] = useState("");
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [description, setDescription] = useState("");
@@ -152,10 +179,11 @@ export default function AuditoriumReservationForm({
   // Sincronizar reactivamente cuando initialDate o initialSpace cambian (ej. doble clic en calendario)
   useEffect(() => {
     if (initialDate && !reservationToEdit) {
-      setStartDate(initialDate);
-      setFinalDate(initialDate);
+      const validDate = initialDate >= todayStr ? initialDate : todayStr;
+      setStartDate(validDate);
+      setFinalDate(validDate);
     }
-  }, [initialDate, reservationToEdit]);
+  }, [initialDate, reservationToEdit, todayStr]);
 
   useEffect(() => {
     if (initialSpace && !reservationToEdit) {
@@ -268,12 +296,25 @@ export default function AuditoriumReservationForm({
     targetDates,
   ]);
 
+  // Detección de horarios pasados
+  const hasPastDateSelected = targetDates.some((d) => d < todayStr);
+  const hasPastTimeSelected = targetDates.some((d) => isPastSlot(d, startTime));
+  const isPastReservation =
+    !reservationToEdit && (hasPastDateSelected || hasPastTimeSelected);
+
   // 3. Handle Submit
   const handleSubmit = async (e?: React.FormEvent, isOverride = false) => {
     if (e) e.preventDefault();
 
     if (!user?.id) return;
     if (submittingRef.current) return;
+
+    if (isPastReservation) {
+      toast.error(
+        "No es posible realizar reservas en fechas u horarios que ya han pasado. Por favor selecciona una fecha y horario futuros.",
+      );
+      return;
+    }
 
     if (conflicts.length > 0 && !isOverride) {
       // Check if ANY conflict is from a VIP user
@@ -652,11 +693,12 @@ export default function AuditoriumReservationForm({
               <input
                 type="date"
                 value={startDate}
-                min={getLocalDateString()}
+                min={todayStr}
                 onChange={(e) => {
-                  setStartDate(e.target.value);
-                  if (!isMultiDay && !isWeeklyRepeat)
-                    setFinalDate(e.target.value);
+                  const val =
+                    e.target.value >= todayStr ? e.target.value : todayStr;
+                  setStartDate(val);
+                  if (!isMultiDay && !isWeeklyRepeat) setFinalDate(val);
                 }}
                 className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-sena-green outline-none"
               />
@@ -735,21 +777,38 @@ export default function AuditoriumReservationForm({
             </label>
             <select
               value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
+              onChange={(e) => {
+                setStartTime(e.target.value);
+                const sH = parseInt(e.target.value.split(":")[0]);
+                const eH = parseInt(endTime.split(":")[0]);
+                if (eH <= sH) {
+                  setEndTime(
+                    `${Math.min(22, sH + 1)
+                      .toString()
+                      .padStart(2, "0")}:00`,
+                  );
+                }
+              }}
               className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition"
             >
-              {timeSlots.map((hour) => (
-                <option
-                  key={`start-${hour}`}
-                  value={`${hour.toString().padStart(2, "0")}:00`}
-                >
-                  {hour === 12
-                    ? "12:00 PM"
-                    : hour > 12
-                      ? `${hour - 12}:00 PM`
-                      : `${hour}:00 AM`}
-                </option>
-              ))}
+              {timeSlots.map((hour) => {
+                const hourStr = `${hour.toString().padStart(2, "0")}:00`;
+                const isPast = targetDates.some((d) => isPastSlot(d, hourStr));
+                return (
+                  <option
+                    key={`start-${hour}`}
+                    value={hourStr}
+                    disabled={isPast}
+                  >
+                    {hour === 12
+                      ? "12:00 PM"
+                      : hour > 12
+                        ? `${hour - 12}:00 PM`
+                        : `${hour}:00 AM`}
+                    {isPast ? " (No disponible - Pasado)" : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div>
@@ -777,6 +836,22 @@ export default function AuditoriumReservationForm({
             </select>
           </div>
         </div>
+
+        {/* Advertencia de horario en tiempo pasado */}
+        {isPastReservation && (
+          <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 flex items-center gap-3 animate-in fade-in">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <p className="font-bold text-xs uppercase tracking-wider">
+                Horario en tiempo pasado
+              </p>
+              <p className="text-xs text-amber-800 mt-0.5 font-medium">
+                No se pueden realizar reservas en fechas u horarios que ya han
+                transcurrido. Por favor selecciona un horario o fecha futuros.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Recursos */}
         <div>
@@ -1026,6 +1101,7 @@ export default function AuditoriumReservationForm({
               disabled={
                 isSubmitting ||
                 loading ||
+                isPastReservation ||
                 (!title && conflicts.length === 0) ||
                 (isAuditoriumMaintenanceActive &&
                   !["admin", "superadmin"].includes(
@@ -1035,13 +1111,14 @@ export default function AuditoriumReservationForm({
               className={`flex-1 px-4 py-4 rounded-2xl font-bold text-white shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2 ${
                 isSubmitting ||
                 loading ||
+                isPastReservation ||
                 (!title && conflicts.length === 0) ||
                 (isAuditoriumMaintenanceActive &&
                   !["admin", "superadmin"].includes(
                     ((user?.role as string) || "").toLowerCase(),
                   ))
                   ? "bg-gray-300 cursor-not-allowed shadow-none"
-                  : "bg-sena-green hover:bg-green-700 shadow-green-900/20 shadow-lg hover:scale-[1.02]"
+                  : "bg-sena-green hover:bg-green-700 shadow-green-900/20 shadow-lg hover:scale-[1.02] cursor-pointer"
               }`}
             >
               {isSubmitting ? (
@@ -1076,76 +1153,117 @@ export default function AuditoriumReservationForm({
         />
 
         {summaryData && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
-            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border-2 border-sena-green/20">
-              {/* Cabecera del Resumen */}
-              <div className="bg-gradient-to-r from-sena-green to-emerald-600 p-6 text-white text-center relative">
-                <div className="mx-auto w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-3 shadow-inner">
-                  <CheckCircle className="w-10 h-10 text-white" />
+          <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-200">
+              {/* Cabecera del Resumen con fondo garantizado y colores institucionales SENA */}
+              <div
+                className="p-8 text-white text-center relative"
+                style={{
+                  backgroundColor:
+                    summaryData.status === "PENDING" ? "#043263" : "#2d8500",
+                  backgroundImage:
+                    summaryData.status === "PENDING"
+                      ? "linear-gradient(135deg, #043263 0%, #0a4d94 100%)"
+                      : "linear-gradient(135deg, #236900 0%, #39a900 100%)",
+                }}
+              >
+                <div
+                  className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center mb-3.5 shadow-inner"
+                  style={{ backgroundColor: "rgba(255, 255, 255, 0.2)" }}
+                >
+                  {summaryData.status === "PENDING" ? (
+                    <Clock className="w-10 h-10 text-white animate-pulse" />
+                  ) : (
+                    <CheckCircle className="w-10 h-10 text-white" />
+                  )}
                 </div>
-                <h3 className="text-2xl font-black tracking-tight">
-                  ¡Reserva Exitosa!
-                </h3>
-                <p className="text-xs text-green-50 mt-1 font-semibold uppercase tracking-wider">
+                <h3 className="text-2xl font-black tracking-tight text-white drop-shadow-sm">
                   {summaryData.status === "PENDING"
-                    ? "Pendiente de Aprobación"
-                    : "Confirmada"}
-                </p>
+                    ? "¡Solicitud Registrada!"
+                    : "¡Reserva Confirmada!"}
+                </h3>
+                <div className="mt-2.5">
+                  <span
+                    className="inline-flex items-center gap-1.5 text-xs px-3.5 py-1 rounded-full font-bold uppercase tracking-wider text-white border border-white/30"
+                    style={{ backgroundColor: "rgba(255, 255, 255, 0.2)" }}
+                  >
+                    {summaryData.status === "PENDING" ? (
+                      <>
+                        <Clock className="w-3.5 h-3.5 text-amber-200" />
+                        <span className="text-amber-100 font-bold">
+                          Pendiente de Autorización
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-200" />
+                        <span className="text-white font-bold">
+                          Confirmada con Éxito
+                        </span>
+                      </>
+                    )}
+                  </span>
+                </div>
               </div>
 
-              {/* Cuerpo del Resumen */}
-              <div className="p-8 space-y-6">
+              {/* Cuerpo del Resumen de Alto Contraste */}
+              <div className="p-8 space-y-6 bg-white">
                 <div className="space-y-4 text-left">
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block">
                       Evento / Actividad
                     </span>
-                    <span className="text-lg font-black text-slate-800 leading-tight block mt-0.5">
+                    <span className="text-xl font-black text-slate-900 leading-tight block mt-1">
                       {summaryData.title}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+                  <div className="grid grid-cols-2 gap-4 border-t border-slate-200/80 pt-4">
                     <div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                      <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block">
                         Espacio
                       </span>
-                      <span className="text-sm font-bold text-slate-700 block mt-0.5">
+                      <span className="text-sm font-bold text-[#043263] block mt-1 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-[#39a900]"></span>
                         {summaryData.spaceName}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                      <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block">
                         Horario
                       </span>
-                      <span className="text-sm font-bold text-slate-700 block mt-0.5">
+                      <span className="text-sm font-bold text-slate-900 block mt-1">
                         {summaryData.timeRange}
                       </span>
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-100 pt-4">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                  <div className="border-t border-slate-200/80 pt-4">
+                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block">
                       Fecha(s)
                     </span>
-                    <span className="text-sm font-bold text-slate-700 block mt-0.5">
+                    <span className="text-sm font-bold text-slate-900 block mt-1">
                       {summaryData.dates}
                     </span>
                   </div>
                 </div>
 
                 {/* Botón de Cierre Manual & Cuenta Regresiva */}
-                <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
+                <div className="pt-4 border-t border-slate-200/80 flex flex-col gap-3">
                   <button
                     type="button"
                     onClick={() => onSuccess()}
-                    className="w-full py-3.5 bg-sena-green hover:bg-[#2d8500] text-white rounded-2xl font-bold shadow-lg shadow-green-900/10 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] cursor-pointer"
+                    style={{ backgroundColor: "#39a900" }}
+                    className="w-full py-3.5 hover:bg-[#2d8500] text-white rounded-2xl font-bold text-sm shadow-lg shadow-green-900/15 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] cursor-pointer"
                   >
                     Cerrar Ventana
                   </button>
-                  <p className="text-center text-[10px] text-slate-400 font-bold tracking-wider">
+                  <p className="text-center text-xs text-slate-500 font-semibold tracking-wide">
                     Cerrando automáticamente en{" "}
-                    <span className="text-sena-orange">{countdown}s</span>...
+                    <span className="text-[#fc7323] font-black">
+                      {countdown}s
+                    </span>
+                    ...
                   </p>
                 </div>
               </div>
