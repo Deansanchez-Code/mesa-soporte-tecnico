@@ -36,6 +36,7 @@ interface DashboardContentProps {
 }
 
 import LibraryApprovalModal from "@/features/reservations/components/LibraryApprovalModal";
+import Ambiente107ApprovalModal from "@/features/reservations/components/Ambiente107ApprovalModal";
 import UpcomingReservationBanner from "@/components/UpcomingReservationBanner";
 import { useUpcomingReservationAlert } from "@/hooks/useUpcomingReservationAlert";
 
@@ -65,11 +66,12 @@ export default function DashboardContent({
 }: DashboardContentProps) {
   const { upcomingAlert, dismissAlert } = useUpcomingReservationAlert(profile);
 
+  const activeEmail = currentUser?.email || (profile?.email as string) || "";
+
   return (
     <>
-      <LibraryApprovalModal
-        userEmail={currentUser?.email || (profile?.email as string) || ""}
-      />
+      <LibraryApprovalModal userEmail={activeEmail} />
+      <Ambiente107ApprovalModal userEmail={activeEmail} />
       {upcomingAlert && profile && (
         <UpcomingReservationBanner
           alertData={upcomingAlert}

@@ -74,4 +74,46 @@ describe("Prueba de Solapamiento", () => {
     expect(result.error).toBeDefined();
     expect(result.error).toContain("Horario no disponible");
   });
+
+  it("debe bloquear reserva si detecta conflicto en Ambiente 107 (auditorium_id 4)", async () => {
+    mockSupabase.from.mockImplementation((table: string) => {
+      const chain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        lt: vi.fn().mockReturnThis(),
+        gt: vi.fn().mockReturnThis(),
+        single: vi.fn(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null }),
+      };
+
+      if (table === "users") {
+        chain.single.mockResolvedValue({
+          data: {
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            role: "instructor",
+            job_category: "instructor",
+          },
+        });
+      } else if (table === "system_settings") {
+        chain.maybeSingle.mockResolvedValue({
+          data: { value: { is_active: false } },
+        });
+      } else if (table === "reservations") {
+        chain.gt.mockResolvedValue({ data: [{ id: 888 }], error: null });
+      }
+      return chain;
+    });
+
+    const result = await createReservationAction({
+      title: "Clase Programación",
+      start_time: "2026-11-10T08:00:00-05:00",
+      end_time: "2026-11-10T12:00:00-05:00",
+      user_id: "123e4567-e89b-12d3-a456-426614174000",
+      auditorium_id: "4",
+    });
+
+    expect(result.error).toBeDefined();
+    expect(result.error).toContain("Horario no disponible");
+  });
 });

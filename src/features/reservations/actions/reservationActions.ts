@@ -9,6 +9,7 @@ import { ReservationConfirmation } from "@/lib/email/templates/ReservationConfir
 import { SupportNotification } from "@/lib/email/templates/SupportNotification";
 import { VipCancellation } from "@/lib/email/templates/VipCancellation";
 import { LibraryNotification } from "@/lib/email/templates/LibraryNotification";
+import { SpaceReservationEmail } from "@/lib/email/templates/SpaceReservationEmail";
 import {
   MaintenanceCancellationNotification,
   ReservationItem,
@@ -493,6 +494,36 @@ export async function createReservationAction(
         initialStatus = "PENDING";
         needsApproval = true;
       }
+    } else if (currentSpace === "4") {
+      // Regla de Negocio: Ambiente 107 (Coordinadora: Norma Barrera nbarrerac@sena.edu.co)
+      const userEmail = (publicUser?.email || "").toLowerCase();
+      const isAdmin = ["admin", "superadmin"].includes(
+        publicUser?.role?.toLowerCase() || "",
+      );
+      const isVip =
+        !!publicUser?.is_vip || publicUser?.role?.toLowerCase() === "vip";
+      const isInstructor =
+        publicUser?.job_category?.toLowerCase() === "instructor";
+      const isPlanta = publicUser?.employment_type
+        ?.toLowerCase()
+        .includes("planta");
+
+      const isStaff107 = [
+        "nbarrerac@sena.edu.co",
+        "dasanchezh@sena.edu.co",
+      ].some((mail) => userEmail.includes(mail.toLowerCase()));
+
+      if (!isStaff107 && !isAdmin && !isVip && !isInstructor && !isPlanta) {
+        throw new Error(
+          "No tienes permisos para realizar reservas en el Ambiente 107.",
+        );
+      }
+
+      // Instructores y personal de planta prereservan con aprobación de nbarrerac
+      if ((isInstructor || isPlanta) && !isVip && !isAdmin && !isStaff107) {
+        initialStatus = "PENDING";
+        needsApproval = true;
+      }
     }
 
     // 5. Insert
@@ -520,6 +551,51 @@ export async function createReservationAction(
       const reservation = result;
       const user = reservation.users;
       const isLibrary = String(reservation.auditorium_id) === "3";
+      const isAmbiente107 = String(reservation.auditorium_id) === "4";
+
+      // Business Rule: Notifications for Ambiente 107 go to Norma Barrera (nbarrerac@sena.edu.co)
+      if (isAmbiente107) {
+        const startDate = new Date(reservation.start_time);
+        const endDate = new Date(reservation.end_time);
+        const dateStr = startDate.toLocaleDateString("es-CO", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          timeZone: "America/Bogota",
+        });
+        const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })}`;
+        const durationHours =
+          (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+
+        const coordinatorSubject =
+          reservation.status === "PENDING"
+            ? `Solicitud de Prereserva Ambiente 107: ${reservation.title}`
+            : `Reserva VIP Aprobada (Ambiente 107): ${reservation.title}`;
+
+        await EmailService.send({
+          to: "nbarrerac@sena.edu.co",
+          subject: coordinatorSubject,
+          react: SpaceReservationEmail({
+            spaceName: "Ambiente 107",
+            requesterName: user.full_name,
+            eventTitle: reservation.title,
+            date: dateStr,
+            timeRange: `${timeStr} (${durationHours.toFixed(1)} horas)`,
+            specialRequirements: reservation.description || "Ninguno",
+            coordinatorName: "Norma Barrera",
+            type:
+              reservation.status === "PENDING"
+                ? "NEW_REQUEST"
+                : "VIP_AUTOMATIC",
+          }),
+        });
+
+        if (reservation.status === "PENDING") {
+          revalidatePath("/dashboard");
+          return { success: true, data: result, pendingApproval: true };
+        }
+      }
 
       // Business Rule: Notifications for Library always go to the coordinator (temp: dasanchezh)
       if (isLibrary) {
@@ -612,9 +688,11 @@ export async function createReservationAction(
             timeRange: timeStr,
             location: isLibrary
               ? "Biblioteca"
-              : String(reservation.auditorium_id) === "2"
-                ? "Subdirección"
-                : "Auditorio Principal",
+              : isAmbiente107
+                ? "Ambiente 107"
+                : String(reservation.auditorium_id) === "2"
+                  ? "Subdirección"
+                  : "Auditorio Principal",
             resources: reservation.resources || [],
             specialRequirements: reservation.description,
           }),
@@ -937,6 +1015,29 @@ export async function createReservationBatchAction(
           initialStatus = "PENDING";
           hasNeedsApproval = true;
         }
+      } else if (targetSpace === "4") {
+        const userEmail = (publicUser.email || "").toLowerCase();
+        const isInstructor =
+          publicUser.job_category?.toLowerCase() === "instructor";
+        const isPlanta = publicUser.employment_type
+          ?.toLowerCase()
+          .includes("planta");
+
+        const isStaff107 = [
+          "nbarrerac@sena.edu.co",
+          "dasanchezh@sena.edu.co",
+        ].some((mail) => userEmail.includes(mail.toLowerCase()));
+
+        if (!isStaff107 && !isAdmin && !isVip && !isInstructor && !isPlanta) {
+          throw new Error(
+            `No tienes permisos para reservar el Ambiente 107 (detectado en fecha ${new Date(res.start_time).toLocaleDateString()}).`,
+          );
+        }
+
+        if ((isInstructor || isPlanta) && !isVip && !isAdmin && !isStaff107) {
+          initialStatus = "PENDING";
+          hasNeedsApproval = true;
+        }
       }
 
       // Conflict Check (Scoped to space)
@@ -1090,7 +1191,41 @@ export async function createReservationBatchAction(
         const first = sortedRes[0];
         const timeStr = `${new Date(first.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })} - ${new Date(first.end_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })}`;
 
-        // A. Library Batch Notification
+        const isAmbiente107 = validReservations.some(
+          (r) => String(r.auditorium_id) === "4",
+        );
+
+        // A1. Ambiente 107 Batch Notification (Norma Barrera)
+        if (isAmbiente107) {
+          const coordinatorSubject =
+            initialStatus === "PENDING"
+              ? `Solicitud de Prereserva Ambiente 107 (Grupal): ${titles[0]}`
+              : `Reserva Grupal VIP Aprobada (Ambiente 107): ${titles[0]}`;
+
+          await EmailService.send({
+            to: "nbarrerac@sena.edu.co",
+            subject: coordinatorSubject,
+            react: SpaceReservationEmail({
+              spaceName: "Ambiente 107",
+              requesterName: user.full_name,
+              eventTitle: `${titles[0]} (Lote de ${validReservations.length} días)`,
+              date: datesList,
+              timeRange: timeStr,
+              specialRequirements:
+                validReservations[0].description || "Ninguno",
+              coordinatorName: "Norma Barrera",
+              type:
+                initialStatus === "PENDING" ? "NEW_REQUEST" : "VIP_AUTOMATIC",
+            }),
+          });
+
+          if (initialStatus === "PENDING") {
+            revalidatePath("/dashboard");
+            return { success: true, data: result, pendingApproval: true };
+          }
+        }
+
+        // A2. Library Batch Notification
         if (isLibrary) {
           const coordinatorSubject =
             initialStatus === "PENDING"
@@ -1166,9 +1301,13 @@ export async function createReservationBatchAction(
               timeRange: timeStr,
               location: isLibrary
                 ? "Biblioteca"
-                : validReservations.some((r) => String(r.auditorium_id) === "2")
-                  ? "Subdirección"
-                  : "Auditorio Principal",
+                : isAmbiente107
+                  ? "Ambiente 107"
+                  : validReservations.some(
+                        (r) => String(r.auditorium_id) === "2",
+                      )
+                    ? "Subdirección"
+                    : "Auditorio Principal",
               resources: first.resources || [],
               specialRequirements: first.description,
             }),

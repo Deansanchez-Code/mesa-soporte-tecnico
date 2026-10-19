@@ -350,6 +350,7 @@ export default function AuditoriumReservationForm({
       const getSpaceName = (spaceId: string) => {
         if (spaceId === "1") return "Auditorio";
         if (spaceId === "3") return "Biblioteca";
+        if (spaceId === "4") return "Ambiente 107";
         return "Subdirección";
       };
 
@@ -515,7 +516,7 @@ export default function AuditoriumReservationForm({
               onClick={() => setSelectedSpace("3")}
               className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
                 selectedSpace === "3"
-                  ? "border-purple-500 bg-purple-50 text-purple-700"
+                  ? "border-purple-500 bg-purple-50 text-purple-700 shadow-sm"
                   : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
               }`}
             >
@@ -524,6 +525,24 @@ export default function AuditoriumReservationForm({
               </div>
               <span className="font-bold text-sm">Biblioteca</span>
               <span className="text-[10px] opacity-70">Exclusivo</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedSpace("4")}
+              className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                selectedSpace === "4"
+                  ? "border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm ring-2 ring-emerald-500/20"
+                  : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
+              }`}
+            >
+              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-emerald-600" />
+              </div>
+              <span className="font-bold text-sm">Ambiente 107</span>
+              <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                Prereserva
+              </span>
             </button>
           </div>
         </div>

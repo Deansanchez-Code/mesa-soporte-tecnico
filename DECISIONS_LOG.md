@@ -1,5 +1,41 @@
 # Registro de Decisiones (Decisions Log)
 
+## ADR-010: Habilitación de Reserva para Ambiente 107 con Flujo de Aprobación por Coordinación y Notificaciones Humanizadas
+
+**Fecha:** 2026-10-18
+**Capa:** Lógica de Negocio / Frontend / Comunicaciones / Email
+**Responsable:** Arquitecto de Software Principal
+**Estado:** Aceptada
+
+### Contexto (ADR-010)
+
+1. Se solicitó habilitar la reserva del **Ambiente 107**, con un flujo análogo a la Biblioteca: los instructores y personal de planta prereservan en estado `PENDING`, mientras que administradores y VIPs se aprueban de forma inmediata.
+2. La autorización y gestión de estas solicitudes debe ser ejercida exclusivamente por la funcionaria Norma Barrera (`nbarrerac@sena.edu.co`).
+3. Se requería estandarizar correos transaccionales con tecnología robusta (+15,000 ⭐ en GitHub, implementada con `@react-email/components`), aplicando UX Writing humanizado y empático.
+
+### Decisión (ADR-010)
+
+1. **Identificador de Espacio:** Se asigna `auditorium_id: "4"` al Ambiente 107.
+2. **Control de Acceso y Aprobaciones:**
+   - Se crea [`ambiente107ApprovalActions.ts`](file:///d:/mesa-soporte-tecnico/src/features/reservations/actions/ambiente107ApprovalActions.ts) restringido a `nbarrerac@sena.edu.co` (y administrador de respaldo).
+   - Se crea el componente interactivo [`Ambiente107ApprovalModal.tsx`](file:///d:/mesa-soporte-tecnico/src/features/reservations/components/Ambiente107ApprovalModal.tsx) montado en el Dashboard del usuario cuando coincide con la credencial de coordinación.
+3. **Comunicaciones Humanizadas y Correos:**
+   - Se crea la plantilla [`SpaceReservationEmail.tsx`](file:///d:/mesa-soporte-tecnico/src/lib/email/templates/SpaceReservationEmail.tsx) con React Email, badges semánticos, diseño institucional y redacción empática.
+4. **Skills Especializadas Documentadas:**
+   - `humanized-ux-writing`: Guía de microcopia empática y mensajes constructivos.
+   - `transactional-email-design`: Estándares de maquetación de correos compatibles universalmente con React Email.
+5. **Frontend & UX:**
+   - Se habilita el selector en [`AuditoriumReservationForm.tsx`](file:///d:/mesa-soporte-tecnico/src/features/reservations/components/AuditoriumReservationForm.tsx).
+   - Se añade la tarjeta interactiva y badge en "Eventos de Hoy" en [`UserRequestForm.tsx`](file:///d:/mesa-soporte-tecnico/src/features/requests/components/UserRequestForm.tsx).
+   - Se integra en [`useAssignments.ts`](file:///d:/mesa-soporte-tecnico/src/features/assignments/hooks/useAssignments.ts) para visibilidad en el calendario de ambientes.
+
+### Consecuencias (ADR-010)
+
+- **Positivas:** Control pedagógico centralizado para el Ambiente 107; prevención de conflictos de horario; comunicación transparente y empática hacia el usuario solicitante; cero dependencias externas no auditadas.
+- **Negativas:** Ninguna.
+
+---
+
 ## ADR-009: Estandarización de Skills de Proyecto para Supabase Security/Ops y Playwright E2E
 
 **Fecha:** 2026-10-18
