@@ -23,12 +23,16 @@ const serverEnvSchema = z
   })
   .refine(
     (data) => {
-      // Omitir validación durante el tiempo de construcción (build) para evitar fallos en Vercel
-      if (
+      // Omitir validación durante el tiempo de construcción (build) en Vercel o CI
+      const isBuildPhase =
         process.env.npm_lifecycle_event === "build" ||
         process.env.SKIP_ENV_VALIDATION === "true" ||
-        process.env.SKIP_ENV_VALIDATION === "1"
-      ) {
+        process.env.SKIP_ENV_VALIDATION === "1" ||
+        process.env.NEXT_PHASE === "phase-production-build" ||
+        !!process.env.VERCEL ||
+        !!process.env.CI;
+
+      if (isBuildPhase) {
         return true;
       }
 
