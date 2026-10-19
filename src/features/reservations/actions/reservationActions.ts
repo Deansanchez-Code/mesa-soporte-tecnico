@@ -317,6 +317,7 @@ interface PublicUser {
   username: string;
   is_vip?: boolean | null;
   job_category?: string | null;
+  area?: string | null;
 }
 
 export async function createReservationAction(
@@ -351,7 +352,7 @@ export async function createReservationAction(
     const { data: publicUserRaw } = await supabase
       .from("users")
       .select(
-        "id, role, employment_type, email, username, job_category, is_vip",
+        "id, role, employment_type, email, username, job_category, is_vip, area",
       )
       .eq("auth_id", authUser.id)
       .single();
@@ -879,7 +880,7 @@ export async function createReservationBatchAction(
     const { data: publicUserRaw, error: userError } = await supabase
       .from("users")
       .select(
-        "id, role, is_vip, full_name, employment_type, email, job_category, username",
+        "id, role, is_vip, full_name, employment_type, email, job_category, username, area",
       )
       .eq("auth_id", authUser.id)
       .single();
