@@ -35,7 +35,7 @@ export const SpaceReservationEmail = ({
   date,
   timeRange,
   specialRequirements,
-  coordinatorName = "Norma Barrera",
+  coordinatorName = "Nury Mildret Barrera",
   type,
 }: SpaceReservationEmailProps) => {
   const isCancellation = type === "CANCELLED";

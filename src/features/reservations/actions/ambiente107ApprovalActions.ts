@@ -161,7 +161,7 @@ export async function approveAmbiente107Reservation(id: number) {
         date: dateStr,
         timeRange: timeStr,
         specialRequirements: reservation.description || "Ninguno",
-        coordinatorName: "Norma Barrera",
+        coordinatorName: "Nury Mildret Barrera",
         type: "APPROVED",
       }),
     });
@@ -171,7 +171,7 @@ export async function approveAmbiente107Reservation(id: number) {
       {
         user_id: reservation.user_id,
         title: "¡Reserva Aprobada! 🎉",
-        message: `Tu reserva para el Ambiente 107 ("${reservation.title}") ha sido autorizada por Norma Barrera.`,
+        message: `Tu reserva para el Ambiente 107 ("${reservation.title}") ha sido autorizada por Nury Mildret Barrera.`,
       },
     ]);
 
@@ -232,7 +232,7 @@ export async function cancelAmbiente107Reservation(id: number, reason: string) {
         }),
         timeRange: "N/A",
         specialRequirements: reason,
-        coordinatorName: "Norma Barrera",
+        coordinatorName: "Nury Mildret Barrera",
         type: "CANCELLED",
       }),
     });
@@ -296,7 +296,7 @@ export async function suggestModification107Action(
         }),
         timeRange: "N/A",
         specialRequirements: suggestion,
-        coordinatorName: "Norma Barrera",
+        coordinatorName: "Nury Mildret Barrera",
         type: "MODIFICATION_SUGGESTED",
       }),
     });
@@ -305,7 +305,7 @@ export async function suggestModification107Action(
       {
         user_id: reservation.user_id,
         title: "Ajuste Sugerido en Reserva 💡",
-        message: `Norma Barrera sugiere un ajuste para tu reserva de Ambiente 107: "${suggestion}"`,
+        message: `Nury Mildret Barrera sugiere un ajuste para tu reserva de Ambiente 107: "${suggestion}"`,
       },
     ]);
 

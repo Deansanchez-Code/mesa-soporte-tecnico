@@ -397,7 +397,7 @@ export default function AuditoriumReservationForm({
       if (isPending) {
         const coordName =
           selectedSpace === "4"
-            ? "Norma Barrera (Ambiente 107)"
+            ? "Nury Mildret Barrera (Ambiente 107)"
             : selectedSpace === "3"
               ? "la Coordinación de Biblioteca"
               : "la Coordinación de Formación";

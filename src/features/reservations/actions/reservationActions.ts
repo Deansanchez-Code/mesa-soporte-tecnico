@@ -496,7 +496,7 @@ export async function createReservationAction(
         needsApproval = true;
       }
     } else if (currentSpace === "4") {
-      // Regla de Negocio: Ambiente 107 (Coordinadora: Norma Barrera nbarrerac@sena.edu.co)
+      // Regla de Negocio: Ambiente 107 (Coordinadora: Nury Mildret Barrera nbarrerac@sena.edu.co)
       const userEmail = (publicUser?.email || "").toLowerCase();
       const isAdmin = ["admin", "superadmin"].includes(
         publicUser?.role?.toLowerCase() || "",
@@ -525,7 +525,7 @@ export async function createReservationAction(
         );
       }
 
-      // Regla de Negocio: Ambiente 107 requiere autorización expresa de Norma Barrera (nbarrerac@sena.edu.co)
+      // Regla de Negocio: Ambiente 107 requiere autorización expresa de Nury Mildret Barrera (nbarrerac@sena.edu.co)
       if ((isInstructor || isPlanta) && !isVip && !isAdmin && !isStaff107) {
         initialStatus = "PENDING";
         needsApproval = true;
@@ -562,7 +562,7 @@ export async function createReservationAction(
       const isLibrary = String(reservation.auditorium_id) === "3";
       const isAmbiente107 = String(reservation.auditorium_id) === "4";
 
-      // Business Rule: Notifications for Ambiente 107 go to Norma Barrera (nbarrerac@sena.edu.co)
+      // Business Rule: Notifications for Ambiente 107 go to Nury Mildret Barrera (nbarrerac@sena.edu.co)
       if (isAmbiente107) {
         const startDate = new Date(reservation.start_time);
         const endDate = new Date(reservation.end_time);
@@ -592,7 +592,7 @@ export async function createReservationAction(
             date: dateStr,
             timeRange: `${timeStr} (${durationHours.toFixed(1)} horas)`,
             specialRequirements: reservation.description || "Ninguno",
-            coordinatorName: "Norma Barrera",
+            coordinatorName: "Nury Mildret Barrera",
             type:
               reservation.status === "PENDING"
                 ? "NEW_REQUEST"
@@ -1050,7 +1050,7 @@ export async function createReservationBatchAction(
           );
         }
 
-        // Regla de Negocio: Ambiente 107 requiere autorización expresa de Norma Barrera (nbarrerac@sena.edu.co)
+        // Regla de Negocio: Ambiente 107 requiere autorización expresa de Nury Mildret Barrera (nbarrerac@sena.edu.co)
         if ((isInstructor || isPlanta) && !isVip && !isAdmin && !isStaff107) {
           initialStatus = "PENDING";
           hasNeedsApproval = true;
@@ -1215,7 +1215,7 @@ export async function createReservationBatchAction(
           (r) => String(r.auditorium_id) === "4",
         );
 
-        // A1. Ambiente 107 Batch Notification (Norma Barrera)
+        // A1. Ambiente 107 Batch Notification (Nury Mildret Barrera)
         if (isAmbiente107) {
           const coordinatorSubject =
             initialStatus === "PENDING"
@@ -1233,7 +1233,7 @@ export async function createReservationBatchAction(
               timeRange: timeStr,
               specialRequirements:
                 validReservations[0].description || "Ninguno",
-              coordinatorName: "Norma Barrera",
+              coordinatorName: "Nury Mildret Barrera",
               type:
                 initialStatus === "PENDING" ? "NEW_REQUEST" : "VIP_AUTOMATIC",
             }),
