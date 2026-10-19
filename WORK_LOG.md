@@ -1,5 +1,22 @@
 # Registro de Trabajo (Work Log)
 
+## Sesión: 2026-10-18
+
+**Rama:** `feature/specialized-skills-setup`
+**Modo:** Implementación de Skills Especializadas de Proyecto & Gobernanza
+
+### Qué se desarrolló (2026-10-18)
+
+1. **Implementación de Skills Especializadas en `.agents/skills/`:**
+   - `supabase-security-and-ops`: Directrices para Zero Trust, Row Level Security (RLS), manejo de sesiones SSR con `getUser()`, aislamiento de `service_role`, sincronización de tipos TypeScript (`pnpm types:sync`) y migraciones idempotentes.
+   - `playwright-e2e-testing`: Procedimientos de pruebas E2E con Playwright, selectores accesibles, mitigación de flakiness y testing de flujos de autenticación y conflictos de reservas.
+2. **Registro de Arquitectura y Gobernanza:**
+   - Creación y registro de ADR-009 en `DECISIONS_LOG.md`.
+3. **Verificación Integral:**
+   - Ejecución de la suite completa de pruebas con Vitest (`pnpm test:all`) certificando 23/23 tests en verde.
+
+---
+
 ## Sesión: 2026-08-29
 
 **Rama:** `fix/weekly-reservations-validation`

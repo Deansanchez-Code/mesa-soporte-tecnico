@@ -1,5 +1,33 @@
 # Registro de Decisiones (Decisions Log)
 
+## ADR-009: Estandarización de Skills de Proyecto para Supabase Security/Ops y Playwright E2E
+
+**Fecha:** 2026-10-18
+**Capa:** Arquitectura / Gobernanza Operativa / QA
+**Responsable:** Arquitecto de Software Principal
+**Estado:** Aceptada
+
+### Contexto (ADR-009)
+
+Se requería consolidar las capacidades operativas y de testing del proyecto `mesa-soporte-tecnico`, estandarizando los lineamientos para:
+
+1. Seguridad rigurosa en Supabase (denegación por defecto, Row Level Security, prevención de fugas de `service_role`, sincronización estricta de tipos en Next.js 16 con `@supabase/ssr`).
+2. Pruebas de integración E2E con Playwright para flujos sensibles (autenticación, validación de conflictos de reservas y roles VIP).
+
+### Decisión (ADR-009)
+
+Se formalizan e implementan en `.agents/skills/` dos skills locales especializadas:
+
+1. `supabase-security-and-ops`: Protocolos de seguridad RLS, gestión de sesiones con `getUser()`, validación de esquemas Zod y comandos de migración/tipos.
+2. `playwright-e2e-testing`: Estándares de testing sin esperas frágiles, aserciones basadas en accesibilidad y scripts de ejecución rápida y modo trace.
+
+### Consecuencias (ADR-009)
+
+- **Positivas:** Estandarización técnica ejecutable por el equipo y agentes IA; prevención de errores de autorización y regresiones funcionales en flujos de reserva.
+- **Negativas:** Ninguna.
+
+---
+
 ## ADR-008: Gestión de Mantenimiento / Pausa de Espacios y Optimización de Reservas Semanales
 
 **Fecha:** 2026-08-29
