@@ -249,15 +249,24 @@ export default function UserRequestForm({
       "emgutierrezn@sena.edu.co";
 
   const userEmail = ((user?.email as string) || "").toLowerCase();
+  const roleStr = ((user?.role as string) || "").toLowerCase();
+  const jobCatStr = (
+    (user as never as { job_category?: string })?.job_category || ""
+  ).toLowerCase();
+  const areaStr = (
+    (user as never as { area?: string })?.area || ""
+  ).toLowerCase();
+  const empTypeStr = (
+    (user as never as { employment_type?: string })?.employment_type || ""
+  ).toLowerCase();
+
   const isInstructor =
-    (
-      user as never as { job_category?: string }
-    )?.job_category?.toLowerCase() === "instructor";
-  const isPlanta = (
-    user as never as { employment_type?: string }
-  )?.employment_type
-    ?.toLowerCase()
-    .includes("planta");
+    jobCatStr.includes("instructor") ||
+    roleStr.includes("instructor") ||
+    areaStr.includes("instructor") ||
+    empTypeStr.includes("instructor");
+
+  const isPlanta = empTypeStr.includes("planta");
   const canSeeBiblioteca =
     [
       "egutierrezn@sistema.local",
@@ -504,7 +513,7 @@ export default function UserRequestForm({
                         Ambiente 107
                       </h3>
                       <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                        Prereserva
+                        Habilitado
                       </span>
                     </div>
                     <p className="text-sm text-gray-500 mt-1 font-semibold italic opacity-70 group-hover:opacity-100">

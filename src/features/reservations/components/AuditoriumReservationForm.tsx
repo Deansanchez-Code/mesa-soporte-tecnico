@@ -541,7 +541,7 @@ export default function AuditoriumReservationForm({
               </div>
               <span className="font-bold text-sm">Ambiente 107</span>
               <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                Prereserva
+                Instructores
               </span>
             </button>
           </div>

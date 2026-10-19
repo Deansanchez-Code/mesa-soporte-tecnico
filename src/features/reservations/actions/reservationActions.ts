@@ -503,7 +503,12 @@ export async function createReservationAction(
       const isVip =
         !!publicUser?.is_vip || publicUser?.role?.toLowerCase() === "vip";
       const isInstructor =
-        publicUser?.job_category?.toLowerCase() === "instructor";
+        (publicUser?.job_category || "").toLowerCase().includes("instructor") ||
+        (publicUser?.role || "").toLowerCase().includes("instructor") ||
+        (publicUser?.area || "").toLowerCase().includes("instructor") ||
+        (publicUser?.employment_type || "")
+          .toLowerCase()
+          .includes("instructor");
       const isPlanta = publicUser?.employment_type
         ?.toLowerCase()
         .includes("planta");
@@ -519,11 +524,9 @@ export async function createReservationAction(
         );
       }
 
-      // Instructores y personal de planta prereservan con aprobación de nbarrerac
-      if ((isInstructor || isPlanta) && !isVip && !isAdmin && !isStaff107) {
-        initialStatus = "PENDING";
-        needsApproval = true;
-      }
+      // Habilitado de momento: Los instructores pueden reservar directamente (confirmada)
+      initialStatus = "APPROVED";
+      needsApproval = false;
     }
 
     // 5. Insert
@@ -1018,7 +1021,14 @@ export async function createReservationBatchAction(
       } else if (targetSpace === "4") {
         const userEmail = (publicUser.email || "").toLowerCase();
         const isInstructor =
-          publicUser.job_category?.toLowerCase() === "instructor";
+          (publicUser.job_category || "")
+            .toLowerCase()
+            .includes("instructor") ||
+          (publicUser.role || "").toLowerCase().includes("instructor") ||
+          (publicUser.area || "").toLowerCase().includes("instructor") ||
+          (publicUser.employment_type || "")
+            .toLowerCase()
+            .includes("instructor");
         const isPlanta = publicUser.employment_type
           ?.toLowerCase()
           .includes("planta");
@@ -1034,10 +1044,9 @@ export async function createReservationBatchAction(
           );
         }
 
-        if ((isInstructor || isPlanta) && !isVip && !isAdmin && !isStaff107) {
-          initialStatus = "PENDING";
-          hasNeedsApproval = true;
-        }
+        // Habilitado de momento: Los instructores pueden reservar directamente en lote
+        initialStatus = "APPROVED";
+        hasNeedsApproval = false;
       }
 
       // Conflict Check (Scoped to space)

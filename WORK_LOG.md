@@ -23,8 +23,12 @@
    - `transactional-email-design`: Guía de maquetación y diseño de correos transaccionales con React Email.
 5. **Gobernanza y Pruebas:**
    - Adición de prueba unitaria en `reservation-conflict.test.ts` para verificar la detección de conflictos de horario en el espacio 4 (24/24 tests pasando).
-   - Registro de ADR-010 en `DECISIONS_LOG.md`.
+   - Registro de ADR-010 y ADR-011 en `DECISIONS_LOG.md`.
    - Compilación completa exitosa con `next build` (Turbopack + TypeScript type-check en verde).
+6. **Habilitación de Reserva Directa para Instructores en Ambiente 107 (ADR-011):**
+   - Transición del estado inicial de instructores a `APPROVED` directo para evitar demoras operativas.
+   - Evaluación exhaustiva de roles (`job_category`, `role`, `area`, `employment_type`) garantizando acceso a instructores de planta y contratistas.
+   - Notificación automática persistente a Norma Barrera (`nbarrerac@sena.edu.co`) con confirmación instantánea.
 
 ---
 

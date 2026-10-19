@@ -1,5 +1,30 @@
 # Registro de Decisiones (Decisions Log)
 
+## ADR-011: Habilitación de Reserva Directa para Instructores en Ambiente 107 y Detección Robusta de Roles
+
+**Fecha:** 2026-10-18
+**Capa:** Lógica de Negocio / Autorización / UI
+**Responsable:** Arquitecto de Software Principal
+**Estado:** Aceptada
+
+### Contexto (ADR-011)
+
+Se solicitó habilitar que, de momento, los instructores puedan realizar reservas del Ambiente 107 de forma directa (quedando confirmadas inmediatamente), evitando bloqueos o tiempos de espera mientras se surte la validación pedagógica inicial, manteniendo la notificación a la coordinación (Norma Barrera).
+Adicionalmente, se detectó que algunos instructores registrados como contratistas o con categoría no normalizada podían ver restringido su acceso si solo se evaluaba el campo `job_category`.
+
+### Decisión (ADR-011)
+
+1. **Detección Robusta de Instructores:** Se evalúa de manera integral en frontend y backend: `job_category`, `role`, `area` y `employment_type` para identificar cualquier modalidad de instructor (planta o contratista).
+2. **Estado de Reserva Inmediato:** Las reservas de instructores para el Ambiente 107 se establecen en estado `APPROVED` de forma directa (`initialStatus = "APPROVED"`), enviando la confirmación al solicitante y notificando a la vez a `nbarrerac@sena.edu.co`.
+3. **Identidad Visual:** Se actualiza el badge en la interfaz de "Prereserva" a "Habilitado" / "Instructores".
+
+### Consecuencias (ADR-011)
+
+- **Positivas:** Agilidad inmediata para que el cuerpo docente reserve el Ambiente 107 sin fricciones; supervisión garantizada vía correo para la coordinación.
+- **Negativas:** Ninguna.
+
+---
+
 ## ADR-010: Habilitación de Reserva para Ambiente 107 con Flujo de Aprobación por Coordinación y Notificaciones Humanizadas
 
 **Fecha:** 2026-10-18
