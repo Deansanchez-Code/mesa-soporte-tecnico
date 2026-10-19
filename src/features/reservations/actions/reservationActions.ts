@@ -525,9 +525,14 @@ export async function createReservationAction(
         );
       }
 
-      // Habilitado de momento: Los instructores pueden reservar directamente (confirmada)
-      initialStatus = "APPROVED";
-      needsApproval = false;
+      // Regla de Negocio: Ambiente 107 requiere autorización expresa de Norma Barrera (nbarrerac@sena.edu.co)
+      if ((isInstructor || isPlanta) && !isVip && !isAdmin && !isStaff107) {
+        initialStatus = "PENDING";
+        needsApproval = true;
+      } else {
+        initialStatus = "APPROVED";
+        needsApproval = false;
+      }
     }
 
     // 5. Insert
@@ -1045,9 +1050,14 @@ export async function createReservationBatchAction(
           );
         }
 
-        // Habilitado de momento: Los instructores pueden reservar directamente en lote
-        initialStatus = "APPROVED";
-        hasNeedsApproval = false;
+        // Regla de Negocio: Ambiente 107 requiere autorización expresa de Norma Barrera (nbarrerac@sena.edu.co)
+        if ((isInstructor || isPlanta) && !isVip && !isAdmin && !isStaff107) {
+          initialStatus = "PENDING";
+          hasNeedsApproval = true;
+        } else {
+          initialStatus = "APPROVED";
+          hasNeedsApproval = false;
+        }
       }
 
       // Conflict Check (Scoped to space)

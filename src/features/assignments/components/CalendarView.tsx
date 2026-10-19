@@ -77,6 +77,17 @@ export default function CalendarView({
   const fetchStart = viewMode === "month" ? monthStart : weekStartRange;
   const fetchEnd = viewMode === "month" ? monthEnd : weekEndRange;
 
+  const isSpecialReservationSpace =
+    areaName.toUpperCase().includes("AUDITORIO") ||
+    areaName.toUpperCase().includes("SUBDIRECCIÓN") ||
+    areaName.toUpperCase().includes("BIBLIOTECA") ||
+    areaName.toUpperCase().includes("107") ||
+    areaName.toUpperCase().includes("AMBIENTE 107");
+
+  const isAmbiente107 =
+    areaName.toUpperCase().includes("107") ||
+    areaName.toUpperCase().includes("AMBIENTE 107");
+
   const { assignments, deleteAssignment } = useAssignments({
     areaId,
     areaName,
@@ -257,16 +268,16 @@ export default function CalendarView({
                   </span>
                 </div>
 
-                {/* Visual Indicators (The "3 dots" user mentioned) Or Single Bar for Auditorium */}
+                {/* Visual Indicators (The "3 dots" user mentioned) Or Single Bar for Special Spaces */}
                 <div className="flex gap-0.5 mt-1">
-                  {areaName.toUpperCase().includes("AUDITORIO") ||
-                  areaName.toUpperCase().includes("SUBDIRECCIÓN") ||
-                  areaName.toUpperCase().includes("BIBLIOTECA") ? (
-                    // Single indicator for Auditorium / Subdirección / Biblioteca
+                  {isSpecialReservationSpace ? (
+                    // Single indicator for Auditorium / Subdirección / Biblioteca / Ambiente 107
                     <div
                       className={`w-full h-1.5 rounded-full ${
                         dayAssignments.length > 0
-                          ? "bg-blue-500"
+                          ? isAmbiente107
+                            ? "bg-emerald-600"
+                            : "bg-blue-500"
                           : "bg-gray-200"
                       }`}
                     />
@@ -291,9 +302,7 @@ export default function CalendarView({
 
               {/* ASSIGNMENTS LIST */}
               <div className="flex-grow hidden md:flex flex-col gap-2 mt-2">
-                {areaName.toUpperCase().includes("AUDITORIO") ||
-                areaName.toUpperCase().includes("SUBDIRECCIÓN") ||
-                areaName.toUpperCase().includes("BIBLIOTECA")
+                {isSpecialReservationSpace
                   ? dayAssignments
                       .sort(
                         (a, b) =>
@@ -327,8 +336,14 @@ export default function CalendarView({
                             style={{ height: `${heightPx}px` }}
                             className={`group relative text-[10px] p-2 rounded-lg border border-l-[3px] shadow-sm flex flex-col justify-start min-h-[40px] overflow-hidden mb-1 hover:shadow-md transition-all ${
                               isPending
-                                ? "bg-gray-50 border-gray-200 border-l-gray-400 grayscale-[0.5] opacity-80"
-                                : "bg-blue-50/50 border-l-blue-600 border-blue-100"
+                                ? "bg-amber-50/70 border-amber-200 border-l-amber-500 text-amber-900"
+                                : isAmbiente107
+                                  ? "bg-emerald-50/70 border-l-emerald-600 border-emerald-100"
+                                  : areaName
+                                        .toUpperCase()
+                                        .includes("BIBLIOTECA")
+                                    ? "bg-purple-50/70 border-l-purple-600 border-purple-100"
+                                    : "bg-blue-50/50 border-l-blue-600 border-blue-100"
                             }`}
                           >
                             <div className="flex justify-between items-center w-full leading-tight">
@@ -477,10 +492,8 @@ export default function CalendarView({
               </button>
             </div>
             <div className="p-4 space-y-3">
-              {areaName.toUpperCase().includes("AUDITORIO") ||
-              areaName.toUpperCase().includes("SUBDIRECCIÓN") ||
-              areaName.toUpperCase().includes("BIBLIOTECA")
-                ? // AUDITORIUM / SUBDIRECCION / BIBLIOTECA: Render by Assignment directly (sorted by time)
+              {isSpecialReservationSpace
+                ? // AUDITORIUM / SUBDIRECCION / BIBLIOTECA / AMBIENTE 107: Render by Assignment directly (sorted by time)
                   assignments
                     .filter(
                       (a) => a.assignment_date === formatDateForDB(selectedDay),
@@ -832,9 +845,7 @@ export default function CalendarView({
                   className="bg-sena-green hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  {areaName.toUpperCase().includes("AUDITORIO") ||
-                  areaName.toUpperCase().includes("SUBDIRECCIÓN") ||
-                  areaName.toUpperCase().includes("BIBLIOTECA")
+                  {isSpecialReservationSpace
                     ? "Reservar esta fecha"
                     : "Asignar esta fecha"}
                 </button>
@@ -894,12 +905,14 @@ export default function CalendarView({
                     key={assign.id}
                     className={`p-4 rounded-2xl border border-l-4 shadow-sm flex flex-col gap-1.5 ${
                       isPending
-                        ? "bg-gray-50/75 border-l-gray-400 border-gray-200"
-                        : isLib
-                          ? "bg-purple-50/50 border-l-purple-600 border-purple-100"
-                          : isSub
-                            ? "bg-orange-50/50 border-l-sena-orange border-orange-100"
-                            : "bg-blue-50/50 border-l-blue-600 border-blue-100"
+                        ? "bg-amber-50/70 border-l-amber-500 border-amber-200"
+                        : isAmbiente107
+                          ? "bg-emerald-50/50 border-l-emerald-600 border-emerald-100"
+                          : isLib
+                            ? "bg-purple-50/50 border-l-purple-600 border-purple-100"
+                            : isSub
+                              ? "bg-orange-50/50 border-l-sena-orange border-orange-100"
+                              : "bg-blue-50/50 border-l-blue-600 border-blue-100"
                     }`}
                   >
                     <div className="flex justify-between items-start gap-2">

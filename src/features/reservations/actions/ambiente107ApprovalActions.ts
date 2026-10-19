@@ -9,7 +9,9 @@ import Logger from "@/lib/logger";
 
 const ALLOWED_107_APPROVERS = [
   "nbarrerac@sena.edu.co",
+  "nbarrerac",
   "dasanchezh@sena.edu.co", // Admin backup
+  "dasanchezh",
 ];
 
 async function verifyAmbiente107Coordinator() {
@@ -20,10 +22,15 @@ async function verifyAmbiente107Coordinator() {
   if (!user) throw new Error("No autenticado");
 
   const email = (user.email || "").toLowerCase();
+  const username = (
+    (user.user_metadata?.username as string) || ""
+  ).toLowerCase();
   const role = (user.user_metadata?.role || "").toLowerCase();
 
-  const isExplicitAllowed = ALLOWED_107_APPROVERS.some((allowed) =>
-    email.includes(allowed.toLowerCase()),
+  const isExplicitAllowed = ALLOWED_107_APPROVERS.some(
+    (allowed) =>
+      email.includes(allowed.toLowerCase()) ||
+      username.includes(allowed.toLowerCase()),
   );
 
   if (!isExplicitAllowed && role !== "admin" && role !== "superadmin") {

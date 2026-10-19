@@ -20,6 +20,8 @@ import {
   suggestModification107Action,
 } from "@/features/reservations/actions/ambiente107ApprovalActions";
 
+import { supabase } from "@/lib/supabase/client";
+
 interface PendingReservation {
   id: number;
   title: string;
@@ -43,13 +45,29 @@ export default function Ambiente107ApprovalModal({
   const [loading, setLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState<number | null>(null);
   const [showEmptyToast, setShowEmptyToast] = useState(false);
+  const [detectedEmail, setDetectedEmail] = useState<string>(userEmail || "");
 
-  // Autorizada exclusiva: Norma Barrera o dasanchezh de respaldo
+  useEffect(() => {
+    if (userEmail) {
+      setDetectedEmail(userEmail);
+      return;
+    }
+    // Fallback: detectar usuario autenticado client-side si la prop llegó vacía
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user?.email) {
+        setDetectedEmail(data.user.email);
+      }
+    });
+  }, [userEmail]);
+
+  // Autorizada exclusiva: Norma Barrera (nbarrerac@sena.edu.co o username nbarrerac)
   const isCoordinator = [
     "nbarrerac@sena.edu.co",
+    "nbarrerac",
     "dasanchezh@sena.edu.co",
+    "dasanchezh",
   ].some((allowed) =>
-    (userEmail || "").toLowerCase().includes(allowed.toLowerCase()),
+    (detectedEmail || "").toLowerCase().includes(allowed.toLowerCase()),
   );
 
   useEffect(() => {
@@ -127,21 +145,39 @@ export default function Ambiente107ApprovalModal({
   };
 
   if (!isCoordinator) return null;
+  if (loading) return null;
 
-  if (showEmptyToast) {
-    return (
-      <div className="fixed bottom-8 right-8 z-[100] animate-in fade-in slide-in-from-bottom-4 transition-all duration-300">
-        <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-emerald-400">
-          <Clock className="w-5 h-5 animate-pulse" />
-          <span className="font-semibold text-sm">
-            Ambiente 107: Al día, no hay solicitudes pendientes de autorizar.
-          </span>
+  // Botón flotante accesible siempre que sea coordinadora y el modal esté cerrado
+  if (!isOpen || pending.length === 0) {
+    if (showEmptyToast) {
+      return (
+        <div className="fixed bottom-8 right-8 z-[100] animate-in fade-in slide-in-from-bottom-4 transition-all duration-300">
+          <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-emerald-400">
+            <Clock className="w-5 h-5 animate-pulse" />
+            <span className="font-semibold text-sm">
+              Ambiente 107: Al día, no hay solicitudes pendientes de autorizar.
+            </span>
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  if (loading || !isOpen || pending.length === 0) return null;
+    if (pending.length > 0) {
+      return (
+        <div className="fixed bottom-8 right-8 z-[90] animate-in fade-in slide-in-from-bottom-4">
+          <button
+            onClick={() => setIsOpen(true)}
+            className="flex items-center gap-3 bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-emerald-500 font-bold text-xs transition-all hover:scale-105 active:scale-95"
+          >
+            <Sparkles className="w-4 h-4 text-emerald-300 animate-pulse" />
+            <span>Ambiente 107 ({pending.length} pendientes)</span>
+          </button>
+        </div>
+      );
+    }
+
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4 sm:p-6 overflow-hidden animate-in fade-in duration-300">

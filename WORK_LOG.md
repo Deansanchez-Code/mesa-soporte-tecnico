@@ -1,5 +1,32 @@
 # Registro de Trabajo (Work Log)
 
+## Sesión: 2026-10-18 (Continuación)
+
+**Rama:** `fix/ambiente-107-prereserva-and-modal`
+**Modo:** Prereserva Obligatoria, Detección Robusta Modal 107, Vista Continua en Calendario & Skill Vercel
+
+### Qué se desarrolló (2026-10-18 - Noche)
+
+1. **Restablecimiento del Flujo de Prereserva (`PENDING`):**
+   - En `reservationActions.ts` (tanto en `createReservationAction` como en `createReservationBatchAction`), las reservas para el Ambiente 107 inician con `initialStatus = "PENDING"` (`needsApproval = true`) para instructores y personal de planta.
+   - Solo administradores o personal autorizado de coordinación obtienen confirmación inmediata.
+   - Mensaje de confirmación en el formulario adaptado con feedback humanizado indicando la revisión por parte de Norma Barrera.
+2. **Carga y Visibilidad del Modal para Norma Barrera:**
+   - Montado `Ambiente107ApprovalModal.tsx` tanto en `DashboardContent.tsx` como en la vista pública/funcionario `UserRequestForm.tsx`.
+   - Incorporado fallback cliente con `supabase.auth.getUser()` para garantizar la detección de `nbarrerac@sena.edu.co` / `nbarrerac` aun si la prop inicial tarda en sincronizar.
+   - Añadido botón flotante interactivo con badge de pendientes para abrir el modal en cualquier momento.
+3. **Optimización del Calendario (Horarios Continuos vs 3 Jornadas):**
+   - En `CalendarView.tsx`, se incluyó el Ambiente 107 en la lógica de espacios especiales (`isSpecialReservationSpace`).
+   - Se eliminaron los 3 bloques rígidos (Mañana, Tarde, Noche) en favor del renderizado de reservas por horas exactas con tarjetas de acento verde esmeralda.
+4. **Instalación de la Skill de Vercel:**
+   - Se instaló la skill oficial `deploy-to-vercel` en `.agents/skills/deploy-to-vercel/`.
+5. **Verificación y Pruebas:**
+   - `pnpm test:all`: 24/24 pruebas pasando.
+   - `pnpm lint`: 0 errores.
+   - `pnpm build`: 20/20 rutas compiladas en producción sin fallos.
+
+---
+
 ## Sesión: 2026-10-18
 
 **Rama:** `feature/ambiente-107-reservations`

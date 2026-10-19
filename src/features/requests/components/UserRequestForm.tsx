@@ -17,6 +17,7 @@ import {
 import { supabase } from "@/lib/supabase/client";
 import PanicButtonModal from "./PanicButtonModal";
 import LibraryApprovalModal from "@/features/reservations/components/LibraryApprovalModal";
+import Ambiente107ApprovalModal from "@/features/reservations/components/Ambiente107ApprovalModal";
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
 import AuditoriumMaintenanceModal from "@/features/reservations/components/AuditoriumMaintenanceModal";
 import {
@@ -572,8 +573,9 @@ export default function UserRequestForm({
           </button>
         </div>
 
-        {/* Modal de Aprobaciones de Biblioteca */}
+        {/* Modal de Aprobaciones de Biblioteca y Ambiente 107 */}
         <LibraryApprovalModal userEmail={userEmail} />
+        <Ambiente107ApprovalModal userEmail={userEmail} />
 
         {/* Modal de Pánico */}
         {showPanicModal && (

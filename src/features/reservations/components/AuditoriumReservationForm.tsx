@@ -395,8 +395,14 @@ export default function AuditoriumReservationForm({
       }
 
       if (isPending) {
+        const coordName =
+          selectedSpace === "4"
+            ? "Norma Barrera (Ambiente 107)"
+            : selectedSpace === "3"
+              ? "la Coordinación de Biblioteca"
+              : "la Coordinación de Formación";
         toast.info(
-          "Solicitud recibida. La reserva está pendiente de aprobación por la Coordinación de Formación.",
+          `Solicitud de prereserva recibida. Queda pendiente de autorización por ${coordName}.`,
           { duration: 6000 },
         );
       } else {

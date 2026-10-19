@@ -1,5 +1,28 @@
 # Registro de Decisiones (Decisions Log)
 
+## ADR-012: Restablecimiento de Flujo de Prereserva en Ambiente 107, Vista de Horarios Continuos en Calendario y Acceso Permanente a Aprobaciones
+
+**Fecha:** 2026-10-18
+**Capa:** Lógica de Negocio / Frontend / Calendario / Gobernanza
+**Responsable:** Arquitecto de Software Principal
+**Estado:** Aceptada
+
+### Contexto (ADR-012)
+
+1. Las reservas del **Ambiente 107** se estaban autohabilitando en `APPROVED` inmediato; el requerimiento de negocio exige que queden en estado de **prereserva (`PENDING`)** hasta que la funcionaria autorizada Norma Barrera (`nbarrerac@sena.edu.co`) las autorice en la plataforma.
+2. A la usuaria Norma Barrera no le cargaba de forma confiable el modal de autorización porque este solo estaba montado en la vista de panel administrativo y dependía exclusivamente del match estricto del correo en la carga inicial sin botón flotante de acceso persistente.
+3. En la disponibilidad de ambientes, el Ambiente 107 se renderizaba bajo la cuadrícula de 3 turnos fijos (Mañana, Tarde, Noche) propios de ambientes de formación estándar en vez del esquema de horarios continuos (con hora de inicio y fin exacta) como Auditorio, Subdirección y Biblioteca.
+4. Se solicitó además integrar la skill oficial de despliegue a Vercel en el proyecto.
+
+### Decisión (ADR-012)
+
+1. **Estado Inicial en Prereserva:** En [`reservationActions.ts`](file:///d:/mesa-soporte-tecnico/src/features/reservations/actions/reservationActions.ts), tanto en reservas individuales como en lote, las solicitudes de instructores y contratistas para el Ambiente 107 se configuran en `initialStatus = "PENDING"` (`needsApproval = true`), notificando a Norma Barrera para su gestión.
+2. **Modal de Autorización Omnipresente:** Se montó [`Ambiente107ApprovalModal.tsx`](file:///d:/mesa-soporte-tecnico/src/features/reservations/components/Ambiente107ApprovalModal.tsx) tanto en `DashboardContent.tsx` como en [`UserRequestForm.tsx`](file:///d:/mesa-soporte-tecnico/src/features/requests/components/UserRequestForm.tsx). Se añadió fallback con `supabase.auth.getUser()` y botón flotante interactivo con indicador de solicitudes pendientes para que la coordinadora siempre pueda invocarlo.
+3. **Vista de Horarios Continuos en Calendario:** En [`CalendarView.tsx`](file:///d:/mesa-soporte-tecnico/src/features/assignments/components/CalendarView.tsx), se unificó la lógica bajo `isSpecialReservationSpace` (abarcando Auditorio, Subdirección, Biblioteca y Ambiente 107), eliminando la partición de 3 jornadas rígidas y mostrando bloques por hora exacta con estilo institucional esmeralda.
+4. **Instalación de Skill Vercel:** Se incorporó formalmente `deploy-to-vercel` en `.agents/skills/deploy-to-vercel/`.
+
+---
+
 ## ADR-011: Habilitación de Reserva Directa para Instructores en Ambiente 107 y Detección Robusta de Roles
 
 **Fecha:** 2026-10-18
