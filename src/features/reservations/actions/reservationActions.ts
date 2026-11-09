@@ -2005,3 +2005,234 @@ export async function syncReservationTicketAction(params: {
     return { success: false };
   }
 }
+
+export async function getEnvironmentsGlobalConfigAction() {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "environments_global_config")
+      .maybeSingle();
+
+    const val = (data?.value || {}) as {
+      tab_order?: number[];
+      disabled_area_ids?: number[];
+      disabled_special_spaces?: string[];
+      updated_at?: string;
+      updated_by?: string;
+    };
+
+    return {
+      success: true,
+      config: {
+        tab_order: Array.isArray(val.tab_order) ? val.tab_order : [],
+        disabled_area_ids: Array.isArray(val.disabled_area_ids)
+          ? val.disabled_area_ids
+          : [],
+        disabled_special_spaces: Array.isArray(val.disabled_special_spaces)
+          ? val.disabled_special_spaces
+          : [],
+        updated_at: val.updated_at,
+        updated_by: val.updated_by,
+      },
+    };
+  } catch (err: unknown) {
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error al consultar configuración de ambientes",
+      config: {
+        tab_order: [] as number[],
+        disabled_area_ids: [] as number[],
+        disabled_special_spaces: [] as string[],
+      },
+    };
+  }
+}
+
+export async function saveEnvironmentsTabOrderAction(tabOrder: number[]) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    if (!authUser) throw new Error("No autenticado");
+
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select(
+        "id, full_name, role, job_category, username, is_vip, perm_manage_assignments",
+      )
+      .eq("auth_id", authUser.id)
+      .single();
+
+    const roleLower = (publicUser?.role || "").toLowerCase();
+    const jobCatLower = (publicUser?.job_category || "").toLowerCase();
+    const cleanUsername = (publicUser?.username || "").toLowerCase().trim();
+
+    const isSuperAdmin = roleLower === "superadmin";
+    const isCoordinator =
+      jobCatLower === "coordinador" ||
+      roleLower === "coordinator" ||
+      !!publicUser?.perm_manage_assignments ||
+      ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].includes(
+        cleanUsername,
+      );
+
+    if (!isSuperAdmin && !isCoordinator) {
+      throw new Error(
+        "Solo las Coordinaciones y el SuperAdmin están autorizados para modificar y fijar el orden de las pestañas de los ambientes.",
+      );
+    }
+
+    const adminSupabase = getSupabaseAdmin();
+    const { data: existing } = await adminSupabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "environments_global_config")
+      .maybeSingle();
+
+    const currentVal = (existing?.value || {}) as {
+      tab_order?: number[];
+      disabled_area_ids?: number[];
+      disabled_special_spaces?: string[];
+    };
+
+    const newConfig = {
+      tab_order: tabOrder,
+      disabled_area_ids: Array.isArray(currentVal.disabled_area_ids)
+        ? currentVal.disabled_area_ids
+        : [],
+      disabled_special_spaces: Array.isArray(currentVal.disabled_special_spaces)
+        ? currentVal.disabled_special_spaces
+        : [],
+      updated_at: new Date().toISOString(),
+      updated_by: publicUser?.full_name || cleanUsername || "Coordinación",
+    };
+
+    const { error } = await adminSupabase.from("system_settings").upsert(
+      {
+        key: "environments_global_config",
+        value: newConfig,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    );
+
+    if (error) throw error;
+
+    revalidatePath("/");
+    revalidatePath("/dashboard");
+    revalidatePath("/admin");
+    return { success: true, config: newConfig };
+  } catch (err: unknown) {
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error al guardar el orden de los ambientes",
+    };
+  }
+}
+
+export async function toggleSpaceStatusBySuperAdminAction(params: {
+  areaId?: number;
+  specialSpaceId?: string;
+  enabled: boolean;
+}) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    if (!authUser) throw new Error("No autenticado");
+
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select("id, full_name, role, username")
+      .eq("auth_id", authUser.id)
+      .single();
+
+    const roleLower = (publicUser?.role || "").toLowerCase();
+    if (roleLower !== "superadmin") {
+      throw new Error(
+        "Acceso denegado: Únicamente el SuperAdmin tiene el poder de habilitar o deshabilitar espacios institucionales.",
+      );
+    }
+
+    const adminSupabase = getSupabaseAdmin();
+    const { data: existing } = await adminSupabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "environments_global_config")
+      .maybeSingle();
+
+    const currentVal = (existing?.value || {}) as {
+      tab_order?: number[];
+      disabled_area_ids?: number[];
+      disabled_special_spaces?: string[];
+    };
+
+    let disabledAreaIds = Array.isArray(currentVal.disabled_area_ids)
+      ? [...currentVal.disabled_area_ids]
+      : [];
+    let disabledSpecialSpaces = Array.isArray(
+      currentVal.disabled_special_spaces,
+    )
+      ? [...currentVal.disabled_special_spaces]
+      : [];
+
+    if (typeof params.areaId === "number") {
+      if (params.enabled) {
+        disabledAreaIds = disabledAreaIds.filter((id) => id !== params.areaId);
+      } else if (!disabledAreaIds.includes(params.areaId)) {
+        disabledAreaIds.push(params.areaId);
+      }
+    }
+
+    if (params.specialSpaceId) {
+      if (params.enabled) {
+        disabledSpecialSpaces = disabledSpecialSpaces.filter(
+          (id) => id !== params.specialSpaceId,
+        );
+      } else if (!disabledSpecialSpaces.includes(params.specialSpaceId)) {
+        disabledSpecialSpaces.push(params.specialSpaceId);
+      }
+    }
+
+    const newConfig = {
+      tab_order: Array.isArray(currentVal.tab_order)
+        ? currentVal.tab_order
+        : [],
+      disabled_area_ids: disabledAreaIds,
+      disabled_special_spaces: disabledSpecialSpaces,
+      updated_at: new Date().toISOString(),
+      updated_by: publicUser?.full_name || "SuperAdmin",
+    };
+
+    const { error } = await adminSupabase.from("system_settings").upsert(
+      {
+        key: "environments_global_config",
+        value: newConfig,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    );
+
+    if (error) throw error;
+
+    revalidatePath("/");
+    revalidatePath("/dashboard");
+    revalidatePath("/admin");
+    return { success: true, config: newConfig };
+  } catch (err: unknown) {
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error al cambiar el estado del espacio",
+    };
+  }
+}

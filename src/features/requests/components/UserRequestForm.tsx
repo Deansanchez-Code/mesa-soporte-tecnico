@@ -6,15 +6,18 @@ import {
   Send,
   Calendar,
   ArrowLeft,
+  ArrowRight,
   CalendarRange,
-  Book, // Added Book icon
+  Book,
   Copy,
   ExternalLink,
   CheckCircle2,
   Clock,
   Loader2,
+  Power,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { toast } from "sonner";
 import PanicButtonModal from "./PanicButtonModal";
 import LibraryApprovalModal from "@/features/reservations/components/LibraryApprovalModal";
 import Ambiente107ApprovalModal from "@/features/reservations/components/Ambiente107ApprovalModal";
@@ -23,8 +26,14 @@ import AuditoriumMaintenanceModal from "@/features/reservations/components/Audit
 import {
   getAuditoriumMaintenanceConfig,
   DEFAULT_AUDITORIUM_MAINTENANCE,
+  getEnvironmentsGlobalConfig,
+  DEFAULT_ENVIRONMENTS_CONFIG,
 } from "@/features/reservations/services/maintenanceService";
-import { SpaceMaintenanceConfig } from "@/features/reservations/types";
+import { toggleSpaceStatusBySuperAdminAction } from "@/features/reservations/actions/reservationActions";
+import {
+  SpaceMaintenanceConfig,
+  EnvironmentsGlobalConfig,
+} from "@/features/reservations/types";
 import AssignmentManager from "@/features/assignments/components/AssignmentManager";
 import { User } from "./types";
 
@@ -230,12 +239,45 @@ export default function UserRequestForm({
   const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
   const [maintenanceConfig, setMaintenanceConfig] =
     useState<SpaceMaintenanceConfig>(DEFAULT_AUDITORIUM_MAINTENANCE);
+  const [envGlobalConfig, setEnvGlobalConfig] =
+    useState<EnvironmentsGlobalConfig>(DEFAULT_ENVIRONMENTS_CONFIG);
 
   useEffect(() => {
     getAuditoriumMaintenanceConfig().then((cfg) => {
       setMaintenanceConfig(cfg);
     });
+    getEnvironmentsGlobalConfig().then((cfg) => {
+      setEnvGlobalConfig(cfg);
+    });
   }, []);
+
+  const isSuperAdmin =
+    ((user?.role as string) || "").toLowerCase() === "superadmin";
+
+  const handleToggleSpecialSpace = async (
+    e: React.MouseEvent,
+    spaceId: string,
+    spaceName: string,
+    currentlyDisabled: boolean,
+  ) => {
+    e.stopPropagation();
+    const res = await toggleSpaceStatusBySuperAdminAction({
+      specialSpaceId: spaceId,
+      enabled: currentlyDisabled,
+    });
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    if (res.config) {
+      setEnvGlobalConfig(res.config);
+      toast.success(
+        currentlyDisabled
+          ? `${spaceName} HABILITADO.`
+          : `${spaceName} DESHABILITADO.`,
+      );
+    }
+  };
 
   const isAdmin = ["admin", "superadmin", "vip"].includes(
     ((user?.role as string) || "").toLowerCase(),
@@ -299,54 +341,189 @@ export default function UserRequestForm({
     isPlanta ||
     isVip;
 
-  // --- VISTA DE SELECCIÓN (3 COLUMNAS) ---
+  // --- VISTA DE SELECCIÓN (BENTO ASIMÉTRICO 12 COLUMNAS - IMPECCABLE DESIGN POLISH) ---
   if (view === "SELECTION") {
+    const isSpaceDisabled = (id: string) =>
+      envGlobalConfig.disabled_special_spaces.includes(id);
+
+    const spaceCards = [
+      {
+        id: "1" as const,
+        visible: isSuperAdmin || !isSpaceDisabled("1"),
+        disabled: isSpaceDisabled("1"),
+        title: "Auditorio Principal",
+        subtitle: "Capacitaciones institucionales y eventos masivos.",
+        badge: maintenanceConfig.is_active ? "En Remodelación" : "Uso General",
+        badgeClass: maintenanceConfig.is_active
+          ? "bg-amber-100 text-amber-800 border border-amber-300 animate-pulse"
+          : "bg-sena-blue/10 text-sena-blue",
+        iconBg:
+          "bg-sena-blue/10 text-sena-blue group-hover:bg-sena-blue group-hover:text-white",
+        borderHover: "hover:border-sena-blue",
+        accentBar: "bg-sena-blue",
+        icon: Calendar,
+        onClick: () => {
+          if (isSpaceDisabled("1") && !isSuperAdmin) {
+            toast.error(
+              "El Auditorio se encuentra deshabilitado temporalmente.",
+            );
+            return;
+          }
+          if (
+            maintenanceConfig.is_active &&
+            !["admin", "superadmin"].includes(
+              ((user?.role as string) || "").toLowerCase(),
+            )
+          ) {
+            setShowMaintenanceModal(true);
+            return;
+          }
+          setSelectedReservationSpace("1");
+          handleViewChange("RESERVATION");
+        },
+      },
+      {
+        id: "2" as const,
+        visible: canSeeSubdireccion && (isSuperAdmin || !isSpaceDisabled("2")),
+        disabled: isSpaceDisabled("2"),
+        title: "Subdirección",
+        subtitle: "Reuniones ejecutivas y de alta gerencia.",
+        badge: "VIP / Planta",
+        badgeClass: "bg-orange-100 text-sena-orange",
+        iconBg:
+          "bg-orange-50 text-sena-orange group-hover:bg-sena-orange group-hover:text-white",
+        borderHover: "hover:border-sena-orange",
+        accentBar: "bg-sena-orange",
+        icon: Calendar,
+        onClick: () => {
+          if (isSpaceDisabled("2") && !isSuperAdmin) return;
+          setSelectedReservationSpace("2");
+          handleViewChange("RESERVATION");
+        },
+      },
+      {
+        id: "3" as const,
+        visible: canSeeBiblioteca && (isSuperAdmin || !isSpaceDisabled("3")),
+        disabled: isSpaceDisabled("3"),
+        title: "Biblioteca",
+        subtitle: "Entornos de consulta, lectura y aprendizaje.",
+        badge: "Académico",
+        badgeClass: "bg-sena-blue/10 text-sena-blue",
+        iconBg:
+          "bg-sena-blue/10 text-sena-blue group-hover:bg-sena-blue group-hover:text-white",
+        borderHover: "hover:border-sena-blue",
+        accentBar: "bg-sena-blue",
+        icon: Book,
+        onClick: () => {
+          if (isSpaceDisabled("3") && !isSuperAdmin) return;
+          setSelectedReservationSpace("3");
+          handleViewChange("RESERVATION");
+        },
+      },
+      {
+        id: "4" as const,
+        visible: canSeeAmbiente107 && (isSuperAdmin || !isSpaceDisabled("4")),
+        disabled: isSpaceDisabled("4"),
+        title: "Ambiente 107",
+        subtitle: "Formación y sesiones técnicas especializadas.",
+        badge: "Prerreserva",
+        badgeClass: "bg-emerald-100 text-emerald-800",
+        iconBg:
+          "bg-emerald-50 text-sena-green group-hover:bg-sena-green group-hover:text-white",
+        borderHover: "hover:border-sena-green",
+        accentBar: "bg-sena-green",
+        icon: Calendar,
+        onClick: () => {
+          if (isSpaceDisabled("4") && !isSuperAdmin) return;
+          setSelectedReservationSpace("4");
+          handleViewChange("RESERVATION");
+        },
+      },
+      {
+        id: "5" as const,
+        visible: canSeeAmbiente107 && (isSuperAdmin || !isSpaceDisabled("5")),
+        disabled: isSpaceDisabled("5"),
+        title: "Ambiente de Cocina",
+        subtitle: "Talleres gastronómicos y formación en cocina.",
+        badge: "Prerreserva",
+        badgeClass: "bg-amber-100 text-amber-800",
+        iconBg:
+          "bg-amber-50 text-amber-600 group-hover:bg-sena-orange group-hover:text-white",
+        borderHover: "hover:border-sena-orange",
+        accentBar: "bg-sena-orange",
+        icon: Calendar,
+        onClick: () => {
+          if (isSpaceDisabled("5") && !isSuperAdmin) return;
+          setSelectedReservationSpace("5");
+          handleViewChange("RESERVATION");
+        },
+      },
+    ].filter((c) => c.visible);
+
     return (
-      <div className="w-full max-w-[1400px] mx-auto animate-in fade-in zoom-in duration-700 px-4 py-8">
-        <div className="mb-12 text-center group">
-          <h2 className="text-4xl lg:text-5xl font-black text-sena-blue tracking-tight transition-transform duration-500 group-hover:scale-105">
-            ¿En qué podemos{" "}
-            <span className="text-sena-green">ayudarte hoy?</span>
-          </h2>
-          <div className="w-24 h-1.5 bg-sena-green mx-auto mt-4 rounded-full opacity-50 group-hover:w-48 transition-all duration-500" />
-          <p className="text-gray-500 mt-6 font-semibold text-lg max-w-2xl mx-auto">
-            Hemos organizado nuestras herramientas para brindarte una respuesta
-            más ágil y efectiva.
-          </p>
+      <div className="w-full max-w-[1600px] mx-auto animate-in fade-in duration-500 px-2 sm:px-4 py-4">
+        {/* ENCABEZADO COMPACTO Y EDITORIAL */}
+        <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200/80 pb-5">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sena-green/10 text-sena-green text-xs font-black uppercase tracking-wider mb-2">
+              <span className="w-2 h-2 rounded-full bg-sena-green animate-ping" />
+              Portal Institucional de Espacios y Ambientes
+            </div>
+            <h2 className="text-3xl lg:text-4xl font-black text-sena-blue tracking-tight">
+              ¿En qué podemos{" "}
+              <span className="text-sena-green">ayudarte hoy?</span>
+            </h2>
+            <p className="text-slate-500 mt-1 font-medium text-sm sm:text-base">
+              Gestiona tus reservas de espacios estratégicos y consulta la
+              disponibilidad en tiempo real sin desplazamientos verticales.
+            </p>
+          </div>
+
+          <button
+            onClick={onCancel}
+            className="group self-start md:self-auto px-5 py-2.5 bg-white border-2 border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 hover:border-sena-blue hover:text-sena-blue transition-all text-xs font-black flex items-center gap-2 shadow-2xs cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            FINALIZAR SESIÓN
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-stretch">
-          {/* COLUMNA 1: RESUMEN DE EVENTOS DE HOY */}
-          <div className="flex flex-col gap-8 h-full bg-slate-50/50 rounded-[3rem] p-4 lg:p-8 border border-slate-100/50">
-            <div className="flex items-center gap-3 px-4">
-              <div className="w-3 h-8 bg-sena-green rounded-full shadow-sm shadow-green-200" />
-              <h4 className="text-sm font-black uppercase tracking-[0.2em] text-gray-400 flex items-center gap-1.5">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sena-green opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-sena-green"></span>
-                </span>
-                Eventos de Hoy
-              </h4>
+        {/* BENTO GRID 12 COLUMNAS (3 - 6 - 3) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          {/* COLUMNA 1 (3 COLS): AGENDA / EVENTOS DE HOY */}
+          <div className="lg:col-span-3 flex flex-col bg-slate-50/80 rounded-3xl p-5 border border-slate-200/80 shadow-xs">
+            <div className="flex items-center justify-between mb-4 px-1">
+              <div className="flex items-center gap-2.5">
+                <div className="w-2.5 h-6 bg-sena-green rounded-full" />
+                <h4 className="text-xs font-black uppercase tracking-widest text-sena-blue flex items-center gap-1.5">
+                  Eventos de Hoy
+                </h4>
+              </div>
+              <span className="text-[11px] font-bold bg-sena-green/15 text-sena-green px-2.5 py-0.5 rounded-full">
+                {todayReservations.length} activos
+              </span>
             </div>
 
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm flex flex-col gap-4 flex-grow overflow-y-auto max-h-[380px] scrollbar-thin scrollbar-thumb-gray-200 min-h-[320px]">
+            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs flex flex-col gap-3 flex-1 overflow-y-auto max-h-[420px] scrollbar-thin scrollbar-thumb-gray-200 min-h-[300px]">
               {loadingReservations ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400">
-                  <Loader2 className="w-8 h-8 animate-spin text-sena-green" />
-                  <span className="text-xs font-bold">Cargando eventos...</span>
+                <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400 h-full">
+                  <Loader2 className="w-7 h-7 animate-spin text-sena-green" />
+                  <span className="text-xs font-bold">Cargando agenda...</span>
                 </div>
               ) : todayReservations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400 text-center h-full">
-                  <Clock className="w-10 h-10 text-slate-300" />
+                  <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center mb-1">
+                    <Clock className="w-6 h-6 text-slate-300" />
+                  </div>
                   <span className="text-sm font-black text-slate-700">
-                    No hay reservas
+                    Sin reservas hoy
                   </span>
-                  <span className="text-xs">
-                    No se han registrado eventos para hoy.
+                  <span className="text-xs text-slate-400 max-w-[180px]">
+                    No se han registrado eventos programados para el día de hoy.
                   </span>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {todayReservations.map((res) => {
                     const start = new Date(res.start_time);
                     const end = new Date(res.end_time);
@@ -366,39 +543,37 @@ export default function UserRequestForm({
                     return (
                       <div
                         key={res.id}
-                        className={`p-4 rounded-2xl border border-l-4 shadow-sm flex flex-col gap-1.5 transition-all hover:scale-[1.01] ${
+                        className={`p-3.5 rounded-xl border border-l-4 shadow-2xs flex flex-col gap-1 transition-all ${
                           isCocina
-                            ? "bg-amber-50/50 border-amber-100 border-l-amber-600"
+                            ? "bg-amber-50/50 border-amber-100 border-l-sena-orange"
                             : is107
-                              ? "bg-emerald-50/50 border-emerald-100 border-l-emerald-600"
+                              ? "bg-emerald-50/50 border-emerald-100 border-l-sena-green"
                               : isLib
-                                ? "bg-purple-50/50 border-purple-100 border-l-purple-600"
+                                ? "bg-blue-50/40 border-blue-100 border-l-sena-blue"
                                 : isSub
                                   ? "bg-orange-50/50 border-orange-100 border-l-sena-orange"
                                   : "bg-blue-50/50 border-blue-100 border-l-sena-blue"
                         }`}
                       >
                         <div className="flex justify-between items-start gap-2">
-                          <span className="font-black text-sm text-slate-800 leading-tight line-clamp-2">
+                          <span className="font-bold text-xs text-slate-800 leading-snug line-clamp-2">
                             {res.title}
                           </span>
                           <span
-                            className={`text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full shrink-0 ${
+                            className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full shrink-0 ${
                               isCocina
                                 ? "bg-amber-100 text-amber-800"
                                 : is107
                                   ? "bg-emerald-100 text-emerald-800"
-                                  : isLib
-                                    ? "bg-purple-100 text-purple-700"
-                                    : isSub
-                                      ? "bg-orange-100 text-sena-orange"
-                                      : "bg-blue-100 text-sena-blue"
+                                  : isSub
+                                    ? "bg-orange-100 text-sena-orange"
+                                    : "bg-blue-100 text-sena-blue"
                             }`}
                           >
                             {isCocina
-                              ? "Ambiente de Cocina"
+                              ? "Cocina"
                               : is107
-                                ? "Ambiente 107"
+                                ? "Amb. 107"
                                 : isLib
                                   ? "Biblioteca"
                                   : isSub
@@ -406,14 +581,12 @@ export default function UserRequestForm({
                                     : "Auditorio"}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center text-xs font-semibold text-slate-500 mt-1">
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>{`${formatTime(start)} - ${formatTime(end)}`}</span>
-                          </div>
+                        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 mt-0.5">
+                          <Clock className="w-3 h-3 text-sena-green" />
+                          <span>{`${formatTime(start)} - ${formatTime(end)}`}</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 font-medium">
-                          Por: {res.users?.full_name || "Funcionario"}
+                        <span className="text-[10px] text-slate-400 font-medium truncate">
+                          Responsable: {res.users?.full_name || "Funcionario"}
                         </span>
                       </div>
                     );
@@ -423,200 +596,157 @@ export default function UserRequestForm({
             </div>
           </div>
 
-          {/* COLUMNA 2: RESERVAS */}
-          <div className="flex flex-col gap-8 h-full bg-slate-50/50 rounded-[3rem] p-4 lg:p-8 border border-slate-100/50">
-            <div className="flex items-center gap-3 px-4">
-              <div className="w-3 h-8 bg-sena-blue rounded-full shadow-sm shadow-blue-200" />
-              <h4 className="text-sm font-black uppercase tracking-[0.2em] text-gray-400">
-                Reservas & Espacios
-              </h4>
+          {/* COLUMNA 2 (6 COLS): RESERVAS & ESPACIOS (REORGANIZADO EN BENTO GRID 2 COLUMNAS COMPACTAS) */}
+          <div className="lg:col-span-6 flex flex-col bg-slate-50/80 rounded-3xl p-5 border border-slate-200/80 shadow-xs">
+            <div className="flex items-center justify-between mb-4 px-1">
+              <div className="flex items-center gap-2.5">
+                <div className="w-2.5 h-6 bg-sena-blue rounded-full" />
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-sena-blue">
+                    Reservas & Espacios Institucionales
+                  </h4>
+                </div>
+              </div>
+              <span className="text-[11px] font-semibold text-slate-500">
+                Selecciona un espacio para agendar
+              </span>
             </div>
 
-            <div className="flex flex-col gap-5 h-full">
-              {/* AUDITORIO */}
-              <button
-                onClick={() => {
-                  if (
-                    maintenanceConfig.is_active &&
-                    !["admin", "superadmin"].includes(
-                      ((user?.role as string) || "").toLowerCase(),
-                    )
-                  ) {
-                    setShowMaintenanceModal(true);
-                    return;
-                  }
-                  setSelectedReservationSpace("1");
-                  handleViewChange("RESERVATION");
-                }}
-                className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-sena-blue transition-all duration-300 text-left w-full h-full relative"
-              >
-                {maintenanceConfig.is_active && (
-                  <span className="absolute top-4 right-4 bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-300 shadow-2xs animate-pulse">
-                    En Remodelación
-                  </span>
-                )}
-                <div className="bg-blue-50 p-5 rounded-2xl group-hover:bg-sena-blue transition-all duration-300 group-hover:rotate-6">
-                  <Calendar className="w-10 h-10 text-sena-blue group-hover:text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-xl font-black text-gray-800 group-hover:text-sena-blue transition-colors">
-                    Auditorio
-                  </h3>
-                  <p className="text-sm text-gray-500 mt-1 font-semibold italic opacity-70 group-hover:opacity-100">
-                    Capacitaciones institucionales.
-                  </p>
-                </div>
-              </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 flex-1 content-start">
+              {spaceCards.map((sp, idx) => {
+                const IconComponent = sp.icon;
+                // Si hay un número impar de espacios (ej. 5), el primero (Auditorio) ocupa las 2 columnas como tarjeta destacada compacta
+                const isFeaturedWide = spaceCards.length % 2 === 1 && idx === 0;
 
-              {/* SUBDIRECCIÓN */}
-              {canSeeSubdireccion && (
-                <button
-                  onClick={() => {
-                    setSelectedReservationSpace("2");
-                    handleViewChange("RESERVATION");
-                  }}
-                  className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-sena-orange transition-all duration-300 text-left w-full h-full"
-                >
-                  <div className="bg-orange-50 p-5 rounded-2xl group-hover:bg-sena-orange transition-all duration-300 group-hover:-rotate-6">
-                    <Calendar className="w-10 h-10 text-sena-orange group-hover:text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-black text-gray-800 group-hover:text-sena-orange transition-colors">
-                      Subdirección
-                    </h3>
-                    <p className="text-sm text-gray-500 mt-1 font-semibold italic opacity-70 group-hover:opacity-100">
-                      Reuniones de alta gerencia.
-                    </p>
-                  </div>
-                </button>
-              )}
-
-              {/* BIBLIOTECA */}
-              {canSeeBiblioteca && (
-                <button
-                  onClick={() => {
-                    setSelectedReservationSpace("3");
-                    handleViewChange("RESERVATION");
-                  }}
-                  className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-purple-500 transition-all duration-300 text-left w-full h-full"
-                >
-                  <div className="bg-purple-50 p-5 rounded-2xl group-hover:bg-purple-600 transition-all duration-300 group-hover:scale-110">
-                    <Book className="w-10 h-10 text-purple-600 group-hover:text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-black text-gray-800 group-hover:text-purple-600 transition-colors">
-                      Biblioteca
-                    </h3>
-                    <p className="text-sm text-gray-500 mt-1 font-semibold italic opacity-70 group-hover:opacity-100">
-                      Entornos de aprendizaje.
-                    </p>
-                  </div>
-                </button>
-              )}
-
-              {/* AMBIENTE 107 */}
-              {canSeeAmbiente107 && (
-                <>
-                  <button
-                    onClick={() => {
-                      setSelectedReservationSpace("4");
-                      handleViewChange("RESERVATION");
+                return (
+                  <div
+                    key={sp.id}
+                    onClick={sp.onClick}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        sp.onClick();
+                      }
                     }}
-                    className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-emerald-500 transition-all duration-300 text-left w-full h-full relative"
+                    className={`group relative bg-white rounded-2xl p-4 sm:p-5 border-2 border-slate-100 ${sp.borderHover} shadow-2xs hover:shadow-md transition-all duration-200 text-left flex items-center gap-4 cursor-pointer overflow-hidden ${
+                      isFeaturedWide ? "sm:col-span-2" : ""
+                    } ${sp.disabled ? "opacity-60 bg-red-50/30 border-red-200" : ""}`}
                   >
-                    <div className="bg-emerald-50 p-5 rounded-2xl group-hover:bg-emerald-600 transition-all duration-300 group-hover:scale-110">
-                      <Calendar className="w-10 h-10 text-emerald-600 group-hover:text-white" />
+                    {/* Barra lateral institucional */}
+                    <div
+                      className={`absolute left-0 top-0 bottom-0 w-1.5 ${sp.accentBar}`}
+                    />
+
+                    {/* Icono */}
+                    <div
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-colors duration-200 ${sp.iconBg}`}
+                    >
+                      <IconComponent className="w-6 h-6" />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-xl font-black text-gray-800 group-hover:text-emerald-700 transition-colors">
-                          Ambiente 107
+
+                    {/* Contenido */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <h3 className="text-base font-black text-slate-800 group-hover:text-sena-blue transition-colors truncate">
+                          {sp.title}
                         </h3>
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                          Habilitado
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full shrink-0 ${
+                            sp.disabled
+                              ? "bg-red-100 text-red-700"
+                              : sp.badgeClass
+                          }`}
+                        >
+                          {sp.disabled ? "Deshabilitado" : sp.badge}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500 mt-1 font-semibold italic opacity-70 group-hover:opacity-100">
-                        Formación y sesiones especializadas.
+                      <p className="text-xs text-slate-500 font-medium line-clamp-1">
+                        {sp.subtitle}
                       </p>
                     </div>
-                  </button>
 
-                  {/* AMBIENTE DE COCINA */}
-                  <button
-                    onClick={() => {
-                      setSelectedReservationSpace("5");
-                      handleViewChange("RESERVATION");
-                    }}
-                    className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-amber-500 transition-all duration-300 text-left w-full h-full relative"
-                  >
-                    <div className="bg-amber-50 p-5 rounded-2xl group-hover:bg-amber-600 transition-all duration-300 group-hover:scale-110">
-                      <Calendar className="w-10 h-10 text-amber-600 group-hover:text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-xl font-black text-gray-800 group-hover:text-amber-700 transition-colors">
-                          Ambiente de Cocina
-                        </h3>
-                        <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
-                          Prerreserva
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500 mt-1 font-semibold italic opacity-70 group-hover:opacity-100">
-                        Talleres gastronómicos y formación en cocina.
-                      </p>
-                    </div>
-                  </button>
-                </>
-              )}
+                    {/* Toggle exclusivo de SuperAdmin directo en la card o flecha de acción */}
+                    {isSuperAdmin ? (
+                      <button
+                        type="button"
+                        onClick={(e) =>
+                          handleToggleSpecialSpace(
+                            e,
+                            sp.id,
+                            sp.title,
+                            sp.disabled,
+                          )
+                        }
+                        className={`p-2 rounded-lg border text-xs font-bold flex items-center gap-1 shrink-0 transition ${
+                          sp.disabled
+                            ? "bg-red-600 text-white border-red-600 hover:bg-emerald-600"
+                            : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-red-50 hover:text-red-600"
+                        }`}
+                        title={
+                          sp.disabled
+                            ? "SuperAdmin: Clic para Habilitar espacio"
+                            : "SuperAdmin: Clic para Deshabilitar espacio"
+                        }
+                      >
+                        <Power className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-sena-green group-hover:translate-x-1 transition-all shrink-0" />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* COLUMNA 3: INFO & SERVICIOS */}
-          <div className="flex flex-col gap-8 h-full">
-            <div className="flex items-center gap-3 px-4">
-              <div className="w-3 h-8 bg-pink-500 rounded-full shadow-sm shadow-pink-200" />
-              <h4 className="text-sm font-black uppercase tracking-[0.2em] text-gray-400">
-                Servicios & Consulta
-              </h4>
+          {/* COLUMNA 3 (3 COLS): SERVICIOS & CONSULTA DE DISPONIBILIDAD (COLORES INSTITUCIONALES SENA) */}
+          <div className="lg:col-span-3 flex flex-col bg-slate-50/80 rounded-3xl p-5 border border-slate-200/80 shadow-xs">
+            <div className="flex items-center justify-between mb-4 px-1">
+              <div className="flex items-center gap-2.5">
+                <div className="w-2.5 h-6 bg-sena-orange rounded-full" />
+                <h4 className="text-xs font-black uppercase tracking-widest text-sena-blue">
+                  Servicios & Consulta
+                </h4>
+              </div>
+              <span className="text-[10px] font-black uppercase text-sena-green bg-sena-green/10 px-2 py-0.5 rounded-full">
+                En Vivo
+              </span>
             </div>
 
-            <div className="flex flex-col gap-6 h-full justify-center">
-              {/* DISPONIBILIDAD */}
-              <button
-                onClick={() => handleViewChange("AVAILABILITY")}
-                className="group relative bg-gradient-to-br from-pink-500 to-rose-600 p-10 rounded-[2.5rem] shadow-lg hover:shadow-2xl transition-all duration-500 flex flex-col items-center text-center gap-6 h-full min-h-[450px] justify-center overflow-hidden border-b-8 border-pink-700 hover:border-b-4 hover:translate-y-1"
-              >
-                <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -mr-24 -mt-24 group-hover:scale-150 transition-transform duration-700 blur-xl" />
+            <button
+              onClick={() => handleViewChange("AVAILABILITY")}
+              className="group relative flex-1 bg-gradient-to-br from-sena-blue via-[#053b75] to-[#032244] p-7 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center text-center justify-between overflow-hidden border-b-4 border-sena-green cursor-pointer min-h-[300px]"
+            >
+              <div className="w-full flex items-center justify-between text-[10px] font-black tracking-widest uppercase text-white/70">
+                <span>Calendario Maestro</span>
+                <span className="px-2 py-0.5 rounded bg-sena-green text-white">
+                  SENA TIC
+                </span>
+              </div>
 
-                <div className="relative z-10 bg-white/20 p-8 rounded-[2rem] backdrop-blur-md group-hover:bg-white group-hover:scale-110 transition-all duration-500 shadow-xl border border-white/30 group-hover:border-transparent">
-                  <CalendarRange className="w-16 h-16 text-white group-hover:text-pink-600" />
+              <div className="my-4 flex flex-col items-center gap-4">
+                <div className="bg-white/10 p-6 rounded-2xl backdrop-blur-xs group-hover:bg-sena-green group-hover:scale-105 transition-all duration-300 border border-white/20 shadow-lg">
+                  <CalendarRange className="w-12 h-12 text-white" />
                 </div>
-                <div className="relative z-10 space-y-3">
-                  <h3 className="text-3xl font-black text-white">
+                <div className="space-y-1.5">
+                  <h3 className="text-2xl font-black text-white tracking-tight">
                     Disponibilidad
                   </h3>
-                  <p className="text-base text-pink-50 leading-relaxed font-semibold opacity-90">
-                    Ambientes y programación en tiempo real.
+                  <p className="text-xs sm:text-sm text-blue-100 leading-relaxed font-medium max-w-[220px]">
+                    Consulta programación de ambientes, horarios de formación y
+                    reservas en tiempo real.
                   </p>
                 </div>
+              </div>
 
-                <div className="absolute top-4 right-6 text-white/40 text-[10px] font-black tracking-widest uppercase">
-                  Consulta Pública
-                </div>
-              </button>
-            </div>
+              <div className="w-full py-2.5 px-4 rounded-xl bg-white/10 group-hover:bg-sena-green text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors">
+                <span>Abrir Calendario de Ambientes</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </button>
           </div>
-        </div>
-
-        <div className="mt-20 text-center">
-          <button
-            onClick={onCancel}
-            className="group px-10 py-4 bg-white border-2 border-slate-200 text-slate-400 rounded-3xl hover:bg-slate-50 hover:border-slate-300 hover:text-slate-800 transition-all text-sm font-black flex items-center gap-3 mx-auto shadow-sm"
-          >
-            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-2 transition-transform" />
-            FINALIZAR SESIÓN
-          </button>
         </div>
 
         {/* Modal de Aprobaciones de Biblioteca y Ambiente 107 / Cocina */}
@@ -653,7 +783,7 @@ export default function UserRequestForm({
     <div
       className={`w-full mx-auto animate-in fade-in slide-in-from-right-8 duration-300 ${
         view === "RESERVATION" || view === "AVAILABILITY"
-          ? "max-w-6xl"
+          ? "max-w-[1560px]"
           : "max-w-4xl"
       }`}
     >
@@ -674,8 +804,8 @@ export default function UserRequestForm({
                 : view === "RESERVATION"
                   ? "bg-blue-100 text-sena-blue"
                   : view === "AVAILABILITY"
-                    ? "bg-pink-100 text-pink-600"
-                    : "bg-purple-100 text-purple-600"
+                    ? "bg-sena-blue/10 text-sena-blue"
+                    : "bg-sena-green/10 text-sena-green"
             }`}
           >
             {view === "TICKET" ? (

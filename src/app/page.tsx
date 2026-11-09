@@ -374,8 +374,8 @@ function HomeContent() {
 
       {/* TARJETA PRINCIPAL */}
       <div
-        className={`bg-white w-full rounded-xl shadow-2xl overflow-hidden border-t-4 border-sena-green transition-all duration-500 ${
-          viewState === "request" ? "max-w-7xl" : "max-w-md"
+        className={`bg-white w-full rounded-2xl shadow-2xl overflow-hidden border-t-4 border-sena-green transition-all duration-500 ${
+          viewState === "request" ? "max-w-[1640px]" : "max-w-md"
         }`}
       >
         {/* HEADER (Solo visible si no estamos en el formulario de solicitud) */}

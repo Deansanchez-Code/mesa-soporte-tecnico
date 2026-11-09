@@ -23,3 +23,11 @@ export interface SpaceMaintenanceConfig {
   custom_title?: string;
   custom_message?: string;
 }
+
+export interface EnvironmentsGlobalConfig {
+  tab_order: number[]; // Ordered array of area IDs
+  disabled_area_ids: number[]; // Area IDs disabled by superadmin (in Gestión de Ambientes)
+  disabled_special_spaces: string[]; // '1' | '2' | '3' | '4' | '5' disabled by superadmin
+  updated_at?: string;
+  updated_by?: string;
+}

@@ -24,8 +24,10 @@ import { Skeleton } from "@/components/Skeleton";
 import {
   getAuditoriumMaintenanceConfig,
   DEFAULT_AUDITORIUM_MAINTENANCE,
+  getEnvironmentsGlobalConfig,
+  DEFAULT_ENVIRONMENTS_CONFIG,
 } from "../services/maintenanceService";
-import { SpaceMaintenanceConfig } from "../types";
+import { SpaceMaintenanceConfig, EnvironmentsGlobalConfig } from "../types";
 
 interface AuditoriumReservationFormProps {
   user: UserProfile["profile"];
@@ -186,6 +188,11 @@ export default function AuditoriumReservationForm({
 
   const [maintenanceConfig, setMaintenanceConfig] =
     useState<SpaceMaintenanceConfig>(DEFAULT_AUDITORIUM_MAINTENANCE);
+  const [envGlobalConfig, setEnvGlobalConfig] =
+    useState<EnvironmentsGlobalConfig>(DEFAULT_ENVIRONMENTS_CONFIG);
+
+  const isSuperAdmin =
+    ((user?.role as string) || "").toLowerCase() === "superadmin";
 
   // Verificar si el usuario actual es Coordinador(a) o Administrador para permitir asignar reservas a terceros
   const canAssignToOthers = (() => {
@@ -228,10 +235,13 @@ export default function AuditoriumReservationForm({
     });
   }, [canAssignToOthers]);
 
-  // Cargar configuración de mantenimiento
+  // Cargar configuración de mantenimiento y estado global de espacios
   useEffect(() => {
     getAuditoriumMaintenanceConfig().then((cfg) => {
       setMaintenanceConfig(cfg);
+    });
+    getEnvironmentsGlobalConfig().then((cfg) => {
+      setEnvGlobalConfig(cfg);
     });
   }, []);
 
@@ -603,22 +613,25 @@ export default function AuditoriumReservationForm({
           <label className="block text-sm font-bold text-gray-700">
             Seleccionar Espacio
           </label>
-          <div className="flex gap-4">
-            <button
-              type="button"
-              onClick={() => setSelectedSpace("1")}
-              className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                selectedSpace === "1"
-                  ? "border-sena-green bg-sena-green/5 text-sena-green"
-                  : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-              }`}
-            >
-              <div className="w-10 h-10 rounded-full bg-sena-green/10 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-sena-green" />
-              </div>
-              <span className="font-bold text-sm">Auditorio Principal</span>
-              <span className="text-[10px] opacity-70">Uso General</span>
-            </button>
+          <div className="flex flex-wrap gap-3">
+            {(isSuperAdmin ||
+              !envGlobalConfig.disabled_special_spaces.includes("1")) && (
+              <button
+                type="button"
+                onClick={() => setSelectedSpace("1")}
+                className={`flex-1 min-w-[140px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                  selectedSpace === "1"
+                    ? "border-sena-green bg-sena-green/5 text-sena-green"
+                    : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
+                }`}
+              >
+                <div className="w-10 h-10 rounded-full bg-sena-green/10 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-sena-green" />
+                </div>
+                <span className="font-bold text-sm">Auditorio Principal</span>
+                <span className="text-[10px] opacity-70">Uso General</span>
+              </button>
+            )}
 
             {(() => {
               const u = user as { employment_type?: string; role?: string };
@@ -630,12 +643,16 @@ export default function AuditoriumReservationForm({
               const isAdmin = ["admin", "superadmin"].includes(
                 (u?.role || "").toLowerCase(),
               );
-              return isOfficial || isAdmin;
+              return (
+                (isOfficial || isAdmin) &&
+                (isSuperAdmin ||
+                  !envGlobalConfig.disabled_special_spaces.includes("2"))
+              );
             })() && (
               <button
                 type="button"
                 onClick={() => setSelectedSpace("2")}
-                className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                className={`flex-1 min-w-[140px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
                   selectedSpace === "2"
                     ? "border-sena-orange bg-sena-orange/5 text-sena-orange"
                     : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
@@ -649,57 +666,66 @@ export default function AuditoriumReservationForm({
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={() => setSelectedSpace("3")}
-              className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                selectedSpace === "3"
-                  ? "border-purple-500 bg-purple-50 text-purple-700 shadow-sm"
-                  : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-              }`}
-            >
-              <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-purple-600" />
-              </div>
-              <span className="font-bold text-sm">Biblioteca</span>
-              <span className="text-[10px] opacity-70">Exclusivo</span>
-            </button>
+            {(isSuperAdmin ||
+              !envGlobalConfig.disabled_special_spaces.includes("3")) && (
+              <button
+                type="button"
+                onClick={() => setSelectedSpace("3")}
+                className={`flex-1 min-w-[140px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                  selectedSpace === "3"
+                    ? "border-sena-blue bg-blue-50 text-sena-blue shadow-sm"
+                    : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
+                }`}
+              >
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-sena-blue" />
+                </div>
+                <span className="font-bold text-sm">Biblioteca</span>
+                <span className="text-[10px] opacity-70">Exclusivo</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setSelectedSpace("4")}
-              className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                selectedSpace === "4"
-                  ? "border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm ring-2 ring-emerald-500/20"
-                  : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-              }`}
-            >
-              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-emerald-600" />
-              </div>
-              <span className="font-bold text-sm">Ambiente 107</span>
-              <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                Prerreserva
-              </span>
-            </button>
+            {(isSuperAdmin ||
+              !envGlobalConfig.disabled_special_spaces.includes("4")) && (
+              <button
+                type="button"
+                onClick={() => setSelectedSpace("4")}
+                className={`flex-1 min-w-[140px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                  selectedSpace === "4"
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm ring-2 ring-emerald-500/20"
+                    : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
+                }`}
+              >
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-emerald-600" />
+                </div>
+                <span className="font-bold text-sm">Ambiente 107</span>
+                <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                  Prerreserva
+                </span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setSelectedSpace("5")}
-              className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                selectedSpace === "5"
-                  ? "border-amber-500 bg-amber-50 text-amber-800 shadow-sm ring-2 ring-amber-500/20"
-                  : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-              }`}
-            >
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-amber-600" />
-              </div>
-              <span className="font-bold text-sm">Ambiente de Cocina</span>
-              <span className="text-[10px] text-amber-700 font-semibold bg-amber-100/70 px-2 py-0.5 rounded-full">
-                Prerreserva
-              </span>
-            </button>
+            {(isSuperAdmin ||
+              !envGlobalConfig.disabled_special_spaces.includes("5")) && (
+              <button
+                type="button"
+                onClick={() => setSelectedSpace("5")}
+                className={`flex-1 min-w-[140px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                  selectedSpace === "5"
+                    ? "border-amber-500 bg-amber-50 text-amber-800 shadow-sm ring-2 ring-amber-500/20"
+                    : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
+                }`}
+              >
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-amber-600" />
+                </div>
+                <span className="font-bold text-sm">Ambiente de Cocina</span>
+                <span className="text-[10px] text-amber-700 font-semibold bg-amber-100/70 px-2 py-0.5 rounded-full">
+                  Prerreserva
+                </span>
+              </button>
+            )}
           </div>
         </div>
 

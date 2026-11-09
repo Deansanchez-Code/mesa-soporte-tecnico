@@ -40,8 +40,14 @@ import AuditTab from "@/features/audit/components/AuditTab";
 import {
   getAuditoriumMaintenanceAction,
   saveAuditoriumMaintenanceAction,
+  getEnvironmentsGlobalConfigAction,
+  toggleSpaceStatusBySuperAdminAction,
+  saveEnvironmentsTabOrderAction,
 } from "@/features/reservations/actions/reservationActions";
-import { SpaceMaintenanceConfig } from "@/features/reservations/types";
+import {
+  SpaceMaintenanceConfig,
+  EnvironmentsGlobalConfig,
+} from "@/features/reservations/types";
 import { toast } from "sonner";
 
 import {
@@ -153,10 +159,22 @@ export default function AdminDashboard() {
       custom_message: "",
     });
 
+  const [envGlobalConfig, setEnvGlobalConfig] =
+    useState<EnvironmentsGlobalConfig>({
+      tab_order: [],
+      disabled_area_ids: [],
+      disabled_special_spaces: [],
+    });
+
   useEffect(() => {
     getAuditoriumMaintenanceAction().then((res) => {
       if (res?.config) {
         setMaintenanceConfig(res.config as unknown as SpaceMaintenanceConfig);
+      }
+    });
+    getEnvironmentsGlobalConfigAction().then((res) => {
+      if (res?.config) {
+        setEnvGlobalConfig(res.config);
       }
     });
   }, []);
@@ -1253,23 +1271,93 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 )}
-                <ul className="space-y-2">
-                  {configData.areas.map((area) => (
-                    <li
-                      key={area.id}
-                      className="flex justify-between items-center bg-gray-50 p-2 rounded"
-                    >
-                      <span>{area.name}</span>
-                      {currentUser?.role !== "admin" && (
-                        <button
-                          onClick={() => handleDeleteConfig("areas", area.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </li>
-                  ))}
+                <ul className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                  {configData.areas.map((area) => {
+                    const isAreaDisabled =
+                      envGlobalConfig.disabled_area_ids.includes(area.id);
+                    const isSuperAdminRole =
+                      (currentUser?.role || "").toLowerCase() === "superadmin";
+                    return (
+                      <li
+                        key={area.id}
+                        className={`flex justify-between items-center p-2.5 rounded-lg border transition ${
+                          isAreaDisabled
+                            ? "bg-red-50/60 border-red-200 text-red-700"
+                            : "bg-gray-50 border-gray-100 text-gray-800"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className={`text-sm font-medium truncate ${
+                              isAreaDisabled ? "line-through opacity-75" : ""
+                            }`}
+                          >
+                            {area.name}
+                          </span>
+                          {isAreaDisabled && (
+                            <span className="text-[9px] font-black uppercase bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
+                              Inhabilitado
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {isSuperAdminRole && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const res =
+                                  await toggleSpaceStatusBySuperAdminAction({
+                                    areaId: area.id,
+                                    enabled: isAreaDisabled,
+                                  });
+                                if (res.error) {
+                                  toast.error(res.error);
+                                  return;
+                                }
+                                if (res.config) {
+                                  setEnvGlobalConfig(res.config);
+                                  toast.success(
+                                    isAreaDisabled
+                                      ? `Espacio "${area.name}" HABILITADO.`
+                                      : `Espacio "${area.name}" DESHABILITADO.`,
+                                  );
+                                }
+                              }}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                !isAreaDisabled
+                                  ? "bg-sena-green"
+                                  : "bg-gray-300"
+                              }`}
+                              title={
+                                isAreaDisabled
+                                  ? "Espacio Inhabilitado (Clic para Habilitar)"
+                                  : "Espacio Habilitado (Clic para Deshabilitar)"
+                              }
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                  !isAreaDisabled
+                                    ? "translate-x-4"
+                                    : "translate-x-0"
+                                }`}
+                              />
+                            </button>
+                          )}
+                          {isSuperAdminRole && (
+                            <button
+                              onClick={() =>
+                                handleDeleteConfig("areas", area.id)
+                              }
+                              className="text-red-500 hover:text-red-700 p-1"
+                              title="Eliminar Área"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
 
@@ -1316,6 +1404,271 @@ export default function AdminDashboard() {
                     </li>
                   ))}
                 </ul>
+              </div>
+
+              {/* CONTROL MAESTRO DE ESPACIOS Y RESERVAS (EXCLUSIVO SUPERADMIN) */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-sena-blue/20 md:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-5 border-b pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-sena-blue text-white flex items-center justify-center shadow-sm">
+                      <Shield className="w-5 h-5 text-sena-green" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-sena-blue text-base">
+                          Control Maestro de Habilitación de Espacios yOrden de
+                          Pestañas
+                        </h3>
+                        <span className="text-[10px] font-black uppercase bg-sena-blue/10 text-sena-blue px-2.5 py-0.5 rounded-full">
+                          Poder Exclusivo SuperAdmin
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        El SuperAdmin es el único con potestad para habilitar o
+                        deshabilitar espacios de reserva y formación en toda la
+                        plataforma.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {(currentUser?.role || "").toLowerCase() !== "superadmin" ? (
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 font-medium flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+                    Únicamente el rol SuperAdmin puede habilitar o deshabilitar
+                    espacios institucionales desde este panel.
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* 1. Espacios Principales de Reserva (Card 2 del Kiosko/Portal) */}
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-3">
+                        Espacios de Reserva Institucional (Tarjetas del Portal y
+                        Formulario)
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                        {[
+                          {
+                            id: "1",
+                            name: "Auditorio Principal",
+                            desc: "Capacitaciones y eventos",
+                          },
+                          {
+                            id: "2",
+                            name: "Subdirección",
+                            desc: "Reuniones gerenciales",
+                          },
+                          {
+                            id: "3",
+                            name: "Biblioteca",
+                            desc: "Entornos de aprendizaje",
+                          },
+                          {
+                            id: "4",
+                            name: "Ambiente 107",
+                            desc: "Prerreserva Coordinación",
+                          },
+                          {
+                            id: "5",
+                            name: "Ambiente de Cocina",
+                            desc: "Prerreserva Gastronomía",
+                          },
+                        ].map((sp) => {
+                          const isDisabled =
+                            envGlobalConfig.disabled_special_spaces.includes(
+                              sp.id,
+                            );
+                          return (
+                            <div
+                              key={sp.id}
+                              className={`p-4 rounded-xl border-2 transition-all flex flex-col justify-between gap-3 ${
+                                isDisabled
+                                  ? "bg-red-50/40 border-red-200"
+                                  : "bg-slate-50/70 border-slate-200 hover:border-sena-green"
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-bold text-sm text-slate-800">
+                                    {sp.name}
+                                  </span>
+                                  <span
+                                    className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                      isDisabled
+                                        ? "bg-red-100 text-red-700"
+                                        : "bg-emerald-100 text-emerald-800"
+                                    }`}
+                                  >
+                                    {isDisabled ? "Deshabilitado" : "Activo"}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                  {sp.desc}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-2 border-t border-slate-200/70">
+                                <span className="text-[11px] font-bold text-slate-600">
+                                  {isDisabled ? "Inactivo" : "Habilitado"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const res =
+                                      await toggleSpaceStatusBySuperAdminAction(
+                                        {
+                                          specialSpaceId: sp.id,
+                                          enabled: isDisabled,
+                                        },
+                                      );
+                                    if (res.error) {
+                                      toast.error(res.error);
+                                      return;
+                                    }
+                                    if (res.config) {
+                                      setEnvGlobalConfig(res.config);
+                                      toast.success(
+                                        isDisabled
+                                          ? `${sp.name} HABILITADO para reservas.`
+                                          : `${sp.name} DESHABILITADO.`,
+                                      );
+                                    }
+                                  }}
+                                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                                    !isDisabled
+                                      ? "bg-sena-green"
+                                      : "bg-gray-300"
+                                  }`}
+                                >
+                                  <span
+                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                      !isDisabled
+                                        ? "translate-x-5"
+                                        : "translate-x-0"
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* 2. Orden fijo de pestañas de ambientes */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">
+                          Orden Fijo de Pestañas en Calendario de Ambientes
+                        </h4>
+                        {envGlobalConfig.updated_by && (
+                          <span className="text-[11px] text-slate-400">
+                            Última modificación por:{" "}
+                            <strong>{envGlobalConfig.updated_by}</strong>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mb-3">
+                        Puedes reordenar las pestañas desde aquí o directamente
+                        en el botón{" "}
+                        <strong>&quot;Ordenar y Fijar Pestañas&quot;</strong>{" "}
+                        dentro de Gestión de Ambientes.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {configData.areas
+                          .filter(
+                            (a) =>
+                              (a.name.toUpperCase().includes("AMBIENTE") ||
+                                a.name.toUpperCase().includes("AUDITORIO") ||
+                                a.name.toUpperCase().includes("SUBDIRECCIÓN") ||
+                                a.name.toUpperCase().includes("BIBLIOTECA") ||
+                                a.name.toUpperCase().includes("COCINA")) &&
+                              !a.name.toUpperCase().includes("KIOSKO") &&
+                              !a.name
+                                .toUpperCase()
+                                .includes("AMBIENTE DE INSTRUCTORES"),
+                          )
+                          .sort((a, b) => {
+                            const idxA = envGlobalConfig.tab_order.indexOf(
+                              a.id,
+                            );
+                            const idxB = envGlobalConfig.tab_order.indexOf(
+                              b.id,
+                            );
+                            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                            if (idxA !== -1) return -1;
+                            if (idxB !== -1) return 1;
+                            return a.name.localeCompare(b.name);
+                          })
+                          .map((area, index, arr) => {
+                            const isAreaDisabled =
+                              envGlobalConfig.disabled_area_ids.includes(
+                                area.id,
+                              );
+                            return (
+                              <div
+                                key={area.id}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold ${
+                                  isAreaDisabled
+                                    ? "bg-red-50 border-red-200 text-red-600 line-through"
+                                    : "bg-slate-50 border-slate-200 text-slate-700"
+                                }`}
+                              >
+                                <span className="w-5 h-5 rounded-md bg-sena-blue text-white text-[10px] flex items-center justify-center">
+                                  {index + 1}
+                                </span>
+                                <span>{area.name}</span>
+                                <div className="flex items-center gap-1 ml-1">
+                                  <button
+                                    type="button"
+                                    disabled={index === 0}
+                                    onClick={async () => {
+                                      const ids = arr.map((x) => x.id);
+                                      const [moved] = ids.splice(index, 1);
+                                      ids.splice(index - 1, 0, moved);
+                                      const res =
+                                        await saveEnvironmentsTabOrderAction(
+                                          ids,
+                                        );
+                                      if (res.config) {
+                                        setEnvGlobalConfig(res.config);
+                                        toast.success("Orden actualizado.");
+                                      }
+                                    }}
+                                    className="px-1.5 py-0.5 bg-white border rounded hover:bg-sena-blue hover:text-white disabled:opacity-30 cursor-pointer"
+                                    title="Mover a la izquierda"
+                                  >
+                                    ←
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={index === arr.length - 1}
+                                    onClick={async () => {
+                                      const ids = arr.map((x) => x.id);
+                                      const [moved] = ids.splice(index, 1);
+                                      ids.splice(index + 1, 0, moved);
+                                      const res =
+                                        await saveEnvironmentsTabOrderAction(
+                                          ids,
+                                        );
+                                      if (res.config) {
+                                        setEnvGlobalConfig(res.config);
+                                        toast.success("Orden actualizado.");
+                                      }
+                                    }}
+                                    className="px-1.5 py-0.5 bg-white border rounded hover:bg-sena-blue hover:text-white disabled:opacity-30 cursor-pointer"
+                                    title="Mover a la derecha"
+                                  >
+                                    →
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* REMODELACIÓN / MANTENIMIENTO AUDITORIO */}
