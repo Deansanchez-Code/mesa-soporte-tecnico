@@ -6,6 +6,7 @@ import {
   createReservationAction,
   updateReservationAction,
   createReservationBatchAction,
+  syncReservationTicketAction,
 } from "../actions/reservationActions";
 import { ReservationSchema } from "../schemas";
 import { z } from "zod";
@@ -166,62 +167,18 @@ export function useReservations({
     newDetails: {
       fullNewDescription: string;
       isoStart: string;
+      previousUserId?: string;
+      newUserId?: string;
     },
   ) => {
-    // 1. Buscar el ticket por el título antiguo y usuario
-    // El título original puede estar en un ticket de Auditorio, Subdirección o Biblioteca.
-    const oldDescSubstring = `: ${oldTitle}`;
-
-    const { data: tickets, error: searchError } = await supabase
-      .from("tickets")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("category", "Reserva Auditorio")
-      .ilike("description", `%${oldDescSubstring}%`)
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    if (searchError || !tickets?.length) {
-      console.warn("No se encontró ticket para sincronizar con la reserva.");
-      return;
-    }
-
-    const ticket = tickets[0];
-
-    // 2. Lógica de Activación/Pausa (Regla 24h)
-    const now = new Date();
-    const eventStart = new Date(newDetails.isoStart);
-    const hoursDiff = (eventStart.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-    let newStatus = ticket.status;
-    let slaStatus = ticket.sla_status;
-
-    // Solo cambiar estado si el ticket aún no ha sido atendido (está en cola)
-    if (["PENDIENTE", "EN_ESPERA"].includes(ticket.status)) {
-      if (hoursDiff > 24) {
-        newStatus = "EN_ESPERA";
-        slaStatus = "paused";
-      } else {
-        newStatus = "PENDIENTE";
-        slaStatus = "running";
-      }
-    }
-
-    // 4. Actualizar Ticket con sincronización total
-    const { error: updateError } = await supabase
-      .from("tickets")
-      .update({
-        description: newDetails.fullNewDescription,
-        event_date: newDetails.isoStart,
-        status: newStatus,
-        sla_status: slaStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", ticket.id);
-
-    if (updateError) {
-      console.error("Error al sincronizar ticket:", updateError);
-    } else {
+    const res = await syncReservationTicketAction({
+      oldTitle,
+      previousUserId: newDetails.previousUserId || userId,
+      newUserId: newDetails.newUserId || userId,
+      fullNewDescription: newDetails.fullNewDescription,
+      isoStart: newDetails.isoStart,
+    });
+    if (res.success) {
       queryClient.invalidateQueries({ queryKey: ["dashboard-tickets"] });
     }
   };

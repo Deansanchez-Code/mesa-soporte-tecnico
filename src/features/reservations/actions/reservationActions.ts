@@ -906,8 +906,6 @@ export async function updateReservationAction(
     // 4. RBAC Check for Subdirección (ID 2) and Biblioteca (ID 3)
     const currentSpace = auditorium_id || "1";
     if (currentSpace === "2") {
-      const isVip = !!publicUser?.is_vip;
-
       if (!isVip && !isAdmin) {
         throw new Error(
           "Solo el personal VIP o administradores pueden reservar la Subdirección de Centro.",
@@ -920,15 +918,16 @@ export async function updateReservationAction(
         "rbiblioteca@sistema.local",
       ].includes(userEmail);
 
-      if (!isAllowed && !isAdmin) {
+      if (!isAllowed && !isAdmin && !isVip) {
         throw new Error(
-          "Solo los encargados de Biblioteca o administradores pueden realizar esta reserva.",
+          "Solo los encargados de Biblioteca, coordinadores o administradores pueden realizar esta reserva.",
         );
       }
     }
 
-    // 5. Update
-    const { data: result, error } = await supabase
+    // 5. Update (use adminSupabase so Coordinators/VIPs can edit & reassign any instructor's reservation without RLS blocking)
+    const adminSupabase = getSupabaseAdmin();
+    const { data: result, error } = await adminSupabase
       .from("reservations")
       .update({
         title,
@@ -1085,11 +1084,11 @@ export async function createReservationBatchAction(
       validReservations.push(data);
     }
 
-    // Validación de Tiempo Pasado para reservas en lote
+    // Validación de Tiempo Pasado para reservas nuevas en lote (permitimos editar reservas existentes del mismo día)
     const now = new Date();
     const fiveMinutesBuffer = new Date(now.getTime() - 5 * 60 * 1000);
     for (const res of validReservations) {
-      if (new Date(res.start_time) < fiveMinutesBuffer) {
+      if (!res.id && new Date(res.start_time) < fiveMinutesBuffer) {
         throw new Error(
           `No es posible realizar reservas en fechas u horarios del pasado (detectado en fecha ${new Date(res.start_time).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}).`,
         );
@@ -1220,6 +1219,7 @@ export async function createReservationBatchAction(
           }
 
           // Intelligent Trimming / Rescheduling or Atomic Cancellation of Conflicts
+          const adminConflictSupabase = getSupabaseAdmin();
           for (const conflict of conflicts) {
             const vipStart = new Date(res.start_time).getTime();
             const vipEnd = new Date(res.end_time).getTime();
@@ -1231,19 +1231,19 @@ export async function createReservationBatchAction(
               await cancelReservationAction(conflict.id, { silent: true });
             } else if (vipStart <= confStart && vipEnd < confEnd) {
               // VIP overlaps start of existing -> Trim existing start to vipEnd
-              await supabase
+              await adminConflictSupabase
                 .from("reservations")
                 .update({ start_time: new Date(vipEnd).toISOString() })
                 .eq("id", conflict.id);
             } else if (vipStart > confStart && vipEnd >= confEnd) {
               // VIP overlaps end of existing -> Trim existing end to vipStart
-              await supabase
+              await adminConflictSupabase
                 .from("reservations")
                 .update({ end_time: new Date(vipStart).toISOString() })
                 .eq("id", conflict.id);
             } else if (vipStart > confStart && vipEnd < confEnd) {
               // VIP in middle -> Adjust existing end to vipStart
-              await supabase
+              await adminConflictSupabase
                 .from("reservations")
                 .update({ end_time: new Date(vipStart).toISOString() })
                 .eq("id", conflict.id);
@@ -1257,7 +1257,8 @@ export async function createReservationBatchAction(
       }
     }
 
-    // 4. Batch Upsert (Insert or Update)
+    // 4. Batch Upsert (Insert or Update) via adminSupabase so Coordinators/VIPs can edit/reassign any instructor's reservation
+    const adminSupabase = getSupabaseAdmin();
     const toInsert = validReservations.map((r) => ({
       ...(r.id ? { id: r.id } : {}), // Only include ID if it exists
       title: r.title,
@@ -1270,7 +1271,7 @@ export async function createReservationBatchAction(
       status: initialStatus,
     }));
 
-    const { data: result, error } = await supabase
+    const { data: result, error } = await adminSupabase
       .from("reservations")
       .upsert(toInsert, { onConflict: "id" })
       .select();
@@ -1790,5 +1791,217 @@ export async function saveAuditoriumMaintenanceAction(config: {
           ? err.message
           : "Error al guardar configuración de remodelación",
     };
+  }
+}
+
+export async function updateInstructorAssignmentAction(params: {
+  id: number;
+  instructor_id: string;
+  assignment_date: string;
+  time_block: string;
+}) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    if (!authUser) throw new Error("No autenticado");
+
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select(
+        "id, role, job_category, username, is_vip, perm_manage_assignments",
+      )
+      .eq("auth_id", authUser.id)
+      .single();
+
+    const cleanUsername = (publicUser?.username || "").toLowerCase().trim();
+    const canManage =
+      ["admin", "superadmin", "coordinator", "vip"].includes(
+        (publicUser?.role || "").toLowerCase(),
+      ) ||
+      (publicUser?.job_category || "").toLowerCase() === "coordinador" ||
+      !!publicUser?.perm_manage_assignments ||
+      !!publicUser?.is_vip ||
+      ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].includes(
+        cleanUsername,
+      );
+
+    if (!canManage) {
+      throw new Error(
+        "No tienes permisos para editar o reasignar asignaciones",
+      );
+    }
+
+    const adminSupabase = getSupabaseAdmin();
+
+    // Check existing assignment to get area_id
+    const { data: currentAssign, error: fetchErr } = await adminSupabase
+      .from("instructor_assignments")
+      .select("area_id")
+      .eq("id", params.id)
+      .single();
+
+    if (fetchErr || !currentAssign) {
+      throw new Error("Asignación no encontrada");
+    }
+
+    // Check conflicts in same area, date, and block (excluding current id)
+    const { data: conflict } = await adminSupabase
+      .from("instructor_assignments")
+      .select("id")
+      .eq("area_id", currentAssign.area_id)
+      .eq("assignment_date", params.assignment_date)
+      .eq("time_block", params.time_block)
+      .neq("id", params.id)
+      .maybeSingle();
+
+    if (conflict) {
+      throw new Error(
+        "Ya existe otra asignación en este mismo ambiente, fecha y bloque horario.",
+      );
+    }
+
+    const { error: updateErr } = await adminSupabase
+      .from("instructor_assignments")
+      .update({
+        instructor_id: params.instructor_id,
+        assignment_date: params.assignment_date,
+        time_block: params.time_block,
+      })
+      .eq("id", params.id);
+
+    if (updateErr) throw updateErr;
+
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (err: unknown) {
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error al actualizar la asignación",
+    };
+  }
+}
+
+export async function deleteInstructorAssignmentAction(assignmentId: number) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    if (!authUser) throw new Error("No autenticado");
+
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select(
+        "id, role, job_category, username, is_vip, perm_manage_assignments",
+      )
+      .eq("auth_id", authUser.id)
+      .single();
+
+    const cleanUsername = (publicUser?.username || "").toLowerCase().trim();
+    const canManage =
+      ["admin", "superadmin", "coordinator", "vip"].includes(
+        (publicUser?.role || "").toLowerCase(),
+      ) ||
+      (publicUser?.job_category || "").toLowerCase() === "coordinador" ||
+      !!publicUser?.perm_manage_assignments ||
+      !!publicUser?.is_vip ||
+      ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].includes(
+        cleanUsername,
+      );
+
+    if (!canManage) {
+      throw new Error("No tienes permisos para eliminar asignaciones");
+    }
+
+    const adminSupabase = getSupabaseAdmin();
+    const { error } = await adminSupabase
+      .from("instructor_assignments")
+      .delete()
+      .eq("id", assignmentId);
+
+    if (error) throw error;
+
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (err: unknown) {
+    return {
+      error:
+        err instanceof Error ? err.message : "Error al eliminar la asignación",
+    };
+  }
+}
+
+export async function syncReservationTicketAction(params: {
+  oldTitle: string;
+  previousUserId?: string;
+  newUserId: string;
+  fullNewDescription: string;
+  isoStart: string;
+}) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    if (!authUser) return { success: false };
+
+    const adminSupabase = getSupabaseAdmin();
+    const oldDescSubstring = `: ${params.oldTitle}`;
+
+    let query = adminSupabase
+      .from("tickets")
+      .select("*")
+      .eq("category", "Reserva Auditorio")
+      .ilike("description", `%${oldDescSubstring}%`)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (params.previousUserId) {
+      query = query.eq("user_id", params.previousUserId);
+    }
+
+    const { data: tickets } = await query;
+    if (!tickets || tickets.length === 0) {
+      return { success: false };
+    }
+
+    const ticket = tickets[0];
+    const now = new Date();
+    const eventStart = new Date(params.isoStart);
+    const hoursDiff = (eventStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    let newStatus = ticket.status;
+    let slaStatus = ticket.sla_status;
+
+    if (["PENDIENTE", "EN_ESPERA"].includes(ticket.status)) {
+      if (hoursDiff > 24) {
+        newStatus = "EN_ESPERA";
+        slaStatus = "paused";
+      } else {
+        newStatus = "PENDIENTE";
+        slaStatus = "running";
+      }
+    }
+
+    await adminSupabase
+      .from("tickets")
+      .update({
+        user_id: params.newUserId || ticket.user_id,
+        description: params.fullNewDescription,
+        event_date: params.isoStart,
+        status: newStatus,
+        sla_status: slaStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", ticket.id);
+
+    return { success: true };
+  } catch (err) {
+    console.error("Error syncing reservation ticket:", err);
+    return { success: false };
   }
 }

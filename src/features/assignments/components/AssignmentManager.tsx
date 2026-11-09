@@ -2,12 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { Plus, MapPin } from "lucide-react";
+import { Plus, MapPin, X, UserCheck, Calendar, Clock } from "lucide-react";
 import { toast } from "sonner";
 import BulkAssignmentModal from "./BulkAssignmentModal";
 import CalendarView from "./CalendarView";
 import { Assignment } from "../types";
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
+import {
+  getAssignableUsersAction,
+  AssignableUser,
+  updateInstructorAssignmentAction,
+} from "@/features/reservations/actions/reservationActions";
+import { TIME_BLOCKS, TimeBlock } from "@/lib/scheduling";
 import { UserProfile } from "@/features/auth/hooks/useUserProfile";
 
 interface Environment {
@@ -31,6 +37,30 @@ export default function AssignmentManager({
   const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [editingRes, setEditingRes] = useState<Assignment | null>(null);
+
+  // State for editing a standard block assignment (instructor_assignments)
+  const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
+  const [editInstructorId, setEditInstructorId] = useState("");
+  const [editAssignmentDate, setEditAssignmentDate] = useState("");
+  const [editTimeBlock, setEditTimeBlock] = useState<TimeBlock>("MANANA");
+  const [editUserSearch, setEditUserSearch] = useState("");
+  const [savingAssignmentEdit, setSavingAssignmentEdit] = useState(false);
+
+  useEffect(() => {
+    if (editingRes && !editingRes.is_reservation) {
+      setEditInstructorId(editingRes.instructor_id || editingRes.user_id || "");
+      setEditAssignmentDate(editingRes.assignment_date);
+      setEditTimeBlock((editingRes.time_block as TimeBlock) || "MANANA");
+      setEditUserSearch("");
+      if (assignableUsers.length === 0) {
+        getAssignableUsersAction().then((res) => {
+          if (res.success && res.users) {
+            setAssignableUsers(res.users);
+          }
+        });
+      }
+    }
+  }, [editingRes, assignableUsers.length]);
 
   const [selectedDateForCreate, setSelectedDateForCreate] = useState<
     string | undefined
@@ -332,34 +362,190 @@ export default function AssignmentManager({
         </div>
       )}
 
-      {/* EDIT MODAL FOR RESERVATIONS */}
-      {editingRes && user && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in">
-          <div className="bg-white w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95">
-            <AuditoriumReservationForm
-              user={user}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              reservationToEdit={editingRes as any}
-              initialSpace={
-                selectedEnv?.name.toUpperCase().includes("AUDITORIO")
-                  ? "1"
-                  : selectedEnv?.name.toUpperCase().includes("SUBDIRECCIÓN")
-                    ? "2"
-                    : selectedEnv?.name.toUpperCase().includes("107")
-                      ? "4"
-                      : selectedEnv?.name.toUpperCase().includes("COCINA")
-                        ? "5"
-                        : "3"
-              }
-              onCancel={() => setEditingRes(null)}
-              onSuccess={() => {
-                setEditingRes(null);
-                setRefreshTrigger((prev) => prev + 1);
-              }}
-            />
-          </div>
-        </div>
-      )}
+      {/* EDIT MODAL FOR RESERVATIONS OR ASSIGNMENTS */}
+      {editingRes &&
+        user &&
+        (() => {
+          const isSpecialSpace =
+            selectedEnv?.name.toUpperCase().includes("AUDITORIO") ||
+            selectedEnv?.name.toUpperCase().includes("SUBDIRECCIÓN") ||
+            selectedEnv?.name.toUpperCase().includes("BIBLIOTECA") ||
+            selectedEnv?.name.toUpperCase().includes("107") ||
+            selectedEnv?.name.toUpperCase().includes("COCINA");
+
+          if (editingRes.is_reservation || isSpecialSpace) {
+            return (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in">
+                <div className="bg-white w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95">
+                  <AuditoriumReservationForm
+                    user={user}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    reservationToEdit={editingRes as any}
+                    legacyAssignmentIdToReplace={
+                      !editingRes.is_reservation ? editingRes.id : undefined
+                    }
+                    initialSpace={
+                      selectedEnv?.name.toUpperCase().includes("AUDITORIO")
+                        ? "1"
+                        : selectedEnv?.name
+                              .toUpperCase()
+                              .includes("SUBDIRECCIÓN")
+                          ? "2"
+                          : selectedEnv?.name.toUpperCase().includes("107")
+                            ? "4"
+                            : selectedEnv?.name.toUpperCase().includes("COCINA")
+                              ? "5"
+                              : "3"
+                    }
+                    onCancel={() => setEditingRes(null)}
+                    onSuccess={() => {
+                      setEditingRes(null);
+                      setRefreshTrigger((prev) => prev + 1);
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in">
+              <div className="bg-white w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95">
+                <div className="bg-sena-blue text-white p-5 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                      <UserCheck className="w-5 h-5" />
+                      Editar / Reasignar Asignación
+                    </h3>
+                    <p className="text-xs text-blue-100 mt-0.5">
+                      {selectedEnv?.name}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setEditingRes(null)}
+                    className="p-1.5 hover:bg-white/10 rounded-full transition"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-gray-700 uppercase">
+                      Instructor o Funcionario Responsable
+                    </label>
+                    <input
+                      type="text"
+                      value={editUserSearch}
+                      onChange={(e) => setEditUserSearch(e.target.value)}
+                      placeholder="Buscar instructor o funcionario..."
+                      className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-sena-green outline-none"
+                    />
+                    <select
+                      value={editInstructorId}
+                      onChange={(e) => setEditInstructorId(e.target.value)}
+                      className="w-full p-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-800 bg-white focus:ring-2 focus:ring-sena-green outline-none"
+                    >
+                      <option value="">Seleccione un responsable...</option>
+                      {assignableUsers
+                        .filter((u) => {
+                          if (!editUserSearch.trim()) return true;
+                          const q = editUserSearch.toLowerCase();
+                          return (
+                            (u.full_name || "").toLowerCase().includes(q) ||
+                            (u.username || "").toLowerCase().includes(q) ||
+                            (u.job_category || "").toLowerCase().includes(q)
+                          );
+                        })
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.full_name} —{" "}
+                            {u.job_category
+                              ? u.job_category.toUpperCase()
+                              : u.employment_type || "Funcionario"}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1 flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-sena-green" />
+                        Fecha
+                      </label>
+                      <input
+                        type="date"
+                        value={editAssignmentDate}
+                        onChange={(e) => setEditAssignmentDate(e.target.value)}
+                        className="w-full p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-sena-green outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase mb-1 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-sena-green" />
+                        Jornada / Bloque
+                      </label>
+                      <select
+                        value={editTimeBlock}
+                        onChange={(e) =>
+                          setEditTimeBlock(e.target.value as TimeBlock)
+                        }
+                        className="w-full p-2.5 border border-gray-200 rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-sena-green outline-none"
+                      >
+                        {(Object.keys(TIME_BLOCKS) as TimeBlock[]).map(
+                          (blockKey) => (
+                            <option key={blockKey} value={blockKey}>
+                              {TIME_BLOCKS[blockKey].label} (
+                              {TIME_BLOCKS[blockKey].range})
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-gray-50 border-t flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingRes(null)}
+                    className="px-4 py-2 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingAssignmentEdit || !editInstructorId}
+                    onClick={async () => {
+                      if (!editInstructorId || !editAssignmentDate) return;
+                      setSavingAssignmentEdit(true);
+                      const res = await updateInstructorAssignmentAction({
+                        id: editingRes.id,
+                        instructor_id: editInstructorId,
+                        assignment_date: editAssignmentDate,
+                        time_block: editTimeBlock,
+                      });
+                      setSavingAssignmentEdit(false);
+                      if (res.error) {
+                        toast.error(res.error);
+                        return;
+                      }
+                      toast.success(
+                        "Asignación actualizada / reasignada correctamente.",
+                      );
+                      setEditingRes(null);
+                      setRefreshTrigger((prev) => prev + 1);
+                    }}
+                    className="px-4 py-2 text-xs font-bold text-white bg-sena-green rounded-lg hover:bg-green-700 transition disabled:opacity-50"
+                  >
+                    {savingAssignmentEdit ? "Guardando..." : "Guardar Cambios"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }

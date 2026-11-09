@@ -729,11 +729,18 @@ export default function UserRequestForm({
                   user.role === "admin" ||
                   user.role === "superadmin" ||
                   user.role === "coordinator" ||
+                  (
+                    user as { job_category?: string }
+                  )?.job_category?.toLowerCase() === "coordinador" ||
+                  !!user.is_vip ||
                   !!user.perm_manage_assignments
                 }
                 canDeleteAuditorium={
                   user.role === "superadmin" ||
                   user.role === "admin" ||
+                  (
+                    user as { job_category?: string }
+                  )?.job_category?.toLowerCase() === "coordinador" ||
                   !!user.is_vip
                 }
                 user={user}

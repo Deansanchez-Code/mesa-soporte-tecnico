@@ -58,9 +58,11 @@ export async function verifyUserPermissions(
 
   const query = supabaseAdmin
     .from("users")
-    .select(`role, ${requiredPermissionColumn || "id"}`)
-    .eq("id", userId)
-    .single();
+    .select(
+      `role, job_category, username, is_vip, ${requiredPermissionColumn || "id"}`,
+    )
+    .or(`auth_id.eq.${userId},id.eq.${userId}`)
+    .maybeSingle();
 
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const { data, error } = await query;
@@ -69,15 +71,28 @@ export async function verifyUserPermissions(
   if (error || !userProfile) return false;
 
   // 1. Check Role
-  if (requiredRoles.includes(userProfile.role)) return true;
+  const roleLower = (userProfile.role || "").toLowerCase();
+  if (requiredRoles.some((r) => r.toLowerCase() === roleLower)) return true;
 
   // 2. Check Permission Column (if provided)
   // Dynamic access: userProfile['perm_manage_assignments']
-  if (
-    requiredPermissionColumn &&
-    (userProfile as any)[requiredPermissionColumn] === true
-  ) {
-    return true;
+  if (requiredPermissionColumn) {
+    if ((userProfile as any)[requiredPermissionColumn] === true) return true;
+
+    // Coordinators also have assignment management privileges
+    if (requiredPermissionColumn === "perm_manage_assignments") {
+      const jobCat = (userProfile.job_category || "").toLowerCase();
+      const uname = (userProfile.username || "").toLowerCase().trim();
+      if (
+        jobCat === "coordinador" ||
+        roleLower === "coordinator" ||
+        ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].includes(
+          uname,
+        )
+      ) {
+        return true;
+      }
+    }
   }
 
   return false;

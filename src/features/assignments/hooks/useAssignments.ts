@@ -6,7 +6,10 @@ import { toast } from "sonner";
 import { formatDateForDB, TimeBlock, TIME_BLOCKS } from "@/lib/scheduling";
 
 import { Assignment } from "../types";
-import { cancelReservationAction } from "@/features/reservations/actions/reservationActions";
+import {
+  cancelReservationAction,
+  deleteInstructorAssignmentAction,
+} from "@/features/reservations/actions/reservationActions";
 
 interface UseAssignmentsProps {
   areaId: number;
@@ -69,6 +72,7 @@ export function useAssignments({
 
           return {
             ...a,
+            user_id: a.instructor_id,
             title: blockInfo
               ? `Asignación de Formación (${blockInfo.label})`
               : "Asignación de Formación",
@@ -111,7 +115,7 @@ export function useAssignments({
         const { data: resData, error: resError } = await supabase
           .from("reservations")
           .select(
-            "id, title, start_time, end_time, resources, user_id, status, users(full_name, is_vip)",
+            "id, title, description, auditorium_id, start_time, end_time, resources, user_id, status, users(full_name, is_vip)",
           )
           .in("status", ["APPROVED", "PENDING"])
           .eq("auditorium_id", targetAuditoriumId)
@@ -144,6 +148,8 @@ export function useAssignments({
               },
               is_reservation: true,
               title: r.title,
+              description: r.description,
+              auditorium_id: r.auditorium_id || targetAuditoriumId,
               start_time: r.start_time,
               end_time: r.end_time,
               resources: r.resources,
@@ -189,13 +195,11 @@ export function useAssignments({
             `Reserva eliminada correctamente${deletedByName ? ` por ${deletedByName}` : ""}`,
           );
         } else {
-          // Instructor assignments can still be handled client-side if RLS allows,
-          // or we could add an API for them too. For now, keep original logic.
-          const { error } = await supabase
-            .from("instructor_assignments")
-            .delete()
-            .eq("id", id);
-          if (error) throw error;
+          const delRes = await deleteInstructorAssignmentAction(id);
+          if (delRes.error) {
+            await fetchAssignments();
+            throw new Error(delRes.error);
+          }
           toast.success(
             `Asignación eliminada correctamente${deletedByName ? ` por ${deletedByName}` : ""}`,
           );

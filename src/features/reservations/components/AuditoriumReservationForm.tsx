@@ -16,6 +16,7 @@ import { Reservation } from "../types";
 import {
   getAssignableUsersAction,
   AssignableUser,
+  deleteInstructorAssignmentAction,
 } from "../actions/reservationActions";
 
 import { UserProfile } from "@/features/auth/hooks/useUserProfile";
@@ -30,7 +31,8 @@ interface AuditoriumReservationFormProps {
   user: UserProfile["profile"];
   onCancel: () => void;
   onSuccess: () => void;
-  reservationToEdit?: Reservation;
+  reservationToEdit?: Reservation & { is_reservation?: boolean };
+  legacyAssignmentIdToReplace?: number;
   initialSpace?: string;
   initialDate?: string;
 }
@@ -48,6 +50,7 @@ export default function AuditoriumReservationForm({
   onCancel,
   onSuccess,
   reservationToEdit,
+  legacyAssignmentIdToReplace,
   initialSpace,
   initialDate,
 }: AuditoriumReservationFormProps) {
@@ -294,12 +297,17 @@ export default function AuditoriumReservationForm({
         setSelectedResources(reservationToEdit.resources || []);
         setDescription(reservationToEdit.description || "");
         setIsMultiDay(sDate !== eDate);
-        setSelectedSpace(String(reservationToEdit.auditorium_id || "1"));
+        setSelectedSpace(
+          String(reservationToEdit.auditorium_id || initialSpace || "1"),
+        );
+        if (reservationToEdit.user_id) {
+          setAssignedUserId(reservationToEdit.user_id);
+        }
       } catch (e) {
         console.error("Error parsing reservation dates:", e);
       }
     }
-  }, [reservationToEdit]);
+  }, [reservationToEdit, initialSpace]);
 
   // 2. Detectar conflictos visuales UI (Múltiples días o Semanales)
   useEffect(() => {
@@ -409,8 +417,11 @@ export default function AuditoriumReservationForm({
         const startIso = startDateObj.toISOString();
         const endIso = endDateObj.toISOString();
 
-        // Target ID only for first if editing (multiday edits not fully supported yet in UI, assuming new additions)
-        const targetId = i === 0 ? reservationToEdit?.id : undefined;
+        // Target ID only for first if editing a real reservation (if replacing a legacy assignment, omit id so a new reservation is inserted)
+        const targetId =
+          i === 0 && !legacyAssignmentIdToReplace
+            ? reservationToEdit?.id
+            : undefined;
 
         reservationsPayload.push({
           id: targetId,
@@ -438,6 +449,9 @@ export default function AuditoriumReservationForm({
         reservationsPayload,
         isOverride,
       );
+      if (legacyAssignmentIdToReplace) {
+        await deleteInstructorAssignmentAction(legacyAssignmentIdToReplace);
+      }
       setIsSuccess(true); // Mark as success immediately to prevent conflict flash
 
       const isPending = !!(result as { pendingApproval?: boolean })
@@ -455,20 +469,30 @@ export default function AuditoriumReservationForm({
       const spaceName = getSpaceName(selectedSpace);
 
       // Handle Support Tickets
-      if (reservationToEdit) {
+      if (reservationToEdit && !legacyAssignmentIdToReplace) {
         // Al editar (ya sea multi-día o de un solo día), actualizamos el ticket consolidado original
         const datesString = supportTicketsPayload
           .map((t) => t.date.split("-").reverse().join("-"))
           .join(", ");
         const primerDia = supportTicketsPayload[0];
 
+        const assignedUserObj = assignableUsers.find(
+          (u) => u.id === assignedUserId,
+        );
+        const assignedInfo =
+          assignedUserObj && assignedUserId !== user?.id
+            ? `\nAsignado a: ${assignedUserObj.full_name} (${assignedUserObj.job_category || assignedUserObj.employment_type || "Funcionario"})`
+            : "";
+
         const fullNewDescription = `Reserva de ${spaceName}: ${title}\nFechas: ${datesString}\nHora: ${primerDia.start} - ${primerDia.end}\nRecursos: ${selectedResources.join(
           ", ",
-        )}\nDetalles: ${description}\n(ACTUALIZADO)`;
+        )}\nDetalles: ${description}${assignedInfo}\n(ACTUALIZADO)`;
 
         await syncTicketWithReservation(reservationToEdit.title || "", {
           fullNewDescription,
           isoStart: primerDia.isoStart,
+          previousUserId: reservationToEdit.user_id,
+          newUserId: assignedUserId || reservationToEdit.user_id || user?.id,
         });
       } else {
         // Create Batch (New)
@@ -685,7 +709,9 @@ export default function AuditoriumReservationForm({
             <div className="flex items-center justify-between gap-2">
               <label className="text-sm font-bold text-emerald-950 flex items-center gap-2">
                 <UserCheck className="w-4 h-4 text-emerald-700" />
-                Asignar Reserva a Instructor o Funcionario
+                {reservationToEdit
+                  ? "Responsable de la Reserva (Asignar o Reasignar a Instructor / Funcionario)"
+                  : "Asignar Reserva a Instructor o Funcionario"}
               </label>
               <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
                 Privilegio Coordinación

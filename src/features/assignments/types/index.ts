@@ -11,6 +11,8 @@ export interface Assignment {
   is_reservation?: boolean;
   user_id?: string;
   title?: string;
+  description?: string | null;
+  auditorium_id?: string | null;
   start_time?: string | null;
   end_time?: string | null;
   resources?: string[] | null;

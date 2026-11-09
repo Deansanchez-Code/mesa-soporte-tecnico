@@ -561,20 +561,24 @@ export default function CalendarView({
                                 canDeleteAuditorium ||
                                 !!user?.is_vip ||
                                 user?.role?.toLowerCase() === "vip" ||
+                                (
+                                  user as { job_category?: string }
+                                )?.job_category?.toLowerCase() ===
+                                  "coordinador" ||
                                 (assign.is_reservation &&
                                   user?.id &&
                                   assign.user_id &&
                                   user.id.toLowerCase() ===
                                     assign.user_id.toLowerCase())) && (
                                 <div className="flex gap-1">
-                                  {assign.is_reservation && onEdit && (
+                                  {onEdit && (
                                     <button
                                       onClick={() => {
                                         onEdit(assign);
                                         setSelectedDay(null);
                                       }}
                                       className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all"
-                                      title="Editar"
+                                      title="Editar / Reasignar"
                                     >
                                       <Pencil className="w-4 h-4" />
                                     </button>
@@ -756,20 +760,24 @@ export default function CalendarView({
                                 canDeleteAuditorium ||
                                 !!user?.is_vip ||
                                 user?.role?.toLowerCase() === "vip" ||
+                                (
+                                  user as { job_category?: string }
+                                )?.job_category?.toLowerCase() ===
+                                  "coordinador" ||
                                 (assign.is_reservation &&
                                   user?.id &&
                                   assign.user_id &&
                                   user.id.toLowerCase() ===
                                     assign.user_id.toLowerCase())) && (
                                 <div className="flex gap-1">
-                                  {assign.is_reservation && onEdit && (
+                                  {onEdit && (
                                     <button
                                       onClick={() => {
                                         onEdit(assign);
                                         setSelectedDay(null);
                                       }}
                                       className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all"
-                                      title="Editar"
+                                      title="Editar / Reasignar"
                                     >
                                       <Pencil className="w-4 h-4" />
                                     </button>
