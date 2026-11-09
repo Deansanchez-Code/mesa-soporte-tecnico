@@ -133,12 +133,23 @@ export default function UserModal({
                 <select
                   className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-sena-green outline-none"
                   value={newAgent.job_category || "funcionario"}
-                  onChange={(e) =>
-                    setNewAgent({ ...newAgent, job_category: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "coordinador") {
+                      setNewAgent({
+                        ...newAgent,
+                        job_category: val,
+                        is_vip: true,
+                        perm_manage_assignments: true,
+                      });
+                    } else {
+                      setNewAgent({ ...newAgent, job_category: val });
+                    }
+                  }}
                 >
                   <option value="funcionario">Administrativo</option>
                   <option value="instructor">Instructor</option>
+                  <option value="coordinador">Coordinador(a)</option>
                 </select>
               </div>
             </div>
@@ -224,11 +235,37 @@ export default function UserModal({
             )}
 
             {/* PERMISOS DE COORDINACIÓN */}
-            <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
-              <p className="text-xs font-bold text-purple-700 uppercase mb-3 border-b border-purple-200 pb-1">
-                Coordinación
+            <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 space-y-2">
+              <p className="text-xs font-bold text-purple-700 uppercase mb-2 border-b border-purple-200 pb-1">
+                Coordinación y Privilegios
               </p>
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer hover:bg-purple-100 p-1 rounded transition">
+              <label className="flex items-start gap-2 text-sm text-purple-900 font-bold cursor-pointer hover:bg-purple-100/80 p-1.5 rounded transition">
+                <input
+                  type="checkbox"
+                  checked={newAgent.job_category === "coordinador"}
+                  onChange={(e) => {
+                    const isCoord = e.target.checked;
+                    setNewAgent({
+                      ...newAgent,
+                      job_category: isCoord ? "coordinador" : "funcionario",
+                      is_vip: isCoord ? true : newAgent.is_vip,
+                      perm_manage_assignments: isCoord
+                        ? true
+                        : newAgent.perm_manage_assignments,
+                    });
+                  }}
+                  className="mt-0.5 rounded text-purple-600 focus:ring-purple-600"
+                />
+                <div>
+                  <span>Designar como Coordinador(a) de Planta</span>
+                  <p className="text-[11px] font-normal text-purple-700 leading-tight mt-0.5">
+                    Otorga automáticamente privilegios VIP, autorización de
+                    prerreservas y asignación de reservas a
+                    instructores/funcionarios.
+                  </p>
+                </div>
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer hover:bg-purple-100 p-1.5 rounded transition">
                 <input
                   type="checkbox"
                   checked={newAgent.perm_manage_assignments || false}
@@ -240,7 +277,7 @@ export default function UserModal({
                   }
                   className="rounded text-purple-600 focus:ring-purple-600"
                 />
-                Gestionar Asignaciones
+                Gestionar Asignaciones y Ambientes
               </label>
             </div>
 

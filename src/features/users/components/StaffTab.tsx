@@ -8,6 +8,7 @@ import {
   Edit,
   Trash2,
   Power,
+  ShieldCheck,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase/client";
@@ -41,6 +42,7 @@ export default function StaffTab({
     handleEditUser,
     handleDeleteUser,
     handleToggleUserActive,
+    handleToggleCoordinator,
     resetUserForm,
   } = useUserManagement(onRefresh);
 
@@ -186,7 +188,9 @@ export default function StaffTab({
                 <th className="px-6 py-3 font-semibold text-gray-600">
                   Ubicación
                 </th>
-                <th className="px-6 py-3 font-semibold text-gray-600">VIP</th>
+                <th className="px-6 py-3 font-semibold text-gray-600">
+                  Cargo / Privilegios
+                </th>
                 <th className="px-6 py-3 font-semibold text-gray-600">
                   Estado
                 </th>
@@ -226,13 +230,26 @@ export default function StaffTab({
                       {user.area || "N/A"}
                     </td>
                     <td className="px-6 py-3">
-                      {user.is_vip ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                          VIP
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {(user.job_category?.toLowerCase() === "coordinador" ||
+                          user.perm_manage_assignments) && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                            Coordinador(a)
+                          </span>
+                        )}
+                        {user.is_vip ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-200">
+                            VIP
+                          </span>
+                        ) : (
+                          user.job_category?.toLowerCase() !== "coordinador" &&
+                          !user.perm_manage_assignments && (
+                            <span className="text-gray-400 text-xs">
+                              Planta
+                            </span>
+                          )
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-3">
                       {user.is_active !== false ? (
@@ -248,6 +265,21 @@ export default function StaffTab({
                     {currentUserRole !== "admin" && (
                       <td className="px-6 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleToggleCoordinator(user)}
+                            className={`p-1.5 rounded transition ${
+                              user.job_category?.toLowerCase() === "coordinador"
+                                ? "bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                : "text-gray-400 hover:bg-purple-50 hover:text-purple-600"
+                            }`}
+                            title={
+                              user.job_category?.toLowerCase() === "coordinador"
+                                ? "Es Coordinador(a) con privilegios VIP (Clic para quitar)"
+                                : "Designar como Coordinador(a) (Otorga VIP y funciones amplias)"
+                            }
+                          >
+                            <ShieldCheck className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => handleToggleUserActive(user)}
                             className={`p-1.5 rounded transition ${

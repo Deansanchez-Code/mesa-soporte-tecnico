@@ -75,21 +75,33 @@ function HomeContent() {
         if (role === "admin" || role === "superadmin") {
           router.push("/dashboard");
         } else if (session.user.user_metadata) {
-          // Consultar datos frescos de la base de datos para asegurar nombre correcto
+          // Consultar datos frescos de la base de datos para asegurar nombre y permisos correctos
           const { data: dbUser } = await supabase
             .from("users")
-            .select("id, full_name, area")
-            .eq("id", session.user.id)
+            .select(
+              "id, username, full_name, role, area, employment_type, job_category, is_vip, perm_manage_assignments, email",
+            )
+            .or(`auth_id.eq.${session.user.id},id.eq.${session.user.id}`)
             .maybeSingle();
 
           const user = {
             id: dbUser?.id || session.user.id, // Preferir ID de DB pública si existe (para FKs)
-            username: session.user.user_metadata.username,
+            username: dbUser?.username || session.user.user_metadata.username,
             full_name:
               dbUser?.full_name || session.user.user_metadata.full_name, // Prioridad DB
-            role: session.user.user_metadata.role,
+            role: dbUser?.role || session.user.user_metadata.role,
             area: dbUser?.area || session.user.user_metadata.area,
-            email: session.user.email,
+            employment_type:
+              dbUser?.employment_type ||
+              session.user.user_metadata.employment_type,
+            job_category:
+              dbUser?.job_category || session.user.user_metadata.job_category,
+            is_vip:
+              dbUser?.is_vip ?? Boolean(session.user.user_metadata.is_vip),
+            perm_manage_assignments:
+              dbUser?.perm_manage_assignments ??
+              Boolean(session.user.user_metadata.perm_manage_assignments),
+            email: dbUser?.email || session.user.email,
           };
           setUserData(user as UserData);
           setViewState("request");

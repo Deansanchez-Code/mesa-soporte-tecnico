@@ -43,12 +43,19 @@ export class SlaService {
     // 2. Filtrar cuáles deben activarse
     for (const t of tickets) {
       const desc = t.description || "";
-      const dateMatch = desc.match(/Fecha: (\d{2}-\d{2}-\d{4})/);
-      const timeMatch = desc.match(/Hora: (\d{2}:\d{2})/);
+      const dateMatch = desc.match(
+        /Fecha[s]?:\s*(\d{2,4}[-/]\d{2}[-/]\d{2,4})/i,
+      );
+      const timeMatch = desc.match(/Hora:\s*(\d{2}:\d{2})/i);
 
       if (dateMatch && timeMatch) {
-        const [d, m, y] = dateMatch[1].split("-");
-        const eventDate = new Date(`${y}-${m}-${d}T${timeMatch[1]}:00-05:00`);
+        const dateStr = dateMatch[1].replace(/\//g, "-");
+        const [p1, p2, p3] = dateStr.split("-");
+        const normalizedDate =
+          p1.length === 4 ? `${p1}-${p2}-${p3}` : `${p3}-${p2}-${p1}`;
+        const eventDate = new Date(
+          `${normalizedDate}T${timeMatch[1]}:00-05:00`,
+        );
 
         const hoursDiff =
           (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);

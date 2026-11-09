@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const { data: user, error } = await supabaseAdmin
       .from("users")
       .select(
-        "id, username, full_name, role, area, employment_type, job_category, auth_id, email, is_vip",
+        "id, username, full_name, role, area, employment_type, job_category, auth_id, email, is_vip, perm_manage_assignments",
       )
       .eq("username", username)
       .single();
@@ -27,6 +27,29 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ user: null });
+    }
+
+    // Asegurar que coordinadores designados o usuarios especiales de coordinación tengan privilegios VIP y gestión
+    const cleanUser = (user.username || "").toLowerCase().trim();
+    const isDesignatedCoordinator =
+      user.job_category?.toLowerCase() === "coordinador" ||
+      ["nbarrerac", "egutierrezn", "emgutierrezn"].includes(cleanUser);
+
+    if (
+      isDesignatedCoordinator &&
+      (!user.is_vip || !user.perm_manage_assignments)
+    ) {
+      await supabaseAdmin
+        .from("users")
+        .update({
+          is_vip: true,
+          perm_manage_assignments: true,
+          job_category: user.job_category || "coordinador",
+        })
+        .eq("id", user.id);
+      user.is_vip = true;
+      user.perm_manage_assignments = true;
+      user.job_category = user.job_category || "coordinador";
     }
 
     // --- AUTO-FIX / SYNC LOGIC FOR ALL NON-ADMIN ROLES ---
@@ -47,11 +70,21 @@ export async function POST(req: NextRequest) {
         );
         if (authUser && authUser.user) {
           authUserExists = true;
-          // Sincronizar email y password
+          // Sincronizar email, password y metadata
           await supabaseAdmin.auth.admin.updateUserById(user.auth_id, {
             email: syntheticEmail,
             password: defaultPassword,
             email_confirm: true,
+            user_metadata: {
+              full_name: user.full_name,
+              role: user.role,
+              area: user.area,
+              username: user.username,
+              is_vip: user.is_vip,
+              employment_type: user.employment_type,
+              job_category: user.job_category,
+              perm_manage_assignments: user.perm_manage_assignments,
+            },
           });
         }
       }
@@ -76,6 +109,9 @@ export async function POST(req: NextRequest) {
               area: user.area,
               username: user.username,
               is_vip: user.is_vip,
+              employment_type: user.employment_type,
+              job_category: user.job_category,
+              perm_manage_assignments: user.perm_manage_assignments,
             },
           });
         }
@@ -95,6 +131,9 @@ export async function POST(req: NextRequest) {
               area: user.area,
               username: user.username,
               is_vip: user.is_vip,
+              employment_type: user.employment_type,
+              job_category: user.job_category,
+              perm_manage_assignments: user.perm_manage_assignments,
             },
           });
 

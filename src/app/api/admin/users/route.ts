@@ -71,6 +71,13 @@ async function createUserHandler(
     );
   }
 
+  const isCoordinator =
+    (otherData.job_category || "").toLowerCase() === "coordinador";
+  const effectiveVip = isCoordinator ? true : Boolean(otherData.is_vip);
+  const effectiveManageAssignments = isCoordinator
+    ? true
+    : Boolean(otherData.perm_manage_assignments);
+
   // 1. Create User in Supabase Auth
   const { data: authUser, error: authError } =
     await supabaseAdmin.auth.admin.createUser({
@@ -84,6 +91,8 @@ async function createUserHandler(
         employment_type: otherData.employment_type || "planta",
         job_category: otherData.job_category || "funcionario",
         username: otherData.username || email.split("@")[0],
+        is_vip: effectiveVip,
+        perm_manage_assignments: effectiveManageAssignments,
       },
     });
 
@@ -98,6 +107,20 @@ async function createUserHandler(
       { status: 500 },
     );
   }
+
+  // Garantizar sincronización de campos extendidos en tabla pública users
+  await supabaseAdmin
+    .from("users")
+    .update({
+      is_vip: effectiveVip,
+      perm_manage_assignments: effectiveManageAssignments,
+      employment_type: otherData.employment_type || "planta",
+      job_category: otherData.job_category || "funcionario",
+      perm_create_assets: Boolean(otherData.perm_create_assets),
+      perm_transfer_assets: Boolean(otherData.perm_transfer_assets),
+      perm_decommission_assets: Boolean(otherData.perm_decommission_assets),
+    })
+    .or(`auth_id.eq.${authUser.user.id},id.eq.${authUser.user.id}`);
 
   return NextResponse.json({ success: true, user: authUser.user });
 }
@@ -210,6 +233,14 @@ async function updateUserHandler(
     "perm_decommission_assets",
     "perm_manage_assignments",
   ];
+
+  if (
+    typeof updates.job_category === "string" &&
+    updates.job_category.toLowerCase() === "coordinador"
+  ) {
+    updates.is_vip = true;
+    updates.perm_manage_assignments = true;
+  }
 
   allowedFields.forEach((field) => {
     if (updates[field] !== undefined) dbUpdates[field] = updates[field];

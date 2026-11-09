@@ -48,6 +48,7 @@ export async function getPendingLibraryReservations() {
   try {
     await verifyLibraryCoordinator();
     const supabaseAdmin = getSupabaseAdmin();
+    const nowIso = new Date().toISOString();
     const { data, error } = await supabaseAdmin
       .from("reservations")
       .select(
@@ -62,6 +63,7 @@ export async function getPendingLibraryReservations() {
       )
       .eq("auditorium_id", "3")
       .eq("status", "PENDING")
+      .gte("end_time", nowIso)
       .order("start_time", { ascending: true });
 
     if (error) throw error;
@@ -220,11 +222,16 @@ export async function cancelLibraryReservation(id: number, reason: string) {
     });
 
     // Insert In-App Notification
+    const cancelDateFormatted = new Date(
+      reservation.start_time,
+    ).toLocaleDateString("es-CO", {
+      timeZone: "America/Bogota",
+    });
     await supabaseAdmin.from("user_notifications").insert([
       {
         user_id: reservation.user_id,
         title: "Reserva Cancelada ❌",
-        message: `Tu reserva de biblioteca "${reservation.title}" ha sido cancelada. Motivo: ${reason}`,
+        message: `Tu reserva de biblioteca "${reservation.title}" para el ${cancelDateFormatted} ha sido cancelada. Motivo: ${reason}`,
       },
     ]);
 
@@ -308,11 +315,16 @@ export async function requestModificationAction(
     });
 
     // Insert In-App Notification
+    const modDateFormatted = new Date(
+      reservation.start_time,
+    ).toLocaleDateString("es-CO", {
+      timeZone: "America/Bogota",
+    });
     await supabaseAdmin.from("user_notifications").insert([
       {
         user_id: reservation.user_id,
         title: "Modificación Sugerida ⚠️",
-        message: `Se sugiere una modificación para tu reserva "${reservation.title}": ${suggestion}`,
+        message: `Se sugiere una modificación para tu reserva "${reservation.title}" (${modDateFormatted}): ${suggestion}`,
       },
     ]);
 

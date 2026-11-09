@@ -10,32 +10,40 @@ interface TicketSLAStatusProps {
 }
 
 export function TicketSLAStatus({ ticket }: TicketSLAStatusProps) {
-  // Parsing logic for auditorium date
+  // Parsing logic for auditorium/reservation date
   const getAuditoriumDate = (t: Ticket) => {
-    if (!t.category?.toLowerCase().includes("auditorio")) return null;
+    const cat = t.category?.toLowerCase() || "";
+    if (!cat.includes("auditorio") && !cat.includes("reserva")) return null;
     const desc = t.description || "";
-    const dateMatch = desc.match(/Fecha: (\d{2}-\d{2}-\d{4})/);
-    const timeMatch = desc.match(/Hora: (\d{2}:\d{2})/);
+    const dateMatch = desc.match(/Fecha[s]?:\s*(\d{2,4}[-/]\d{2}[-/]\d{2,4})/i);
+    const timeMatch = desc.match(/Hora:\s*(\d{2}:\d{2})/i);
     if (dateMatch && timeMatch) {
-      const [d, m, y] = dateMatch[1].split("-");
-      return new Date(`${y}-${m}-${d}T${timeMatch[1]}`);
+      const dateStr = dateMatch[1].replace(/\//g, "-");
+      const [p1, p2, p3] = dateStr.split("-");
+      const normalizedDate =
+        p1.length === 4 ? `${p1}-${p2}-${p3}` : `${p3}-${p2}-${p1}`;
+      return new Date(`${normalizedDate}T${timeMatch[1]}`);
     }
     return null;
   };
 
   const eventDate = getAuditoriumDate(ticket);
   const now = new Date();
-  const isFutureAuditorium =
-    eventDate && (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60) >= 48;
+  const isFutureAuditorium = Boolean(
+    eventDate && (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60) >= 24,
+  );
 
   const isPaused = ticket.sla_status === "paused" || isFutureAuditorium;
   const slaHours = getSLAHours(ticket);
   const created = ticket.created_at || new Date().toISOString();
 
-  // Use stored expected end if available, otherwise calculate
-  const dueDate = ticket.sla_expected_end_at
-    ? new Date(ticket.sla_expected_end_at)
-    : calculateSLADueDate(created, slaHours);
+  // Para reservas agendadas en espera, la fecha objetivo es el inicio del evento
+  const dueDate =
+    isFutureAuditorium && eventDate
+      ? eventDate
+      : ticket.sla_expected_end_at
+        ? new Date(ticket.sla_expected_end_at)
+        : calculateSLADueDate(created, slaHours);
 
   const isOverdue = !isAfter(dueDate, new Date());
   const isResolved =

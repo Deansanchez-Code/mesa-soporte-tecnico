@@ -3,8 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { formatDateForDB } from "@/lib/scheduling";
-import { TimeBlock } from "@/lib/scheduling";
+import { formatDateForDB, TimeBlock, TIME_BLOCKS } from "@/lib/scheduling";
 
 import { Assignment } from "../types";
 import { cancelReservationAction } from "@/features/reservations/actions/reservationActions";
@@ -60,31 +59,54 @@ export function useAssignments({
           userData?.map((u) => [u.id, u.full_name]) || [],
         );
 
-        combined = (assignData || []).map((a) => ({
-          ...a,
-          instructor: {
-            full_name: userMap.get(a.instructor_id) || "Desconocido",
-          },
-        }));
+        combined = (assignData || []).map((a) => {
+          const blockInfo = a.time_block
+            ? TIME_BLOCKS[a.time_block as TimeBlock]
+            : undefined;
+          const [startStrBlock, endStrBlock] = blockInfo
+            ? blockInfo.range.split(" - ")
+            : ["06:00", "12:00"];
+
+          return {
+            ...a,
+            title: blockInfo
+              ? `Asignación de Formación (${blockInfo.label})`
+              : "Asignación de Formación",
+            start_time: `${a.assignment_date}T${startStrBlock}:00-05:00`,
+            end_time: `${a.assignment_date}T${endStrBlock}:00-05:00`,
+            instructor: {
+              full_name: userMap.get(a.instructor_id) || "Desconocido",
+            },
+          };
+        });
       }
 
-      // 3. Fetch Reservations if it's a Special Area (Auditorio, Subdirección, Biblioteca o Ambiente 107)
+      // 3. Fetch Reservations if it's a Special Area (Auditorio, Subdirección, Biblioteca, Ambiente 107 o Cocina)
       const isAuditorio = areaName.toUpperCase().includes("AUDITORIO");
       const isSubdireccion = areaName.toUpperCase().includes("SUBDIRECCIÓN");
       const isBiblioteca = areaName.toUpperCase().includes("BIBLIOTECA");
       const isAmbiente107 =
         areaName.toUpperCase().includes("107") ||
         areaName.toUpperCase().includes("AMBIENTE 107");
+      const isCocina = areaName.toUpperCase().includes("COCINA");
 
-      if (isAuditorio || isSubdireccion || isBiblioteca || isAmbiente107) {
-        // ID Mapping: 39 -> '1', 47 -> '2', 19 -> '3', Ambiente 107 -> '4'
+      if (
+        isAuditorio ||
+        isSubdireccion ||
+        isBiblioteca ||
+        isAmbiente107 ||
+        isCocina
+      ) {
+        // ID Mapping: 39 -> '1', 47 -> '2', 19 -> '3', Ambiente 107 -> '4', Cocina -> '5'
         const targetAuditoriumId = isAuditorio
           ? "1"
           : isSubdireccion
             ? "2"
             : isBiblioteca
               ? "3"
-              : "4";
+              : isAmbiente107
+                ? "4"
+                : "5";
 
         const { data: resData, error: resError } = await supabase
           .from("reservations")

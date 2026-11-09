@@ -62,10 +62,17 @@ describe("Prueba de Solapamiento", () => {
       return chain;
     });
 
+    const futureDate1 = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const futureDate1End = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000,
+    ).toISOString();
+
     const result = await createReservationAction({
       title: "Test",
-      start_time: "2026-11-20T10:00:00-05:00",
-      end_time: "2026-11-20T12:00:00-05:00",
+      start_time: futureDate1,
+      end_time: futureDate1End,
       user_id: "123e4567-e89b-12d3-a456-426614174000",
       auditorium_id: "1",
     });
@@ -141,12 +148,64 @@ describe("Prueba de Solapamiento", () => {
       return chain;
     });
 
+    const futureDate2 = new Date(
+      Date.now() + 5 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const futureDate2End = new Date(
+      Date.now() + 5 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000,
+    ).toISOString();
+
     const result = await createReservationAction({
       title: "Clase Programación",
-      start_time: "2026-11-10T08:00:00-05:00",
-      end_time: "2026-11-10T12:00:00-05:00",
+      start_time: futureDate2,
+      end_time: futureDate2End,
       user_id: "123e4567-e89b-12d3-a456-426614174000",
       auditorium_id: "4",
+    });
+
+    expect(result.error).toBeDefined();
+    expect(result.error).toContain("Horario no disponible");
+  });
+
+  it("debe bloquear reserva si detecta conflicto en Ambiente de Cocina (auditorium_id 5)", async () => {
+    mockSupabase.from.mockImplementation((table: string) => {
+      const chain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        lt: vi.fn().mockReturnThis(),
+        gt: vi.fn().mockReturnThis(),
+        single: vi.fn(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null }),
+      };
+
+      if (table === "users") {
+        chain.single.mockResolvedValue({
+          data: {
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            role: "instructor",
+            job_category: "instructor",
+          },
+        });
+      } else if (table === "reservations") {
+        chain.gt.mockResolvedValue({ data: [{ id: 777 }], error: null });
+      }
+      return chain;
+    });
+
+    const futureDate3 = new Date(
+      Date.now() + 6 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const futureDate3End = new Date(
+      Date.now() + 6 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000,
+    ).toISOString();
+
+    const result = await createReservationAction({
+      title: "Taller Gastronomía",
+      start_time: futureDate3,
+      end_time: futureDate3End,
+      user_id: "123e4567-e89b-12d3-a456-426614174000",
+      auditorium_id: "5",
     });
 
     expect(result.error).toBeDefined();

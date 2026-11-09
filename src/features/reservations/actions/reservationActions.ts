@@ -318,6 +318,50 @@ interface PublicUser {
   is_vip?: boolean | null;
   job_category?: string | null;
   area?: string | null;
+  perm_manage_assignments?: boolean | null;
+}
+
+export interface AssignableUser {
+  id: string;
+  full_name: string;
+  username: string;
+  email: string | null;
+  role: string | null;
+  job_category: string | null;
+  employment_type: string | null;
+  area: string | null;
+}
+
+/**
+ * Retorna la lista de instructores y funcionarios activos para que un coordinador o administrador
+ * pueda asignar una reserva a su nombre.
+ */
+export async function getAssignableUsersAction(): Promise<{
+  success: boolean;
+  users: AssignableUser[];
+}> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    if (!authUser) return { success: false, users: [] };
+
+    const adminSupabase = getSupabaseAdmin();
+    const { data, error } = await adminSupabase
+      .from("users")
+      .select(
+        "id, full_name, username, email, role, job_category, employment_type, area",
+      )
+      .eq("is_active", true)
+      .order("full_name", { ascending: true });
+
+    if (error || !data) return { success: false, users: [] };
+    return { success: true, users: data as AssignableUser[] };
+  } catch (error) {
+    console.error("Error fetching assignable users:", error);
+    return { success: false, users: [] };
+  }
 }
 
 export async function createReservationAction(
@@ -352,18 +396,28 @@ export async function createReservationAction(
     const { data: publicUserRaw } = await supabase
       .from("users")
       .select(
-        "id, role, employment_type, email, username, job_category, is_vip, area",
+        "id, role, employment_type, email, username, job_category, is_vip, area, perm_manage_assignments",
       )
       .eq("auth_id", authUser.id)
       .single();
 
     const publicUser = publicUserRaw as unknown as PublicUser;
+    const cleanUsername = (publicUser?.username || "").toLowerCase().trim();
+    const isCoordinator =
+      !!publicUser?.perm_manage_assignments ||
+      publicUser?.job_category?.toLowerCase() === "coordinador" ||
+      publicUser?.role?.toLowerCase() === "coordinator" ||
+      ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].includes(
+        cleanUsername,
+      );
 
-    if (publicUser?.id !== user_id) {
+    if (publicUser?.id !== user_id && authUser.id !== user_id) {
       const isAdmin = ["admin", "superadmin"].includes(
         publicUser?.role?.toLowerCase() || "",
       );
-      if (!isAdmin)
+      const isVipUser =
+        !!publicUser?.is_vip || publicUser?.role?.toLowerCase() === "vip";
+      if (!isAdmin && !isCoordinator && !isVipUser)
         throw new Error(
           "No tienes permisos para crear reservas a nombre de otros",
         );
@@ -381,7 +435,9 @@ export async function createReservationAction(
 
     // Validación de Fines de Semana para Funcionarios Normales
     const isVip =
-      !!publicUser?.is_vip || publicUser?.role?.toLowerCase() === "vip";
+      !!publicUser?.is_vip ||
+      publicUser?.role?.toLowerCase() === "vip" ||
+      isCoordinator;
     const isAdmin = ["admin", "superadmin"].includes(
       publicUser?.role?.toLowerCase() || "",
     );
@@ -505,14 +561,18 @@ export async function createReservationAction(
         initialStatus = "PENDING";
         needsApproval = true;
       }
-    } else if (currentSpace === "4") {
-      // Regla de Negocio: Ambiente 107 (Coordinadora: Nury Mildret Barrera nbarrerac@sena.edu.co)
+    } else if (currentSpace === "4" || currentSpace === "5") {
+      // Regla de Negocio: Ambiente 107 (ID 4) y Ambiente de Cocina (ID 5) (Coordinadora: Nury Mildret Barrera nbarrerac@sena.edu.co)
+      const spaceLabel =
+        currentSpace === "5" ? "Ambiente de Cocina" : "Ambiente 107";
       const userEmail = (publicUser?.email || "").toLowerCase();
       const isAdmin = ["admin", "superadmin"].includes(
         publicUser?.role?.toLowerCase() || "",
       );
       const isVip =
-        !!publicUser?.is_vip || publicUser?.role?.toLowerCase() === "vip";
+        !!publicUser?.is_vip ||
+        publicUser?.role?.toLowerCase() === "vip" ||
+        isCoordinator;
       const isInstructor =
         (publicUser?.job_category || "").toLowerCase().includes("instructor") ||
         (publicUser?.role || "").toLowerCase().includes("instructor") ||
@@ -524,18 +584,20 @@ export async function createReservationAction(
         ?.toLowerCase()
         .includes("planta");
 
-      const isStaff107 = [
-        "nbarrerac@sena.edu.co",
-        "dasanchezh@sena.edu.co",
-      ].some((mail) => userEmail.includes(mail.toLowerCase()));
+      const isStaff107 =
+        ["nbarrerac@sena.edu.co", "dasanchezh@sena.edu.co"].some((mail) =>
+          userEmail.includes(mail.toLowerCase()),
+        ) ||
+        ["nbarrerac", "dasanchezh"].includes(cleanUsername) ||
+        isCoordinator;
 
       if (!isStaff107 && !isAdmin && !isVip && !isInstructor && !isPlanta) {
         throw new Error(
-          "No tienes permisos para realizar reservas en el Ambiente 107.",
+          `No tienes permisos para realizar reservas en el ${spaceLabel}.`,
         );
       }
 
-      // Regla de Negocio: Ambiente 107 requiere autorización expresa de Nury Mildret Barrera (nbarrerac@sena.edu.co)
+      // Regla de Negocio: Ambiente 107 y Cocina requieren autorización expresa de Nury Mildret Barrera (nbarrerac@sena.edu.co)
       if ((isInstructor || isPlanta) && !isVip && !isAdmin && !isStaff107) {
         initialStatus = "PENDING";
         needsApproval = true;
@@ -571,9 +633,11 @@ export async function createReservationAction(
       const user = reservation.users;
       const isLibrary = String(reservation.auditorium_id) === "3";
       const isAmbiente107 = String(reservation.auditorium_id) === "4";
+      const isCocina = String(reservation.auditorium_id) === "5";
 
-      // Business Rule: Notifications for Ambiente 107 go to Nury Mildret Barrera (nbarrerac@sena.edu.co)
-      if (isAmbiente107) {
+      // Business Rule: Notifications for Ambiente 107 & Cocina go to Nury Mildret Barrera (nbarrerac@sena.edu.co)
+      if (isAmbiente107 || isCocina) {
+        const spaceLabel = isCocina ? "Ambiente de Cocina" : "Ambiente 107";
         const startDate = new Date(reservation.start_time);
         const endDate = new Date(reservation.end_time);
         const dateStr = startDate.toLocaleDateString("es-CO", {
@@ -589,14 +653,14 @@ export async function createReservationAction(
 
         const coordinatorSubject =
           reservation.status === "PENDING"
-            ? `Solicitud de Prereserva Ambiente 107: ${reservation.title}`
-            : `Reserva VIP Aprobada (Ambiente 107): ${reservation.title}`;
+            ? `Solicitud de Prereserva ${spaceLabel}: ${reservation.title}`
+            : `Reserva VIP Aprobada (${spaceLabel}): ${reservation.title}`;
 
         await EmailService.send({
           to: "nbarrerac@sena.edu.co",
           subject: coordinatorSubject,
           react: SpaceReservationEmail({
-            spaceName: "Ambiente 107",
+            spaceName: spaceLabel,
             requesterName: user.full_name,
             eventTitle: reservation.title,
             date: dateStr,
@@ -709,9 +773,11 @@ export async function createReservationAction(
               ? "Biblioteca"
               : isAmbiente107
                 ? "Ambiente 107"
-                : String(reservation.auditorium_id) === "2"
-                  ? "Subdirección"
-                  : "Auditorio Principal",
+                : isCocina
+                  ? "Ambiente de Cocina"
+                  : String(reservation.auditorium_id) === "2"
+                    ? "Subdirección"
+                    : "Auditorio Principal",
             resources: reservation.resources || [],
             specialRequirements: reservation.description,
           }),
@@ -793,13 +859,26 @@ export async function updateReservationAction(
 
     const { data: publicUser } = await supabase
       .from("users")
-      .select("id, is_vip, role, employment_type, email")
+      .select(
+        "id, is_vip, role, employment_type, email, username, job_category, perm_manage_assignments",
+      )
       .eq("auth_id", authUser.id)
       .single();
 
+    const cleanUsername = (publicUser?.username || "").toLowerCase().trim();
+    const isCoordinator =
+      !!publicUser?.perm_manage_assignments ||
+      publicUser?.job_category?.toLowerCase() === "coordinador" ||
+      publicUser?.role?.toLowerCase() === "coordinator" ||
+      ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].includes(
+        cleanUsername,
+      );
+
     const isOwner = publicUser?.id === existing.user_id;
     const isVip =
-      !!publicUser?.is_vip || publicUser?.role?.toLowerCase() === "vip";
+      !!publicUser?.is_vip ||
+      publicUser?.role?.toLowerCase() === "vip" ||
+      isCoordinator;
     const isAdmin = ["admin", "superadmin"].includes(
       publicUser?.role?.toLowerCase() || "",
     );
@@ -895,7 +974,7 @@ export async function createReservationBatchAction(
     const { data: publicUserRaw, error: userError } = await supabase
       .from("users")
       .select(
-        "id, role, is_vip, full_name, employment_type, email, job_category, username, area",
+        "id, role, is_vip, full_name, employment_type, email, job_category, username, area, perm_manage_assignments",
       )
       .eq("auth_id", authUser.id)
       .single();
@@ -904,9 +983,19 @@ export async function createReservationBatchAction(
       throw new Error("Usuario no encontrado en base de datos");
 
     const publicUser = publicUserRaw as unknown as PublicUser;
+    const cleanUsername = (publicUser.username || "").toLowerCase().trim();
+    const isCoordinator =
+      !!publicUser.perm_manage_assignments ||
+      publicUser.job_category?.toLowerCase() === "coordinador" ||
+      publicUser.role?.toLowerCase() === "coordinator" ||
+      ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].includes(
+        cleanUsername,
+      );
 
     const isVip =
-      !!publicUser.is_vip || publicUser.role?.toLowerCase() === "vip";
+      !!publicUser.is_vip ||
+      publicUser.role?.toLowerCase() === "vip" ||
+      isCoordinator;
     const isAdmin = ["admin", "superadmin"].includes(
       publicUser.role?.toLowerCase() || "",
     );
@@ -926,12 +1015,18 @@ export async function createReservationBatchAction(
       }
       const data = parseResult.data;
 
-      // Identity check
-      if (publicUser.id !== data.user_id) {
-        if (!isAdmin)
+      // Identity check & Resolve target user_id
+      if (publicUser.id !== data.user_id && authUser.id !== data.user_id) {
+        if (!isAdmin && !isCoordinator && !isVip)
           throw new Error(
             "No tienes permisos para crear reservas a nombre de otros",
           );
+      } else if (
+        authUser.id === data.user_id &&
+        publicUser.id !== authUser.id
+      ) {
+        // Si el cliente envió el auth_id por sesión cacheada, normalizar al id público de users
+        data.user_id = publicUser.id;
       }
 
       // Validación Fines de Semana
@@ -1045,7 +1140,9 @@ export async function createReservationBatchAction(
           initialStatus = "PENDING";
           hasNeedsApproval = true;
         }
-      } else if (targetSpace === "4") {
+      } else if (targetSpace === "4" || targetSpace === "5") {
+        const spaceLabel =
+          targetSpace === "5" ? "Ambiente de Cocina" : "Ambiente 107";
         const userEmail = (publicUser.email || "").toLowerCase();
         const isInstructor =
           (publicUser.job_category || "")
@@ -1060,18 +1157,20 @@ export async function createReservationBatchAction(
           ?.toLowerCase()
           .includes("planta");
 
-        const isStaff107 = [
-          "nbarrerac@sena.edu.co",
-          "dasanchezh@sena.edu.co",
-        ].some((mail) => userEmail.includes(mail.toLowerCase()));
+        const isStaff107 =
+          ["nbarrerac@sena.edu.co", "dasanchezh@sena.edu.co"].some((mail) =>
+            userEmail.includes(mail.toLowerCase()),
+          ) ||
+          ["nbarrerac", "dasanchezh"].includes(cleanUsername) ||
+          isCoordinator;
 
         if (!isStaff107 && !isAdmin && !isVip && !isInstructor && !isPlanta) {
           throw new Error(
-            `No tienes permisos para reservar el Ambiente 107 (detectado en fecha ${new Date(res.start_time).toLocaleDateString()}).`,
+            `No tienes permisos para reservar el ${spaceLabel} (detectado en fecha ${new Date(res.start_time).toLocaleDateString()}).`,
           );
         }
 
-        // Regla de Negocio: Ambiente 107 requiere autorización expresa de Nury Mildret Barrera (nbarrerac@sena.edu.co)
+        // Regla de Negocio: Ambiente 107 y Cocina requieren autorización expresa de Nury Mildret Barrera (nbarrerac@sena.edu.co)
         if ((isInstructor || isPlanta) && !isVip && !isAdmin && !isStaff107) {
           initialStatus = "PENDING";
           hasNeedsApproval = true;
@@ -1235,19 +1334,23 @@ export async function createReservationBatchAction(
         const isAmbiente107 = validReservations.some(
           (r) => String(r.auditorium_id) === "4",
         );
+        const isCocina = validReservations.some(
+          (r) => String(r.auditorium_id) === "5",
+        );
 
-        // A1. Ambiente 107 Batch Notification (Nury Mildret Barrera)
-        if (isAmbiente107) {
+        // A1. Ambiente 107 & Cocina Batch Notification (Nury Mildret Barrera)
+        if (isAmbiente107 || isCocina) {
+          const spaceLabel = isCocina ? "Ambiente de Cocina" : "Ambiente 107";
           const coordinatorSubject =
             initialStatus === "PENDING"
-              ? `Solicitud de Prereserva Ambiente 107 (Grupal): ${titles[0]}`
-              : `Reserva Grupal VIP Aprobada (Ambiente 107): ${titles[0]}`;
+              ? `Solicitud de Prereserva ${spaceLabel} (Grupal): ${titles[0]}`
+              : `Reserva Grupal VIP Aprobada (${spaceLabel}): ${titles[0]}`;
 
           await EmailService.send({
             to: "nbarrerac@sena.edu.co",
             subject: coordinatorSubject,
             react: SpaceReservationEmail({
-              spaceName: "Ambiente 107",
+              spaceName: spaceLabel,
               requesterName: user.full_name,
               eventTitle: `${titles[0]} (Lote de ${validReservations.length} días)`,
               date: datesList,
@@ -1344,11 +1447,13 @@ export async function createReservationBatchAction(
                 ? "Biblioteca"
                 : isAmbiente107
                   ? "Ambiente 107"
-                  : validReservations.some(
-                        (r) => String(r.auditorium_id) === "2",
-                      )
-                    ? "Subdirección"
-                    : "Auditorio Principal",
+                  : isCocina
+                    ? "Ambiente de Cocina"
+                    : validReservations.some(
+                          (r) => String(r.auditorium_id) === "2",
+                        )
+                      ? "Subdirección"
+                      : "Auditorio Principal",
               resources: first.resources || [],
               specialRequirements: first.description,
             }),

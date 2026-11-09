@@ -26,6 +26,9 @@ async function verifyAmbiente107Coordinator() {
     (user.user_metadata?.username as string) || ""
   ).toLowerCase();
   const role = (user.user_metadata?.role || "").toLowerCase();
+  const jobCategory = (
+    (user.user_metadata?.job_category as string) || ""
+  ).toLowerCase();
 
   const isExplicitAllowed = ALLOWED_107_APPROVERS.some(
     (allowed) =>
@@ -33,8 +36,16 @@ async function verifyAmbiente107Coordinator() {
       username.includes(allowed.toLowerCase()),
   );
 
-  if (!isExplicitAllowed && role !== "admin" && role !== "superadmin") {
-    throw new Error("No autorizado para gestionar reservas del Ambiente 107");
+  if (
+    !isExplicitAllowed &&
+    role !== "admin" &&
+    role !== "superadmin" &&
+    role !== "coordinator" &&
+    jobCategory !== "coordinador"
+  ) {
+    throw new Error(
+      "No autorizado para gestionar reservas de Ambiente 107 / Cocina",
+    );
   }
 }
 
@@ -44,6 +55,7 @@ interface ReservationData {
   start_time: string;
   end_time: string;
   user_id: string;
+  auditorium_id: string | number;
   users: {
     full_name: string;
     email: string;
@@ -51,12 +63,13 @@ interface ReservationData {
 }
 
 /**
- * Consulta todas las solicitudes pendientes del Ambiente 107 (Space ID 4)
+ * Consulta todas las solicitudes pendientes vigentes del Ambiente 107 (Space ID 4) y Ambiente de Cocina (Space ID 5)
  */
 export async function getPendingAmbiente107Reservations() {
   try {
     await verifyAmbiente107Coordinator();
     const supabaseAdmin = getSupabaseAdmin();
+    const nowIso = new Date().toISOString();
     const { data, error } = await supabaseAdmin
       .from("reservations")
       .select(
@@ -66,11 +79,13 @@ export async function getPendingAmbiente107Reservations() {
         start_time, 
         end_time, 
         user_id,
+        auditorium_id,
         users(full_name, email)
       `,
       )
-      .eq("auditorium_id", "4")
+      .in("auditorium_id", ["4", "5"])
       .eq("status", "PENDING")
+      .gte("end_time", nowIso)
       .order("start_time", { ascending: true });
 
     if (error) throw error;
@@ -87,12 +102,20 @@ export async function getPendingAmbiente107Reservations() {
         start_time: res.start_time,
         end_time: res.end_time,
         user_id: res.user_id,
+        auditorium_id: String(res.auditorium_id),
+        spaceName:
+          String(res.auditorium_id) === "5"
+            ? "Ambiente de Cocina"
+            : "Ambiente 107",
         users: res.users,
         durationHours: Math.round(durationHours * 10) / 10,
       };
     });
   } catch (error) {
-    console.error("Error fetching pending Ambiente 107 reservations:", error);
+    console.error(
+      "Error fetching pending Ambiente 107/Cocina reservations:",
+      error,
+    );
     return [];
   }
 }
@@ -140,6 +163,11 @@ export async function approveAmbiente107Reservation(id: number) {
       recipientEmail = `${user.username.trim()}@sena.edu.co`.toLowerCase();
     }
 
+    const spaceLabel =
+      String(reservation.auditorium_id) === "5"
+        ? "Ambiente de Cocina"
+        : "Ambiente 107";
+
     const startDate = new Date(reservation.start_time);
     const endDate = new Date(reservation.end_time);
     const dateStr = startDate.toLocaleDateString("es-CO", {
@@ -153,9 +181,9 @@ export async function approveAmbiente107Reservation(id: number) {
 
     await EmailService.send({
       to: recipientEmail,
-      subject: `¡Reserva Confirmada! Ambiente 107: ${reservation.title}`,
+      subject: `¡Reserva Confirmada! ${spaceLabel}: ${reservation.title}`,
       react: SpaceReservationEmail({
-        spaceName: "Ambiente 107",
+        spaceName: spaceLabel,
         requesterName: user.full_name,
         eventTitle: reservation.title,
         date: dateStr,
@@ -171,7 +199,7 @@ export async function approveAmbiente107Reservation(id: number) {
       {
         user_id: reservation.user_id,
         title: "¡Reserva Aprobada! 🎉",
-        message: `Tu reserva para el Ambiente 107 ("${reservation.title}") ha sido autorizada por Nury Mildret Barrera.`,
+        message: `Tu reserva para el ${spaceLabel} ("${reservation.title}" - ${dateStr}) ha sido autorizada por Nury Mildret Barrera.`,
       },
     ]);
 
@@ -219,17 +247,25 @@ export async function cancelAmbiente107Reservation(id: number, reason: string) {
     ).users;
 
     const recipientEmail = user.email;
+    const spaceLabel =
+      String(reservation.auditorium_id) === "5"
+        ? "Ambiente de Cocina"
+        : "Ambiente 107";
+    const dateFormatted = new Date(reservation.start_time).toLocaleDateString(
+      "es-CO",
+      {
+        timeZone: "America/Bogota",
+      },
+    );
 
     await EmailService.send({
       to: recipientEmail,
-      subject: `Reserva Ambiente 107 No Confirmada: ${reservation.title}`,
+      subject: `Reserva ${spaceLabel} No Confirmada: ${reservation.title}`,
       react: SpaceReservationEmail({
-        spaceName: "Ambiente 107",
+        spaceName: spaceLabel,
         requesterName: user.full_name,
         eventTitle: reservation.title,
-        date: new Date(reservation.start_time).toLocaleDateString("es-CO", {
-          timeZone: "America/Bogota",
-        }),
+        date: dateFormatted,
         timeRange: "N/A",
         specialRequirements: reason,
         coordinatorName: "Nury Mildret Barrera",
@@ -241,7 +277,7 @@ export async function cancelAmbiente107Reservation(id: number, reason: string) {
       {
         user_id: reservation.user_id,
         title: "Reserva No Confirmada ❌",
-        message: `Tu solicitud para el Ambiente 107 no pudo ser autorizada. Motivo: ${reason}`,
+        message: `Tu solicitud para el ${spaceLabel} (${dateFormatted}) no pudo ser autorizada. Motivo: ${reason}`,
       },
     ]);
 
@@ -284,16 +320,25 @@ export async function suggestModification107Action(
       }
     ).users;
 
+    const spaceLabel =
+      String(reservation.auditorium_id) === "5"
+        ? "Ambiente de Cocina"
+        : "Ambiente 107";
+    const dateFormatted = new Date(reservation.start_time).toLocaleDateString(
+      "es-CO",
+      {
+        timeZone: "America/Bogota",
+      },
+    );
+
     await EmailService.send({
       to: user.email,
-      subject: `Sugerencia sobre tu reserva de Ambiente 107: ${reservation.title}`,
+      subject: `Sugerencia sobre tu reserva de ${spaceLabel}: ${reservation.title}`,
       react: SpaceReservationEmail({
-        spaceName: "Ambiente 107",
+        spaceName: spaceLabel,
         requesterName: user.full_name,
         eventTitle: reservation.title,
-        date: new Date(reservation.start_time).toLocaleDateString("es-CO", {
-          timeZone: "America/Bogota",
-        }),
+        date: dateFormatted,
         timeRange: "N/A",
         specialRequirements: suggestion,
         coordinatorName: "Nury Mildret Barrera",
@@ -305,7 +350,7 @@ export async function suggestModification107Action(
       {
         user_id: reservation.user_id,
         title: "Ajuste Sugerido en Reserva 💡",
-        message: `Nury Mildret Barrera sugiere un ajuste para tu reserva de Ambiente 107: "${suggestion}"`,
+        message: `Nury Mildret Barrera sugiere un ajuste para tu reserva de ${spaceLabel} (${dateFormatted}): "${suggestion}"`,
       },
     ]);
 

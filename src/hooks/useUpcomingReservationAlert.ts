@@ -55,10 +55,12 @@ export function useUpcomingReservationAlert(
       .order("start_time", { ascending: true });
 
     if (error || !data || data.length === 0) {
+      setUpcomingAlert(null);
       return;
     }
 
     const currentMs = now.getTime();
+    let matchedAlert: UpcomingAlertData | null = null;
 
     for (const res of data as unknown as Reservation[]) {
       if (dismissedIds.has(res.id)) continue;
@@ -72,18 +74,22 @@ export function useUpcomingReservationAlert(
         const getSpaceName = (auditoriumId?: string) => {
           if (auditoriumId === "1") return "Auditorio Principal";
           if (auditoriumId === "3") return "Biblioteca";
+          if (auditoriumId === "4") return "Ambiente 107";
+          if (auditoriumId === "5") return "Ambiente de Cocina";
           if (auditoriumId === "2") return "Subdirección";
           return "Espacio Reservado";
         };
 
-        setUpcomingAlert({
+        matchedAlert = {
           reservation: res,
           minutesRemaining: diffMinutes,
-          spaceName: getSpaceName(res.auditorium_id),
-        });
+          spaceName: getSpaceName(String(res.auditorium_id)),
+        };
         break;
       }
     }
+
+    setUpcomingAlert(matchedAlert);
   }, [userProfile, dismissedIds]);
 
   useEffect(() => {

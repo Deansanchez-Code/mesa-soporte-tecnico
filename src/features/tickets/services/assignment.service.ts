@@ -19,10 +19,10 @@ export class AssignmentService {
       if (!agents || agents.length === 0) return null;
 
       if (agents.length === 1) {
-        return agents[0].auth_id || agents[0].id;
+        return agents[0].id;
       }
 
-      const agentIds = agents.map((a) => a.auth_id).filter(Boolean) as string[];
+      const agentIds = agents.map((a) => a.id).filter(Boolean) as string[];
 
       // Get workload (tickets assigned to these agents that are NOT resolved or cancelled or closed)
       const { data: workload } = await supabase

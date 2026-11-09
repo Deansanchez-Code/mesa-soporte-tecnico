@@ -1,12 +1,22 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Calendar, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import {
+  Calendar,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  UserCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
 import { useReservations } from "../hooks/useReservations";
 import { Reservation } from "../types";
+import {
+  getAssignableUsersAction,
+  AssignableUser,
+} from "../actions/reservationActions";
 
 import { UserProfile } from "@/features/auth/hooks/useUserProfile";
 import { Skeleton } from "@/components/Skeleton";
@@ -84,7 +94,12 @@ export default function AuditoriumReservationForm({
   const [repeatWeeks, setRepeatWeeks] = useState(2);
   const [selectedSpace, setSelectedSpace] = useState(
     String(reservationToEdit?.auditorium_id || initialSpace || "1"),
-  ); // 1: Auditorio, 2: Subdirección
+  ); // 1: Auditorio, 2: Subdirección, 3: Biblioteca, 4: Ambiente 107, 5: Ambiente de Cocina
+  const [assignedUserId, setAssignedUserId] = useState<string>(
+    reservationToEdit?.user_id || user?.id || "",
+  );
+  const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
+  const [userSearchTerm, setUserSearchTerm] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -168,6 +183,47 @@ export default function AuditoriumReservationForm({
 
   const [maintenanceConfig, setMaintenanceConfig] =
     useState<SpaceMaintenanceConfig>(DEFAULT_AUDITORIUM_MAINTENANCE);
+
+  // Verificar si el usuario actual es Coordinador(a) o Administrador para permitir asignar reservas a terceros
+  const canAssignToOthers = (() => {
+    const u = user as {
+      role?: string;
+      job_category?: string;
+      perm_manage_assignments?: boolean;
+      is_vip?: boolean;
+      username?: string;
+      email?: string;
+    } | null;
+    if (!u) return false;
+    const role = (u.role || "").toLowerCase();
+    const jobCat = (u.job_category || "").toLowerCase();
+    const uname = (u.username || "").toLowerCase();
+    const email = (u.email || "").toLowerCase();
+    return (
+      ["admin", "superadmin", "coordinator", "vip"].includes(role) ||
+      jobCat.includes("coordinador") ||
+      !!u.perm_manage_assignments ||
+      !!u.is_vip ||
+      ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].some(
+        (allowed) => uname.includes(allowed) || email.includes(allowed),
+      )
+    );
+  })();
+
+  useEffect(() => {
+    if (user?.id && !reservationToEdit) {
+      setAssignedUserId(user.id);
+    }
+  }, [user?.id, reservationToEdit]);
+
+  useEffect(() => {
+    if (!canAssignToOthers) return;
+    getAssignableUsersAction().then((res) => {
+      if (res.success && res.users) {
+        setAssignableUsers(res.users);
+      }
+    });
+  }, [canAssignToOthers]);
 
   // Cargar configuración de mantenimiento
   useEffect(() => {
@@ -361,7 +417,7 @@ export default function AuditoriumReservationForm({
           title,
           start_time: startIso,
           end_time: endIso,
-          user_id: user?.id || "",
+          user_id: assignedUserId || user?.id || "",
           auditorium_id: selectedSpace,
           resources: selectedResources,
           description,
@@ -392,6 +448,7 @@ export default function AuditoriumReservationForm({
         if (spaceId === "1") return "Auditorio";
         if (spaceId === "3") return "Biblioteca";
         if (spaceId === "4") return "Ambiente 107";
+        if (spaceId === "5") return "Ambiente de Cocina";
         return "Subdirección";
       };
 
@@ -422,11 +479,19 @@ export default function AuditoriumReservationForm({
 
         const primerDia = supportTicketsPayload[0];
 
+        const assignedUserObj = assignableUsers.find(
+          (u) => u.id === assignedUserId,
+        );
+        const assignedInfo =
+          assignedUserObj && assignedUserId !== user?.id
+            ? `\nAsignado a: ${assignedUserObj.full_name} (${assignedUserObj.job_category || assignedUserObj.employment_type || "Funcionario"})`
+            : "";
+
         const ticketConsolidado = {
           category: "Reserva Auditorio", // Mantenemos la categoría base por temas de filtrado en panel
           ticket_type: "REQ" as const,
-          description: `Reserva de ${spaceName}: ${title}\nFechas: ${datesString}\nHora: ${primerDia.start} - ${primerDia.end}\nRecursos: ${selectedResources.join(", ")}\nDetalles: ${description}`,
-          user_id: user?.id || "",
+          description: `Reserva de ${spaceName}: ${title}\nFechas: ${datesString}\nHora: ${primerDia.start} - ${primerDia.end}\nRecursos: ${selectedResources.join(", ")}\nDetalles: ${description}${assignedInfo}`,
+          user_id: assignedUserId || user?.id || "",
           location: spaceName,
           event_date: primerDia.isoStart,
         };
@@ -439,9 +504,11 @@ export default function AuditoriumReservationForm({
         const coordName =
           selectedSpace === "4"
             ? "Nury Mildret Barrera (Ambiente 107)"
-            : selectedSpace === "3"
-              ? "la Coordinación de Biblioteca"
-              : "la Coordinación de Formación";
+            : selectedSpace === "5"
+              ? "Nury Mildret Barrera (Ambiente de Cocina)"
+              : selectedSpace === "3"
+                ? "la Coordinación de Biblioteca"
+                : "la Coordinación de Formación";
         toast.info(
           `Solicitud de prereserva recibida. Queda pendiente de autorización por ${coordName}.`,
           { duration: 6000 },
@@ -588,11 +655,81 @@ export default function AuditoriumReservationForm({
               </div>
               <span className="font-bold text-sm">Ambiente 107</span>
               <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                Instructores
+                Prerreserva
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedSpace("5")}
+              className={`flex-1 p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                selectedSpace === "5"
+                  ? "border-amber-500 bg-amber-50 text-amber-800 shadow-sm ring-2 ring-amber-500/20"
+                  : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
+              }`}
+            >
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-amber-600" />
+              </div>
+              <span className="font-bold text-sm">Ambiente de Cocina</span>
+              <span className="text-[10px] text-amber-700 font-semibold bg-amber-100/70 px-2 py-0.5 rounded-full">
+                Prerreserva
               </span>
             </button>
           </div>
         </div>
+
+        {/* Selector de Asignación para Coordinadores / Administradores */}
+        {canAssignToOthers && assignableUsers.length > 0 && (
+          <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-5 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm font-bold text-emerald-950 flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-emerald-700" />
+                Asignar Reserva a Instructor o Funcionario
+              </label>
+              <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
+                Privilegio Coordinación
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input
+                type="text"
+                value={userSearchTerm}
+                onChange={(e) => setUserSearchTerm(e.target.value)}
+                placeholder="Buscar por nombre o usuario..."
+                className="w-full p-2.5 border border-emerald-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+              <select
+                value={assignedUserId}
+                onChange={(e) => setAssignedUserId(e.target.value)}
+                className="w-full p-2.5 border border-emerald-200 rounded-xl text-sm bg-white font-semibold text-gray-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+              >
+                <option value={user?.id || ""}>
+                  A mi nombre ({user?.full_name || "Titular actual"})
+                </option>
+                {assignableUsers
+                  .filter((u) => {
+                    if (u.id === user?.id) return false;
+                    if (!userSearchTerm.trim()) return true;
+                    const q = userSearchTerm.toLowerCase();
+                    return (
+                      (u.full_name || "").toLowerCase().includes(q) ||
+                      (u.username || "").toLowerCase().includes(q) ||
+                      (u.job_category || "").toLowerCase().includes(q)
+                    );
+                  })
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} —{" "}
+                      {u.job_category
+                        ? u.job_category.toUpperCase()
+                        : u.employment_type || "Funcionario"}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+        )}
 
         {/* Título */}
         {selectedSpace === "1" && (

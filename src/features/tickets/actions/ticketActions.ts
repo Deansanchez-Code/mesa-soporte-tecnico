@@ -54,14 +54,49 @@ export async function createTicketsBatchAction(
     } = await supabase.auth.getUser();
     if (!authUser) throw new Error("No autenticado");
 
-    // 1.1 Get Public User Profile
-    const { data: publicUser } = await supabase
+    // 1.1 Get Creator Public User Profile
+    const { data: creatorUser } = await supabase
       .from("users")
-      .select("id, is_vip")
-      .eq("auth_id", authUser.id)
-      .single();
+      .select("id, is_vip, job_category, username")
+      .or(`auth_id.eq.${authUser.id},id.eq.${authUser.id}`)
+      .maybeSingle();
 
-    const isVip = !!publicUser?.is_vip;
+    // Resolver usuario objetivo si el primer item especifica user_id distinto
+    const requestedUserId = ticketsData[0]?.user_id;
+    let targetPublicUser = creatorUser;
+
+    if (
+      requestedUserId &&
+      requestedUserId !== creatorUser?.id &&
+      requestedUserId !== authUser.id
+    ) {
+      const { data: resolvedTarget } = await supabase
+        .from("users")
+        .select("id, is_vip, job_category, username")
+        .or(`id.eq.${requestedUserId},auth_id.eq.${requestedUserId}`)
+        .maybeSingle();
+
+      if (resolvedTarget) {
+        targetPublicUser = resolvedTarget;
+      }
+    }
+
+    const creatorIsVip =
+      !!creatorUser?.is_vip ||
+      creatorUser?.job_category?.toLowerCase() === "coordinador" ||
+      ["nbarrerac", "egutierrezn", "emgutierrezn"].includes(
+        (creatorUser?.username || "").toLowerCase().trim(),
+      );
+    const targetIsVip =
+      !!targetPublicUser?.is_vip ||
+      targetPublicUser?.job_category?.toLowerCase() === "coordinador" ||
+      ["nbarrerac", "egutierrezn", "emgutierrezn"].includes(
+        (targetPublicUser?.username || "").toLowerCase().trim(),
+      );
+
+    const isVip = creatorIsVip || targetIsVip;
+    const validPublicUserId =
+      targetPublicUser?.id || creatorUser?.id || authUser.id;
     const createdAt = new Date().toISOString();
 
     // 2. Prepare Batch
@@ -83,6 +118,7 @@ export async function createTicketsBatchAction(
       // Determine Status/SLA (Logic 24h)
       let initialStatus = "PENDIENTE";
       let slaStatus: "running" | "paused" = "running";
+      let slaReferenceDate = createdAt;
 
       if (
         event_date &&
@@ -97,6 +133,8 @@ export async function createTicketsBatchAction(
         if (hoursDiff > 24) {
           initialStatus = "EN_ESPERA";
           slaStatus = "paused";
+          // Para reservas futuras (>24h), la fecha estimada de atención/vencimiento es el inicio del evento
+          slaReferenceDate = eventStart.toISOString();
         }
       }
 
@@ -104,7 +142,10 @@ export async function createTicketsBatchAction(
         is_vip_ticket: isVip,
         ticket_type: ticket_type,
       } as Ticket);
-      const expectedEndAt = calculateSLADueDate(createdAt, slaHours);
+      const expectedEndAt =
+        initialStatus === "EN_ESPERA" && event_date
+          ? new Date(event_date)
+          : calculateSLADueDate(slaReferenceDate, slaHours);
 
       return {
         category,
@@ -112,7 +153,7 @@ export async function createTicketsBatchAction(
         asset_serial,
         location,
         description,
-        user_id: data.user_id || authUser.id,
+        user_id: validPublicUserId,
         status: initialStatus,
         is_vip_ticket: isVip,
         sla_start_at: createdAt,

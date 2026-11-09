@@ -167,7 +167,7 @@ export default function UserRequestForm({
   const [showPanicModal, setShowPanicModal] = useState(false);
   const [showSupportRedirect, setShowSupportRedirect] = useState(false);
   const [selectedReservationSpace, setSelectedReservationSpace] = useState<
-    "1" | "2" | "3" | "4"
+    "1" | "2" | "3" | "4" | "5"
   >("1");
 
   interface TodayReservation {
@@ -250,6 +250,7 @@ export default function UserRequestForm({
       "emgutierrezn@sena.edu.co";
 
   const userEmail = ((user?.email as string) || "").toLowerCase();
+  const usernameStr = ((user?.username as string) || "").toLowerCase();
   const roleStr = ((user?.role as string) || "").toLowerCase();
   const jobCatStr = (
     (user as never as { job_category?: string })?.job_category || ""
@@ -260,6 +261,12 @@ export default function UserRequestForm({
   const empTypeStr = (
     (user as never as { employment_type?: string })?.employment_type || ""
   ).toLowerCase();
+
+  const isCoordinator =
+    jobCatStr.includes("coordinador") ||
+    roleStr.includes("coordinator") ||
+    !!user?.perm_manage_assignments ||
+    ["nbarrerac", "egutierrezn", "emgutierrezn"].includes(usernameStr);
 
   const isInstructor =
     jobCatStr.includes("instructor") ||
@@ -274,7 +281,9 @@ export default function UserRequestForm({
       "rbiblioteca@sistema.local",
       "emgutierrezn@sena.edu.co",
     ].includes(userEmail) ||
+    ["egutierrezn", "rbiblioteca", "emgutierrezn"].includes(usernameStr) ||
     isAdmin ||
+    isCoordinator ||
     isInstructor ||
     isPlanta ||
     isVip;
@@ -283,7 +292,9 @@ export default function UserRequestForm({
     ["nbarrerac@sena.edu.co", "dasanchezh@sena.edu.co"].some((mail) =>
       userEmail.includes(mail.toLowerCase()),
     ) ||
+    ["nbarrerac", "dasanchezh"].includes(usernameStr) ||
     isAdmin ||
+    isCoordinator ||
     isInstructor ||
     isPlanta ||
     isVip;
@@ -350,18 +361,21 @@ export default function UserRequestForm({
                     const isLib = String(res.auditorium_id) === "3";
                     const isSub = String(res.auditorium_id) === "2";
                     const is107 = String(res.auditorium_id) === "4";
+                    const isCocina = String(res.auditorium_id) === "5";
 
                     return (
                       <div
                         key={res.id}
                         className={`p-4 rounded-2xl border border-l-4 shadow-sm flex flex-col gap-1.5 transition-all hover:scale-[1.01] ${
-                          is107
-                            ? "bg-emerald-50/50 border-emerald-100 border-l-emerald-600"
-                            : isLib
-                              ? "bg-purple-50/50 border-purple-100 border-l-purple-600"
-                              : isSub
-                                ? "bg-orange-50/50 border-orange-100 border-l-sena-orange"
-                                : "bg-blue-50/50 border-blue-100 border-l-sena-blue"
+                          isCocina
+                            ? "bg-amber-50/50 border-amber-100 border-l-amber-600"
+                            : is107
+                              ? "bg-emerald-50/50 border-emerald-100 border-l-emerald-600"
+                              : isLib
+                                ? "bg-purple-50/50 border-purple-100 border-l-purple-600"
+                                : isSub
+                                  ? "bg-orange-50/50 border-orange-100 border-l-sena-orange"
+                                  : "bg-blue-50/50 border-blue-100 border-l-sena-blue"
                         }`}
                       >
                         <div className="flex justify-between items-start gap-2">
@@ -370,22 +384,26 @@ export default function UserRequestForm({
                           </span>
                           <span
                             className={`text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full shrink-0 ${
-                              is107
-                                ? "bg-emerald-100 text-emerald-800"
-                                : isLib
-                                  ? "bg-purple-100 text-purple-700"
-                                  : isSub
-                                    ? "bg-orange-100 text-sena-orange"
-                                    : "bg-blue-100 text-sena-blue"
+                              isCocina
+                                ? "bg-amber-100 text-amber-800"
+                                : is107
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : isLib
+                                    ? "bg-purple-100 text-purple-700"
+                                    : isSub
+                                      ? "bg-orange-100 text-sena-orange"
+                                      : "bg-blue-100 text-sena-blue"
                             }`}
                           >
-                            {is107
-                              ? "Ambiente 107"
-                              : isLib
-                                ? "Biblioteca"
-                                : isSub
-                                  ? "Subdirección"
-                                  : "Auditorio"}
+                            {isCocina
+                              ? "Ambiente de Cocina"
+                              : is107
+                                ? "Ambiente 107"
+                                : isLib
+                                  ? "Biblioteca"
+                                  : isSub
+                                    ? "Subdirección"
+                                    : "Auditorio"}
                           </span>
                         </div>
                         <div className="flex justify-between items-center text-xs font-semibold text-slate-500 mt-1">
@@ -498,30 +516,58 @@ export default function UserRequestForm({
 
               {/* AMBIENTE 107 */}
               {canSeeAmbiente107 && (
-                <button
-                  onClick={() => {
-                    setSelectedReservationSpace("4");
-                    handleViewChange("RESERVATION");
-                  }}
-                  className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-emerald-500 transition-all duration-300 text-left w-full h-full relative"
-                >
-                  <div className="bg-emerald-50 p-5 rounded-2xl group-hover:bg-emerald-600 transition-all duration-300 group-hover:scale-110">
-                    <Calendar className="w-10 h-10 text-emerald-600 group-hover:text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-black text-gray-800 group-hover:text-emerald-700 transition-colors">
-                        Ambiente 107
-                      </h3>
-                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                        Habilitado
-                      </span>
+                <>
+                  <button
+                    onClick={() => {
+                      setSelectedReservationSpace("4");
+                      handleViewChange("RESERVATION");
+                    }}
+                    className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-emerald-500 transition-all duration-300 text-left w-full h-full relative"
+                  >
+                    <div className="bg-emerald-50 p-5 rounded-2xl group-hover:bg-emerald-600 transition-all duration-300 group-hover:scale-110">
+                      <Calendar className="w-10 h-10 text-emerald-600 group-hover:text-white" />
                     </div>
-                    <p className="text-sm text-gray-500 mt-1 font-semibold italic opacity-70 group-hover:opacity-100">
-                      Formación y sesiones especializadas.
-                    </p>
-                  </div>
-                </button>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-black text-gray-800 group-hover:text-emerald-700 transition-colors">
+                          Ambiente 107
+                        </h3>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                          Habilitado
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1 font-semibold italic opacity-70 group-hover:opacity-100">
+                        Formación y sesiones especializadas.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* AMBIENTE DE COCINA */}
+                  <button
+                    onClick={() => {
+                      setSelectedReservationSpace("5");
+                      handleViewChange("RESERVATION");
+                    }}
+                    className="group flex items-center gap-6 bg-white p-7 rounded-[2rem] shadow-sm hover:shadow-xl border-2 border-slate-50 hover:border-amber-500 transition-all duration-300 text-left w-full h-full relative"
+                  >
+                    <div className="bg-amber-50 p-5 rounded-2xl group-hover:bg-amber-600 transition-all duration-300 group-hover:scale-110">
+                      <Calendar className="w-10 h-10 text-amber-600 group-hover:text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-black text-gray-800 group-hover:text-amber-700 transition-colors">
+                          Ambiente de Cocina
+                        </h3>
+                        <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+                          Prerreserva
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1 font-semibold italic opacity-70 group-hover:opacity-100">
+                        Talleres gastronómicos y formación en cocina.
+                      </p>
+                    </div>
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -573,9 +619,9 @@ export default function UserRequestForm({
           </button>
         </div>
 
-        {/* Modal de Aprobaciones de Biblioteca y Ambiente 107 */}
-        <LibraryApprovalModal userEmail={userEmail} />
-        <Ambiente107ApprovalModal userEmail={userEmail} />
+        {/* Modal de Aprobaciones de Biblioteca y Ambiente 107 / Cocina */}
+        <LibraryApprovalModal userEmail={userEmail || usernameStr} />
+        <Ambiente107ApprovalModal userEmail={userEmail || usernameStr} />
 
         {/* Modal de Pánico */}
         {showPanicModal && (
@@ -649,7 +695,13 @@ export default function UserRequestForm({
                 : view === "RESERVATION"
                   ? selectedReservationSpace === "1"
                     ? "Reservar Auditorio"
-                    : "Reservar Subdirección"
+                    : selectedReservationSpace === "3"
+                      ? "Reservar Biblioteca"
+                      : selectedReservationSpace === "4"
+                        ? "Reservar Ambiente 107"
+                        : selectedReservationSpace === "5"
+                          ? "Reservar Ambiente de Cocina"
+                          : "Reservar Subdirección"
                   : "Disponibilidad de Ambientes"}
             </h2>
             <p className="text-sm text-gray-500">

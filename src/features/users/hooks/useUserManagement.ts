@@ -263,6 +263,72 @@ export function useUserManagement(onRefresh: () => void) {
     }
   };
 
+  const handleToggleCoordinator = async (user: Agent | User) => {
+    const isCurrentlyCoordinator =
+      user.job_category?.toLowerCase() === "coordinador";
+    const targetCoordinator = !isCurrentlyCoordinator;
+
+    if (
+      !confirm(
+        targetCoordinator
+          ? `¿Designar a ${user.full_name || user.username} como COORDINADOR(A)?\n\nObtendrá automáticamente privilegios VIP y permisos ampliados de gestión y asignación de ambientes.`
+          : `¿Retirar el rol de Coordinador(a) a ${user.full_name || user.username}?`,
+      )
+    )
+      return;
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("No hay sesión activa");
+
+      const payload = {
+        id: user.auth_id || user.id,
+        full_name: user.full_name,
+        username: user.username,
+        role: user.role,
+        area: user.area,
+        is_active: user.is_active,
+        employment_type: user.employment_type || "planta",
+        job_category: targetCoordinator ? "coordinador" : "funcionario",
+        is_vip: targetCoordinator ? true : user.is_vip,
+        perm_manage_assignments: targetCoordinator ? true : false,
+      };
+
+      const response = await fetch("/api/admin/users", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.error || "Error al actualizar privilegios");
+
+      toast.success(
+        targetCoordinator
+          ? "Coordinador(a) Designado(a)"
+          : "Rol de Coordinador Retirado",
+        {
+          description: targetCoordinator
+            ? `${user.full_name} ahora cuenta con privilegios VIP y funciones de coordinación.`
+            : `Se actualizaron los permisos de ${user.full_name}.`,
+        },
+      );
+      onRefresh();
+    } catch (error: unknown) {
+      const errMsg =
+        error instanceof Error ? error.message : "Error desconocido";
+      toast.error("Error al cambiar rol de coordinación", {
+        description: errMsg,
+      });
+    }
+  };
+
   return {
     showAgentModal,
     setShowAgentModal,
@@ -272,6 +338,7 @@ export function useUserManagement(onRefresh: () => void) {
     handleEditUser,
     handleDeleteUser,
     handleToggleUserActive,
+    handleToggleCoordinator,
     resetUserForm,
   };
 }

@@ -29,6 +29,8 @@ interface PendingReservation {
   start_time: string;
   end_time: string;
   user_id: string;
+  auditorium_id?: string;
+  spaceName?: string;
   users: {
     full_name: string;
     email: string;
@@ -188,7 +190,8 @@ export default function Ambiente107ApprovalModal({
           >
             <Clock className="w-5 h-5 text-emerald-200 animate-pulse" />
             <span className="font-semibold text-sm">
-              Ambiente 107 al día: No hay solicitudes pendientes de autorizar.
+              Ambientes 107 y Cocina al día: No hay solicitudes pendientes de
+              autorizar.
             </span>
           </div>
         </div>
@@ -204,7 +207,7 @@ export default function Ambiente107ApprovalModal({
             style={{ backgroundColor: "#065f46" }}
           >
             <Sparkles className="w-4 h-4 text-emerald-300 animate-pulse" />
-            <span>Ambiente 107 ({pending.length} pendientes)</span>
+            <span>Ambientes 107 / Cocina ({pending.length} pendientes)</span>
           </button>
         </div>
       );
@@ -234,7 +237,7 @@ export default function Ambiente107ApprovalModal({
                     style={{ backgroundColor: "rgba(16, 185, 129, 0.25)" }}
                   >
                     <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
-                    Gestión de Ambiente 107
+                    Gestión de Ambientes 107 y Cocina
                   </span>
                   <span
                     className="text-white text-xs px-3 py-1 rounded-full font-bold border border-white/25"
@@ -249,8 +252,9 @@ export default function Ambiente107ApprovalModal({
                 <p className="text-emerald-100 text-sm mt-1.5 max-w-xl font-medium leading-relaxed">
                   Hola,{" "}
                   <strong className="text-white font-bold">Nury Mildret</strong>
-                  . Como coordinadora del Ambiente 107, puedes autorizar o
-                  sugerir ajustes a las solicitudes de formación.
+                  . Como coordinadora del Ambiente 107 y Ambiente de Cocina,
+                  puedes autorizar o sugerir ajustes a las solicitudes de
+                  formación.
                 </p>
               </div>
               <button
@@ -275,8 +279,17 @@ export default function Ambiente107ApprovalModal({
                 >
                   <div className="space-y-3 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
-                        Ambiente 107
+                      <span
+                        className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                          res.auditorium_id === "5"
+                            ? "bg-amber-100 text-amber-900 border-amber-300"
+                            : "bg-emerald-100 text-emerald-900 border-emerald-300"
+                        }`}
+                      >
+                        {res.spaceName ||
+                          (res.auditorium_id === "5"
+                            ? "Ambiente de Cocina"
+                            : "Ambiente 107")}
                       </span>
                       <span className="text-slate-600 font-medium text-xs flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5 text-slate-500" />
@@ -389,7 +402,11 @@ export default function Ambiente107ApprovalModal({
                         : "Sugerir Ajuste de Horario"}
                     </h3>
                     <p className="text-xs text-white/90 font-medium">
-                      Ambiente 107 • Gestión de Formación
+                      {actionModal.reservation.spaceName ||
+                        (actionModal.reservation.auditorium_id === "5"
+                          ? "Ambiente de Cocina"
+                          : "Ambiente 107")}{" "}
+                      • Gestión de Formación
                     </p>
                   </div>
                 </div>

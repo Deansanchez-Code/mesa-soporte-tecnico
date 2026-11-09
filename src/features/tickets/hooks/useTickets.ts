@@ -42,12 +42,15 @@ export function useTickets(currentUser: User | null) {
     const now = new Date();
 
     return [...rawTickets].sort((a, b) => {
-      // Función auxiliar para extraer fecha/hora de auditorio si existe
+      // Función auxiliar para extraer fecha/hora de auditorio/reserva si existe
       const getAuditoriumDate = (ticket: Ticket) => {
-        if (!ticket.category?.toLowerCase().includes("auditorio")) return null;
+        const cat = ticket.category?.toLowerCase() || "";
+        if (!cat.includes("auditorio") && !cat.includes("reserva")) return null;
         const desc = ticket.description || "";
-        const dateMatch = desc.match(/Fecha: (\d{2,4}[-/]\d{2}[-/]\d{2,4})/);
-        const timeMatch = desc.match(/Hora: (\d{2}:\d{2})/);
+        const dateMatch = desc.match(
+          /Fecha[s]?:\s*(\d{2,4}[-/]\d{2}[-/]\d{2,4})/i,
+        );
+        const timeMatch = desc.match(/Hora:\s*(\d{2}:\d{2})/i);
 
         if (dateMatch && timeMatch) {
           const dateStr = dateMatch[1].replace(/\//g, "-");

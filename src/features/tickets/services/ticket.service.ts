@@ -31,26 +31,23 @@ export class TicketService {
     // El ticket puede ser creado "a nombre de" otro usuario (input.user_id) si es admin
     const targetUserId = input.user_id || authUserId;
 
-    // Verificar existencia y perfil VIP del usuario objetivo
+    // Verificar existencia y perfil VIP del usuario objetivo (soportando tanto auth_id como id público)
     const { data: publicUser, error: userError } = await supabase
       .from("users")
-      .select("id, is_vip, auth_id")
-      .eq("auth_id", targetUserId) // Ojo: input.user_id suele ser auth_id en frontend, verificar.
-      // En admin.types, user_id se refiere a UUID de la tabla users o auth_id?
-      // Revisando schema: tickets.user_id -> users.id (UUID tabla pública).
-      // Pero createTicketAction usaba: user_id: data.user_id || authUser.id
-      // authUser.id es Auth ID.
-      // Y luego hacía select ... .eq("auth_id", authUser.id)
-      // Asumiremos que trabajamos con Auth IDs y buscamos el User ID público.
-      .single();
+      .select("id, is_vip, auth_id, job_category, username")
+      .or(`auth_id.eq.${targetUserId},id.eq.${targetUserId}`)
+      .maybeSingle();
 
     if (userError || !publicUser) {
-      // Intento de fallback: buscar por ID público si no se encontró por Auth ID
-      // (caso raro si el input traía ID público)
       throw new Error(`Usuario no encontrado para ID ${targetUserId}`);
     }
 
-    const isVip = !!publicUser.is_vip;
+    const isVip =
+      !!publicUser.is_vip ||
+      publicUser.job_category?.toLowerCase() === "coordinador" ||
+      ["nbarrerac", "egutierrezn", "emgutierrezn"].includes(
+        (publicUser.username || "").toLowerCase().trim(),
+      );
 
     // 2. Determinar estado inicial y SLA Status
     const { status, slaStatus } = SlaService.determineInitialStatus(

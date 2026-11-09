@@ -82,11 +82,13 @@ export default function CalendarView({
     areaName.toUpperCase().includes("SUBDIRECCIÓN") ||
     areaName.toUpperCase().includes("BIBLIOTECA") ||
     areaName.toUpperCase().includes("107") ||
-    areaName.toUpperCase().includes("AMBIENTE 107");
+    areaName.toUpperCase().includes("AMBIENTE 107") ||
+    areaName.toUpperCase().includes("COCINA");
 
   const isAmbiente107 =
     areaName.toUpperCase().includes("107") ||
-    areaName.toUpperCase().includes("AMBIENTE 107");
+    areaName.toUpperCase().includes("AMBIENTE 107") ||
+    areaName.toUpperCase().includes("COCINA");
 
   const { assignments, deleteAssignment } = useAssignments({
     areaId,
@@ -310,8 +312,22 @@ export default function CalendarView({
                           new Date(b.start_time || 0).getTime(),
                       )
                       .map((assign) => {
+                        // Calcular inicio y fin desde start_time/end_time o desde el time_block si es asignación por bloque
+                        const blockInfo = assign.time_block
+                          ? TIME_BLOCKS[assign.time_block as TimeBlock]
+                          : undefined;
+                        const blockRangeParts = blockInfo?.range.split(" - ");
+                        const displayStart = assign.start_time
+                          ? format(new Date(assign.start_time), "HH:mm")
+                          : blockRangeParts?.[0] || "";
+                        const displayEnd = assign.end_time
+                          ? format(new Date(assign.end_time), "HH:mm")
+                          : blockRangeParts?.[1] || "";
+
                         // Calculate duration for sizing
-                        let durationHours = 1;
+                        let durationHours = blockInfo
+                          ? blockInfo.endHour - blockInfo.startHour + 1
+                          : 1;
                         if (assign.start_time && assign.end_time) {
                           const start = new Date(assign.start_time).getTime();
                           const end = new Date(assign.end_time).getTime();
@@ -369,9 +385,9 @@ export default function CalendarView({
                             <div
                               className={`text-[8px] tracking-tighter leading-none mt-auto ${isPending ? "text-gray-400" : "text-blue-600"}`}
                             >
-                              {assign.start_time
-                                ? `${format(new Date(assign.start_time), "HH:mm")} - ${format(new Date(assign.end_time || ""), "HH:mm")}`
-                                : ""}
+                              {displayStart && displayEnd
+                                ? `${displayStart} - ${displayEnd}`
+                                : blockInfo?.label || ""}
                               {isPending && " (Pendiente)"}
                             </div>
                           </div>
@@ -586,7 +602,11 @@ export default function CalendarView({
                                   Evento / Actividad
                                 </h5>
                                 <p className="text-sm font-bold text-blue-900 leading-tight">
-                                  {assign.title}
+                                  {assign.title ||
+                                    (assign.time_block &&
+                                    TIME_BLOCKS[assign.time_block as TimeBlock]
+                                      ? `Asignación de Formación (${TIME_BLOCKS[assign.time_block as TimeBlock].label})`
+                                      : `Reserva / Asignación - ${areaName}`)}
                                 </p>
                               </div>
 
@@ -604,7 +624,14 @@ export default function CalendarView({
                                             locale: es,
                                           },
                                         )
-                                      : "N/A"}
+                                      : assign.time_block &&
+                                          TIME_BLOCKS[
+                                            assign.time_block as TimeBlock
+                                          ]
+                                        ? TIME_BLOCKS[
+                                            assign.time_block as TimeBlock
+                                          ].range.split(" - ")[0]
+                                        : "N/A"}
                                   </p>
                                 </div>
                                 <div>
@@ -616,7 +643,14 @@ export default function CalendarView({
                                       ? format(new Date(assign.end_time), "p", {
                                           locale: es,
                                         })
-                                      : "N/A"}
+                                      : assign.time_block &&
+                                          TIME_BLOCKS[
+                                            assign.time_block as TimeBlock
+                                          ]
+                                        ? TIME_BLOCKS[
+                                            assign.time_block as TimeBlock
+                                          ].range.split(" - ")[1]
+                                        : "N/A"}
                                   </p>
                                 </div>
                               </div>

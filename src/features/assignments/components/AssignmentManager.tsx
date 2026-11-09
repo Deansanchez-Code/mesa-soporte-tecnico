@@ -42,12 +42,12 @@ export default function AssignmentManager({
 
   const fetchEnvironments = async () => {
     setLoading(true);
-    // Fetch AMBIENTE, AUDITORIO, SUBDIRECCIÓN and BIBLIOTECA, excluding KIOSKO
+    // Fetch AMBIENTE, AUDITORIO, SUBDIRECCIÓN, BIBLIOTECA and COCINA, excluding KIOSKO
     const { data } = await supabase
       .from("areas")
       .select("id, name")
       .or(
-        "name.ilike.%AMBIENTE%,name.ilike.%AUDITORIO%,name.ilike.%SUBDIRECCIÓN%,name.ilike.%BIBLIOTECA%",
+        "name.ilike.%AMBIENTE%,name.ilike.%AUDITORIO%,name.ilike.%SUBDIRECCIÓN%,name.ilike.%BIBLIOTECA%,name.ilike.%COCINA%",
       )
       .not("name", "ilike", "%KIOSKO%")
       .order("name");
@@ -132,13 +132,17 @@ export default function AssignmentManager({
             (selectedEnv &&
               (selectedEnv.name.toUpperCase().includes("AUDITORIO") ||
                 selectedEnv.name.toUpperCase().includes("SUBDIRECCIÓN") ||
-                selectedEnv.name.toUpperCase().includes("BIBLIOTECA")))) && (
+                selectedEnv.name.toUpperCase().includes("BIBLIOTECA") ||
+                selectedEnv.name.toUpperCase().includes("107") ||
+                selectedEnv.name.toUpperCase().includes("COCINA")))) && (
             <button
               onClick={() => {
                 if (
                   selectedEnv?.name.toUpperCase().includes("AUDITORIO") ||
                   selectedEnv?.name.toUpperCase().includes("SUBDIRECCIÓN") ||
-                  selectedEnv?.name.toUpperCase().includes("BIBLIOTECA")
+                  selectedEnv?.name.toUpperCase().includes("BIBLIOTECA") ||
+                  selectedEnv?.name.toUpperCase().includes("107") ||
+                  selectedEnv?.name.toUpperCase().includes("COCINA")
                 ) {
                   // Specific RBAC for Subdirección Button (VIP/Admin only)
                   if (
@@ -209,7 +213,9 @@ export default function AssignmentManager({
               <Plus className="w-4 h-4" />
               {selectedEnv?.name.toUpperCase().includes("AUDITORIO") ||
               selectedEnv?.name.toUpperCase().includes("SUBDIRECCIÓN") ||
-              selectedEnv?.name.toUpperCase().includes("BIBLIOTECA")
+              selectedEnv?.name.toUpperCase().includes("BIBLIOTECA") ||
+              selectedEnv?.name.toUpperCase().includes("107") ||
+              selectedEnv?.name.toUpperCase().includes("COCINA")
                 ? "Nueva Reserva"
                 : "Nueva Asignación"}
             </button>
@@ -259,7 +265,9 @@ export default function AssignmentManager({
               if (
                 selectedEnv?.name.toUpperCase().includes("AUDITORIO") ||
                 selectedEnv?.name.toUpperCase().includes("SUBDIRECCIÓN") ||
-                selectedEnv?.name.toUpperCase().includes("BIBLIOTECA")
+                selectedEnv?.name.toUpperCase().includes("BIBLIOTECA") ||
+                selectedEnv?.name.toUpperCase().includes("107") ||
+                selectedEnv?.name.toUpperCase().includes("COCINA")
               ) {
                 setIsReservationModalOpen(true);
               } else {
@@ -304,7 +312,11 @@ export default function AssignmentManager({
                   ? "1"
                   : selectedEnv.name.toUpperCase().includes("SUBDIRECCIÓN")
                     ? "2"
-                    : "3"
+                    : selectedEnv.name.toUpperCase().includes("107")
+                      ? "4"
+                      : selectedEnv.name.toUpperCase().includes("COCINA")
+                        ? "5"
+                        : "3"
               }
               onCancel={() => {
                 setIsReservationModalOpen(false);
@@ -333,7 +345,11 @@ export default function AssignmentManager({
                   ? "1"
                   : selectedEnv?.name.toUpperCase().includes("SUBDIRECCIÓN")
                     ? "2"
-                    : "3"
+                    : selectedEnv?.name.toUpperCase().includes("107")
+                      ? "4"
+                      : selectedEnv?.name.toUpperCase().includes("COCINA")
+                        ? "5"
+                        : "3"
               }
               onCancel={() => setEditingRes(null)}
               onSuccess={() => {
