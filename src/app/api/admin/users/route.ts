@@ -119,7 +119,33 @@ async function listUsersHandler(
 
   if (error) throw error;
 
-  return NextResponse.json({ users, count });
+  const pinSetByAuthId = new Set<string>();
+  try {
+    for (let page = 1; page <= 3; page++) {
+      const { data: authList } = await supabaseAdmin.auth.admin.listUsers({
+        page,
+        perPage: 1000,
+      });
+      const batch = authList?.users || [];
+      for (const au of batch) {
+        const hash = (au.app_metadata as Record<string, unknown> | undefined)
+          ?.kiosk_pin_hash;
+        if (typeof hash === "string" && hash.length > 0) {
+          pinSetByAuthId.add(au.id);
+        }
+      }
+      if (batch.length < 1000) break;
+    }
+  } catch (pinLookupErr) {
+    Logger.warn("No se pudo consultar estado de PIN Kiosko", pinLookupErr);
+  }
+
+  const enrichedUsers = (users || []).map((u) => ({
+    ...u,
+    has_kiosk_pin: pinSetByAuthId.has(u.auth_id || u.id),
+  }));
+
+  return NextResponse.json({ users: enrichedUsers, count });
 }
 
 // CREATE USER

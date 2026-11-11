@@ -86,8 +86,9 @@ export default function UserModal({
               </label>
               {newAgent.role === "user" ? (
                 <div className="p-2 bg-gray-100 text-gray-600 rounded-lg text-xs italic border border-gray-200">
-                  Acceso seguro mediante código OTP al correo institucional
-                  (clave interna aleatoria).
+                  Acceso Kiosko sin contraseña compartida: PIN numérico de 6
+                  dígitos para VIP/Coordinadores, ingreso directo institucional
+                  u OTP a correo personal externo.
                 </div>
               ) : (
                 <div className="relative">

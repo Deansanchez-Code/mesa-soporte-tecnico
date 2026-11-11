@@ -34,6 +34,7 @@ export interface Agent {
   perm_decommission_assets: boolean | null;
   perm_manage_assignments?: boolean;
   is_vip: boolean;
+  has_kiosk_pin?: boolean;
   employment_type?: string | null;
   job_category?: string | null;
   auth_id?: string | null;

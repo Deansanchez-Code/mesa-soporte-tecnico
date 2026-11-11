@@ -9,6 +9,11 @@ import {
   Trash2,
   Power,
   ShieldCheck,
+  KeyRound,
+  RefreshCw,
+  Copy,
+  X,
+  Loader2,
 } from "lucide-react";
 import { readSheet } from "read-excel-file/browser";
 import writeXlsxFile from "write-excel-file/browser";
@@ -48,6 +53,67 @@ export default function StaffTab({
   } = useUserManagement(onRefresh);
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [pinTargetUser, setPinTargetUser] = useState<User | null>(null);
+  const [pinInput, setPinInput] = useState("");
+  const [isSavingPin, setIsSavingPin] = useState(false);
+
+  const generateSixDigitPin = () => {
+    const arr = new Uint32Array(1);
+    window.crypto.getRandomValues(arr);
+    const num = 100000 + (arr[0] % 900000);
+    setPinInput(String(num));
+  };
+
+  const handleSaveVipPin = async () => {
+    if (!pinTargetUser) return;
+    if (!/^\d{6}$/.test(pinInput)) {
+      toast.error("El PIN debe contener exactamente 6 dígitos numéricos.");
+      return;
+    }
+
+    setIsSavingPin(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Sesión administrativa expirada. Inicia sesión de nuevo.");
+        return;
+      }
+
+      const res = await fetch("/api/admin/users/pin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          userId: pinTargetUser.id,
+          pin: pinInput,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "No se pudo guardar el PIN.");
+        return;
+      }
+
+      toast.success(
+        `PIN de 6 dígitos asignado a ${formatName(pinTargetUser.full_name)}.`,
+        {
+          description:
+            "Comunícale el código de forma directa tras validar su identidad.",
+        },
+      );
+      setPinTargetUser(null);
+      setPinInput("");
+      onRefresh();
+    } catch {
+      toast.error("Error de conexión al asignar el PIN.");
+    } finally {
+      setIsSavingPin(false);
+    }
+  };
 
   const handleBulkStaffUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -295,6 +361,18 @@ export default function StaffTab({
                             </span>
                           )
                         )}
+                        {(user.is_vip ||
+                          user.job_category?.toLowerCase() === "coordinador" ||
+                          user.perm_manage_assignments) &&
+                          (user.has_kiosk_pin ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              PIN Activo
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              Sin PIN
+                            </span>
+                          ))}
                       </div>
                     </td>
                     <td className="px-6 py-3">
@@ -311,6 +389,21 @@ export default function StaffTab({
                     {currentUserRole !== "admin" && (
                       <td className="px-6 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPinTargetUser(user);
+                              generateSixDigitPin();
+                            }}
+                            className={`p-1.5 rounded transition ${
+                              user.has_kiosk_pin
+                                ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                : "text-amber-600 hover:bg-amber-50"
+                            }`}
+                            title="Asignar / Rotar PIN numérico (6 dígitos) para acceso VIP"
+                          >
+                            <KeyRound className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => handleToggleCoordinator(user)}
                             className={`p-1.5 rounded transition ${
@@ -373,6 +466,115 @@ export default function StaffTab({
         setNewAgent={setNewAgent}
         areas={configData.areas}
       />
+
+      {pinTargetUser && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95">
+            <div className="bg-sena-green p-4 flex items-center justify-between text-white">
+              <div className="flex items-center gap-2.5">
+                <KeyRound className="w-5 h-5" />
+                <div>
+                  <h3 className="font-bold text-base leading-tight">
+                    Asignar PIN de Acceso VIP
+                  </h3>
+                  <p className="text-xs text-emerald-100">
+                    {formatName(pinTargetUser.full_name)} (@
+                    {pinTargetUser.username})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPinTargetUser(null);
+                  setPinInput("");
+                }}
+                className="p-1 rounded hover:bg-white/20 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+                El PIN se almacena cifrado (`scrypt`) y nunca se muestra de
+                nuevo después de guardarlo. Valida la identidad del funcionario
+                VIP o coordinador antes de entregarle este código.
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-600 uppercase">
+                  PIN Numérico (6 dígitos)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={pinInput}
+                    onChange={(e) =>
+                      setPinInput(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                    className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-center font-mono text-2xl font-bold tracking-[0.35em] focus:ring-2 focus:ring-sena-green outline-none"
+                    placeholder="000000"
+                  />
+                  <button
+                    type="button"
+                    onClick={generateSixDigitPin}
+                    className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition"
+                    title="Generar nuevo PIN aleatorio"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!pinInput) return;
+                      navigator.clipboard
+                        .writeText(pinInput)
+                        .then(() => toast.info("PIN copiado al portapapeles."))
+                        .catch(() => {});
+                    }}
+                    className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition"
+                    title="Copiar PIN"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={isSavingPin}
+                onClick={() => {
+                  setPinTargetUser(null);
+                  setPinInput("");
+                }}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isSavingPin || pinInput.length !== 6}
+                onClick={handleSaveVipPin}
+                className="px-5 py-2 text-xs font-bold text-white bg-sena-green hover:bg-emerald-700 rounded-lg transition flex items-center gap-2 disabled:opacity-50"
+              >
+                {isSavingPin ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  "Guardar PIN"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

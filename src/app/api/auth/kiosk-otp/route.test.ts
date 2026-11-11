@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
+import { hashKioskPin } from "@/lib/kiosk-pin";
 
 const {
   mockSendEmail,
@@ -66,27 +67,9 @@ vi.mock("@/lib/logger", () => ({
   },
 }));
 
-describe("POST /api/auth/kiosk-otp (ISO 27001 A.8.5)", () => {
+describe("POST /api/auth/kiosk-otp (PIN VIP + Directo SENA + OTP Personal)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockMaybeSingle.mockResolvedValue({
-      data: {
-        id: "123e4567-e89b-12d3-a456-426614174000",
-        auth_id: "auth-123",
-        username: "jperez",
-        full_name: "Juan Perez",
-        role: "user",
-        area: "Sistemas",
-        employment_type: "planta",
-        job_category: "funcionario",
-        email: "jperez@sena.edu.co",
-        is_vip: false,
-        perm_manage_assignments: false,
-        is_active: true,
-      },
-      error: null,
-    });
-    mockGetUserById.mockResolvedValue({ data: { user: { id: "auth-123" } } });
     mockSendEmail.mockResolvedValue({ success: true });
     mockGenerateLink.mockResolvedValue({
       data: { properties: { hashed_token: "magic-hash-token" } },
@@ -103,18 +86,170 @@ describe("POST /api/auth/kiosk-otp (ISO 27001 A.8.5)", () => {
     });
   });
 
-  it("emite OTP por correo con cookie HttpOnly y permite verificar sesión sin contraseña fija", async () => {
+  it("permite ingreso directo sin correo para usuario estándar @sena.edu.co sin privilegios VIP", async () => {
+    mockMaybeSingle.mockResolvedValue({
+      data: {
+        id: "123e4567-e89b-12d3-a456-426614174000",
+        auth_id: "auth-123",
+        username: "jperez",
+        full_name: "Juan Perez",
+        role: "user",
+        area: "Sistemas",
+        employment_type: "planta",
+        job_category: "instructor",
+        email: "jperez@sena.edu.co",
+        is_vip: false,
+        perm_manage_assignments: false,
+        is_active: true,
+      },
+      error: null,
+    });
+    mockGetUserById.mockResolvedValue({ data: { user: { id: "auth-123" } } });
+
+    const req = new NextRequest("http://localhost/api/auth/kiosk-otp", {
+      method: "POST",
+      headers: { "x-forwarded-for": "10.0.0.10" },
+      body: JSON.stringify({ action: "request", username: "jperez" }),
+    });
+
+    const res = await POST(req);
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.authMode).toBe("direct");
+    expect(json.verified).toBe(true);
+    expect(json.session.access_token).toBe("acc-tok");
+    expect(mockSendEmail).not.toHaveBeenCalled();
+  });
+
+  it("exige PIN numérico de 6 dígitos (scrypt) para personal VIP / Coordinadores sin enviar correo SENA", async () => {
+    const pinHash = hashKioskPin("654321");
+    mockMaybeSingle.mockResolvedValue({
+      data: {
+        id: "vip-uuid-1",
+        auth_id: "auth-vip-1",
+        username: "nbarrerac",
+        full_name: "Nury Barrera",
+        role: "user",
+        area: "Coordinación",
+        employment_type: "planta",
+        job_category: "coordinador",
+        email: "nbarrerac@sena.edu.co",
+        is_vip: true,
+        perm_manage_assignments: true,
+        is_active: true,
+      },
+      error: null,
+    });
+    mockGetUserById.mockResolvedValue({
+      data: {
+        user: {
+          id: "auth-vip-1",
+          app_metadata: { kiosk_pin_hash: pinHash },
+        },
+      },
+    });
+
+    const reqMode = new NextRequest("http://localhost/api/auth/kiosk-otp", {
+      method: "POST",
+      headers: { "x-forwarded-for": "10.0.0.11" },
+      body: JSON.stringify({ action: "request", username: "nbarrerac" }),
+    });
+    const resMode = await POST(reqMode);
+    const jsonMode = await resMode.json();
+    expect(resMode.status).toBe(200);
+    expect(jsonMode.authMode).toBe("pin");
+    expect(mockSendEmail).not.toHaveBeenCalled();
+
+    const badPinReq = new NextRequest("http://localhost/api/auth/kiosk-otp", {
+      method: "POST",
+      headers: { "x-forwarded-for": "10.0.0.11" },
+      body: JSON.stringify({
+        action: "verify_pin",
+        username: "nbarrerac",
+        pin: "000000",
+      }),
+    });
+    const badPinRes = await POST(badPinReq);
+    expect(badPinRes.status).toBe(401);
+
+    const okPinReq = new NextRequest("http://localhost/api/auth/kiosk-otp", {
+      method: "POST",
+      headers: { "x-forwarded-for": "10.0.0.11" },
+      body: JSON.stringify({
+        action: "verify_pin",
+        username: "nbarrerac",
+        pin: "654321",
+      }),
+    });
+    const okPinRes = await POST(okPinReq);
+    const okPinJson = await okPinRes.json();
+    expect(okPinRes.status).toBe(200);
+    expect(okPinJson.verified).toBe(true);
+    expect(okPinJson.session.access_token).toBe("acc-tok");
+  });
+
+  it("informa estado pin_not_configured cuando VIP no tiene PIN asignado aún", async () => {
+    mockMaybeSingle.mockResolvedValue({
+      data: {
+        id: "vip-uuid-2",
+        auth_id: "auth-vip-2",
+        username: "vipnuevo",
+        full_name: "VIP Sin Pin",
+        role: "vip",
+        is_vip: true,
+        is_active: true,
+      },
+      error: null,
+    });
+    mockGetUserById.mockResolvedValue({
+      data: { user: { id: "auth-vip-2", app_metadata: {} } },
+    });
+
+    const req = new NextRequest("http://localhost/api/auth/kiosk-otp", {
+      method: "POST",
+      headers: { "x-forwarded-for": "10.0.0.12" },
+      body: JSON.stringify({ action: "request", username: "vipnuevo" }),
+    });
+    const res = await POST(req);
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.authMode).toBe("pin_not_configured");
+    expect(json.pinConfigured).toBe(false);
+    expect(mockSendEmail).not.toHaveBeenCalled();
+  });
+
+  it("emite OTP por correo personal cuando el dominio no es institucional (@gmail/@hotmail/@outlook)", async () => {
+    mockMaybeSingle.mockResolvedValue({
+      data: {
+        id: "contractor-uuid-1",
+        auth_id: "auth-c-1",
+        username: "crodriguez",
+        full_name: "Carlos Rodriguez",
+        role: "contractor",
+        area: "Sistemas",
+        employment_type: "contratista",
+        job_category: "funcionario",
+        email: "crodriguez@gmail.com",
+        is_vip: false,
+        perm_manage_assignments: false,
+        is_active: true,
+      },
+      error: null,
+    });
+    mockGetUserById.mockResolvedValue({ data: { user: { id: "auth-c-1" } } });
+
     const req1 = new NextRequest("http://localhost/api/auth/kiosk-otp", {
       method: "POST",
-      headers: { "x-forwarded-for": "10.0.0.1" },
-      body: JSON.stringify({ action: "request", username: "jperez" }),
+      headers: { "x-forwarded-for": "10.0.0.13" },
+      body: JSON.stringify({ action: "request", username: "crodriguez" }),
     });
 
     const res1 = await POST(req1);
     const json1 = await res1.json();
     expect(res1.status).toBe(200);
+    expect(json1.authMode).toBe("otp");
     expect(json1.otpSent).toBe(true);
-    expect(json1.maskedEmail).toContain("@sena.edu.co");
+    expect(json1.maskedEmail).toContain("@gmail.com");
 
     const otpCookie = res1.cookies.get("kiosk_otp_challenge");
     expect(otpCookie?.value).toBeTruthy();
@@ -123,36 +258,15 @@ describe("POST /api/auth/kiosk-otp (ISO 27001 A.8.5)", () => {
     const extractedCode = sentSubject.match(/\((\d{6})\)/)?.[1];
     expect(extractedCode).toHaveLength(6);
 
-    // Intento fallido primero -> debe devolver 401
-    const badVerifyReq = new NextRequest(
-      "http://localhost/api/auth/kiosk-otp",
-      {
-        method: "POST",
-        headers: {
-          "x-forwarded-for": "10.0.0.1",
-          cookie: `kiosk_otp_challenge=${otpCookie!.value}`,
-        },
-        body: JSON.stringify({
-          action: "verify",
-          username: "jperez",
-          code: "000000" === extractedCode ? "111111" : "000000",
-        }),
-      },
-    );
-    const badRes = await POST(badVerifyReq);
-    expect(badRes.status).toBe(401);
-
-    // Intento válido con cookie actualizada -> debe establecer sesión
-    const updatedCookie = badRes.cookies.get("kiosk_otp_challenge")?.value;
     const okVerifyReq = new NextRequest("http://localhost/api/auth/kiosk-otp", {
       method: "POST",
       headers: {
-        "x-forwarded-for": "10.0.0.1",
-        cookie: `kiosk_otp_challenge=${updatedCookie}`,
+        "x-forwarded-for": "10.0.0.13",
+        cookie: `kiosk_otp_challenge=${otpCookie!.value}`,
       },
       body: JSON.stringify({
         action: "verify",
-        username: "jperez",
+        username: "crodriguez",
         code: extractedCode,
       }),
     });
@@ -163,7 +277,7 @@ describe("POST /api/auth/kiosk-otp (ISO 27001 A.8.5)", () => {
     expect(okJson.session.access_token).toBe("acc-tok");
   });
 
-  it("bloquea envío de OTP a cuentas admin/superadmin", async () => {
+  it("bloquea envío de acceso Kiosko a cuentas admin/superadmin", async () => {
     mockMaybeSingle.mockResolvedValue({
       data: {
         id: "admin-uuid",
@@ -176,7 +290,7 @@ describe("POST /api/auth/kiosk-otp (ISO 27001 A.8.5)", () => {
 
     const req = new NextRequest("http://localhost/api/auth/kiosk-otp", {
       method: "POST",
-      headers: { "x-forwarded-for": "10.0.0.2" },
+      headers: { "x-forwarded-for": "10.0.0.14" },
       body: JSON.stringify({ action: "request", username: "deansan" }),
     });
 

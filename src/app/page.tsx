@@ -31,10 +31,10 @@ function HomeContent() {
   const router = useRouter();
   // Estados de Vista
   const [viewState, setViewState] = useState<
-    "login" | "contractor" | "otp" | "request"
+    "login" | "contractor" | "otp" | "pin" | "pin_pending" | "request"
   >("login");
 
-  // Estados Login Corporativo y OTP
+  // Estados Login Corporativo, PIN VIP y OTP
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState(false);
@@ -43,6 +43,10 @@ function HomeContent() {
   const [otpMaskedEmail, setOtpMaskedEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpError, setOtpError] = useState("");
+  const [pinValue, setPinValue] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [pinTargetFullName, setPinTargetFullName] = useState("");
+  const [pinNoticeMessage, setPinNoticeMessage] = useState("");
   const [otpReturnView, setOtpReturnView] = useState<"login" | "contractor">(
     "login",
   );
@@ -192,9 +196,52 @@ function HomeContent() {
       return {
         ok: false as const,
         status: res.status,
-        error: payload.error || "No fue posible enviar código de acceso.",
+        error: payload.error || "No fue posible verificar acceso del usuario.",
       };
     }
+
+    // Caso 1: Usuario estándar SENA (no VIP) -> acceso directo sin correo
+    if (payload.authMode === "direct" && payload.session && payload.user) {
+      const { error: setSessionErr } = await supabase.auth.setSession({
+        access_token: payload.session.access_token,
+        refresh_token: payload.session.refresh_token,
+      });
+      if (setSessionErr) {
+        return {
+          ok: false as const,
+          status: 500,
+          error: "Error estableciendo sesión de usuario.",
+        };
+      }
+      setUserData(payload.user as UserData);
+      setViewState("request");
+      return { ok: true as const };
+    }
+
+    // Caso 2: Usuario VIP / Coordinador -> exige PIN numérico de 6 dígitos asignado por SuperAdmin
+    if (payload.authMode === "pin") {
+      setOtpUsername(targetUsername);
+      setPinTargetFullName(payload.fullName || targetUsername);
+      setPinValue("");
+      setPinError("");
+      setOtpReturnView(returnView);
+      setViewState("pin");
+      return { ok: true as const };
+    }
+
+    if (payload.authMode === "pin_not_configured") {
+      setOtpUsername(targetUsername);
+      setPinTargetFullName(payload.fullName || targetUsername);
+      setPinNoticeMessage(
+        payload.message ||
+          "Tu cuenta VIP aún no tiene PIN de acceso asignado por el SuperAdmin.",
+      );
+      setOtpReturnView(returnView);
+      setViewState("pin_pending");
+      return { ok: true as const };
+    }
+
+    // Caso 3: Correo externo personal -> OTP de 6 dígitos al correo personal
     setOtpUsername(targetUsername);
     setOtpMaskedEmail(payload.maskedEmail || "correo registrado");
     setOtpCode("");
@@ -205,7 +252,7 @@ function HomeContent() {
     return { ok: true as const };
   };
 
-  // --- LOGIN CORPORATIVO (CON VERIFICACIÓN OTP AL CORREO) ---
+  // --- LOGIN CORPORATIVO (DIRECTO PARA NO-VIP, PIN PARA VIP/COORD, OTP PARA DOMINIO EXTERNO) ---
   const handleCorporateLogin = async () => {
     if (!username) return;
     setLoading(true);
@@ -223,6 +270,51 @@ function HomeContent() {
       console.error("Login check failed:", e);
       setLoginError(true);
       setLoginErrorMessage("Error de conexión verificando el usuario.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- VERIFICACIÓN DE PIN VIP DE 6 DÍGITOS ---
+  const handleVerifyPin = async () => {
+    if (!otpUsername || pinValue.trim().length !== 6) {
+      setPinError("Ingresa tu PIN numérico de 6 dígitos.");
+      return;
+    }
+    setLoading(true);
+    setPinError("");
+
+    try {
+      const res = await fetch("/api/auth/kiosk-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "verify_pin",
+          username: otpUsername,
+          pin: pinValue.trim(),
+        }),
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload.session || !payload.user) {
+        setPinError(payload.error || "PIN inválido o bloqueado.");
+        return;
+      }
+
+      const { error: setSessionErr } = await supabase.auth.setSession({
+        access_token: payload.session.access_token,
+        refresh_token: payload.session.refresh_token,
+      });
+
+      if (setSessionErr) {
+        setPinError("Error estableciendo sesión segura.");
+        return;
+      }
+
+      setUserData(payload.user as UserData);
+      setViewState("request");
+    } catch (err) {
+      console.error("VIP PIN verify failed:", err);
+      setPinError("Error de conexión validando el PIN.");
     } finally {
       setLoading(false);
     }
@@ -301,7 +393,7 @@ function HomeContent() {
     }
 
     try {
-      // 1. Intentar enviar OTP si el usuario ya existe
+      // 1. Intentar flujo de acceso si el usuario ya existe
       const existingOtp = await requestOtpForUser(
         derivedUsername,
         "contractor",
@@ -669,6 +761,109 @@ function HomeContent() {
                   Cambiar usuario
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* --- VISTA 2.6: VALIDACIÓN PIN NUMÉRICO VIP / COORDINADORES --- */}
+          {viewState === "pin" && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
+              <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl text-xs text-amber-950">
+                <p className="font-bold flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-amber-700" />
+                  Acceso Protegido VIP / Coordinación
+                </p>
+                <p className="mt-1 text-amber-900">
+                  Hola <strong>{pinTargetFullName}</strong>, ingresa el PIN
+                  numérico de 6 dígitos asignado por el SuperAdmin para activar
+                  tus privilegios.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-600 ml-1">
+                  PIN de Seguridad (6 dígitos)
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  placeholder="••••••"
+                  value={pinValue}
+                  onChange={(e) =>
+                    setPinValue(e.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  onKeyDown={(e) => e.key === "Enter" && handleVerifyPin()}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-green outline-none text-center text-2xl font-mono tracking-[0.45em]"
+                />
+                {pinError && (
+                  <p className="text-xs text-red-600 font-medium ml-1">
+                    {pinError}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleVerifyPin}
+                disabled={loading || pinValue.length !== 6}
+                className="w-full bg-sena-green hover:bg-[#2d8500] text-white py-3 rounded-lg font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Verificando PIN...
+                  </>
+                ) : (
+                  <>
+                    VALIDAR PIN E INGRESAR
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center justify-between text-xs pt-1">
+                <span className="text-gray-400">
+                  ¿Sin PIN? Solicítalo a Mesa TIC
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPinValue("");
+                    setPinError("");
+                    setViewState(otpReturnView);
+                  }}
+                  className="text-sena-blue font-semibold hover:underline"
+                >
+                  Cambiar usuario
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* --- VISTA 2.7: VIP SIN PIN ASIGNADO AÚN --- */}
+          {viewState === "pin_pending" && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-xs text-amber-950 space-y-2">
+                <p className="font-bold text-sm flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-amber-700" />
+                  PIN de 6 Dígitos Pendiente de Asignación
+                </p>
+                <p className="leading-relaxed text-amber-900">
+                  Hola <strong>{pinTargetFullName}</strong>, {pinNoticeMessage}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPinNoticeMessage("");
+                  setViewState(otpReturnView);
+                }}
+                className="w-full bg-sena-blue hover:bg-blue-900 text-white py-3 rounded-lg font-bold shadow-md transition cursor-pointer"
+              >
+                Volver al inicio
+              </button>
             </div>
           )}
 
