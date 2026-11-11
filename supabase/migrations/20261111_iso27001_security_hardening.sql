@@ -152,10 +152,19 @@ CREATE POLICY "Users mark own notifications read" ON public.user_notifications
 -- 5. RESERVATIONS UPDATE: Evitar que cualquier VIP edite campos arbitrarios vía cliente
 -- ----------------------------------------------------------------------------
 DROP POLICY IF EXISTS "VIP and Admins can update any reservation" ON public.reservations;
+DROP POLICY IF EXISTS "Admins can update any reservation" ON public.reservations;
 CREATE POLICY "Admins can update any reservation" ON public.reservations
     FOR UPDATE
     TO authenticated
     USING (
+        EXISTS (
+            SELECT 1 FROM public.users u
+            WHERE (u.auth_id = auth.uid() OR u.id = auth.uid())
+              AND u.is_active IS DISTINCT FROM false
+              AND u.role IN ('admin', 'superadmin')
+        )
+    )
+    WITH CHECK (
         EXISTS (
             SELECT 1 FROM public.users u
             WHERE (u.auth_id = auth.uid() OR u.id = auth.uid())
@@ -168,6 +177,7 @@ CREATE POLICY "Admins can update any reservation" ON public.reservations
 -- 6. STORAGE BUCKETS: Cerrar lectura anónima indiscriminada sobre evidencias/actas
 -- ----------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Public Access" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated read ticket evidence and authorizations" ON storage.objects;
 
 CREATE POLICY "Authenticated read ticket evidence and authorizations" ON storage.objects
     FOR SELECT
