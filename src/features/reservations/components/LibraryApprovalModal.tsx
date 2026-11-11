@@ -22,6 +22,7 @@ import {
   cancelLibraryReservation,
   requestModificationAction,
 } from "@/features/reservations/actions/libraryApprovalActions";
+import { getEnvironmentsGlobalConfigAction } from "@/features/reservations/actions/reservationActions";
 
 interface PendingReservation {
   id: number;
@@ -54,13 +55,37 @@ export default function LibraryApprovalModal({
   } | null>(null);
   const [actionText, setActionText] = useState("");
 
-  const isCoordinator = [
+  const [authorizedEmails, setAuthorizedEmails] = useState<string[]>([
     "dasanchezh@sena.edu.co",
+    "dasanchezh",
     "egutierrezn@sena.edu.co",
     "egutierrezn@sistema.local",
     "emgutierrezn@sena.edu.co",
     "emgutierrezn@sistema.local",
-  ].includes((userEmail || "").toLowerCase());
+  ]);
+
+  useEffect(() => {
+    getEnvironmentsGlobalConfigAction().then((res) => {
+      if (res.config?.coordinators) {
+        const list = [
+          "dasanchezh@sena.edu.co",
+          "dasanchezh",
+          "egutierrezn@sena.edu.co",
+          "egutierrezn@sistema.local",
+          "emgutierrezn@sena.edu.co",
+          "emgutierrezn@sistema.local",
+        ];
+        const c3 = res.config.coordinators["3"];
+        if (c3?.email) list.push(c3.email.toLowerCase());
+        if (c3?.username) list.push(c3.username.toLowerCase());
+        setAuthorizedEmails(Array.from(new Set(list)));
+      }
+    });
+  }, []);
+
+  const isCoordinator = authorizedEmails.some((allowed) =>
+    (userEmail || "").toLowerCase().includes(allowed.toLowerCase()),
+  );
 
   useEffect(() => {
     if (!isCoordinator) return;

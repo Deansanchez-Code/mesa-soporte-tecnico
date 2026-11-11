@@ -15,6 +15,7 @@ import {
   ReservationItem,
 } from "@/lib/email/templates/MaintenanceCancellationNotification";
 import { ReservationSchema } from "../schemas";
+import { SpaceCoordinatorAssignment, EnvironmentsGlobalConfig } from "../types";
 import Logger from "@/lib/logger";
 
 function hasValidDescription(desc: string | null | undefined): boolean {
@@ -95,6 +96,117 @@ function getSpaceDisplayName(auditoriumId?: string | number | null): string {
   if (id === "4") return "Ambiente 107";
   if (id === "5") return "Ambiente de Cocina";
   return "Auditorio Principal";
+}
+
+export const DEFAULT_SPACE_COORDINATORS: Record<
+  string,
+  SpaceCoordinatorAssignment
+> = {
+  "3": {
+    user_id: "",
+    username: "egutierrezn",
+    email: "egutierrezn@sena.edu.co",
+    full_name: "Esperanza Gutiérrez Numpaque",
+    is_vip: true,
+  },
+  "4": {
+    user_id: "",
+    username: "nbarrerac",
+    email: "nbarrerac@sena.edu.co",
+    full_name: "Nury Mildret Barrera",
+    is_vip: true,
+  },
+  "5": {
+    user_id: "",
+    username: "nbarrerac",
+    email: "nbarrerac@sena.edu.co",
+    full_name: "Nury Mildret Barrera",
+    is_vip: true,
+  },
+};
+
+export async function getSpaceCoordinator(
+  spaceId: string | number,
+): Promise<SpaceCoordinatorAssignment> {
+  const sid = String(spaceId);
+  try {
+    const adminSupabase = getSupabaseAdmin();
+    const { data } = await adminSupabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "environments_global_config")
+      .maybeSingle();
+
+    const config = data?.value as EnvironmentsGlobalConfig | undefined;
+    if (config?.coordinators && config.coordinators[sid]) {
+      const assigned = config.coordinators[sid];
+      if (assigned.email && assigned.email.includes("@")) {
+        return assigned;
+      }
+    }
+  } catch (err) {
+    console.error(`Error obteniendo coordinador para espacio ${sid}:`, err);
+  }
+  return (
+    DEFAULT_SPACE_COORDINATORS[sid] || {
+      user_id: "",
+      username: "admin",
+      email: "jeavendano@sena.edu.co",
+      full_name: "Administración TIC",
+      is_vip: true,
+    }
+  );
+}
+
+export async function isUserSpaceCoordinator(
+  username?: string | null,
+  email?: string | null,
+  spaceId?: string | number,
+): Promise<boolean> {
+  const cleanU = (username || "").toLowerCase().trim();
+  const cleanE = (email || "").toLowerCase().trim();
+  if (["superadmin", "admin", "dasanchezh"].includes(cleanU)) return true;
+
+  try {
+    const adminSupabase = getSupabaseAdmin();
+    const { data } = await adminSupabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "environments_global_config")
+      .maybeSingle();
+
+    const config = data?.value as EnvironmentsGlobalConfig | undefined;
+    const coordinators = config?.coordinators || {};
+
+    const checkMatch = (coord: SpaceCoordinatorAssignment) => {
+      if (cleanU && coord.username && cleanU === coord.username.toLowerCase())
+        return true;
+      if (cleanE && coord.email && cleanE === coord.email.toLowerCase())
+        return true;
+      if (
+        cleanE &&
+        coord.username &&
+        cleanE.startsWith(coord.username.toLowerCase() + "@")
+      )
+        return true;
+      return false;
+    };
+
+    if (spaceId) {
+      const sid = String(spaceId);
+      const coord = coordinators[sid] || DEFAULT_SPACE_COORDINATORS[sid];
+      if (coord && checkMatch(coord)) return true;
+      return false;
+    }
+
+    for (const sid of ["3", "4", "5"]) {
+      const coord = coordinators[sid] || DEFAULT_SPACE_COORDINATORS[sid];
+      if (coord && checkMatch(coord)) return true;
+    }
+  } catch (err) {
+    console.error("Error en isUserSpaceCoordinator:", err);
+  }
+  return false;
 }
 
 export async function cancelReservationAction(
@@ -379,6 +491,7 @@ export interface AssignableUser {
   job_category: string | null;
   employment_type: string | null;
   area: string | null;
+  is_vip?: boolean | null;
 }
 
 /**
@@ -400,7 +513,7 @@ export async function getAssignableUsersAction(): Promise<{
     const { data, error } = await adminSupabase
       .from("users")
       .select(
-        "id, full_name, username, email, role, job_category, employment_type, area",
+        "id, full_name, username, email, role, job_category, employment_type, area, is_vip",
       )
       .or("is_active.eq.true,is_active.is.null")
       .is("deleted_at", null)
@@ -709,9 +822,10 @@ export async function createReservationAction(
       const durationHours =
         (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
 
-      // Business Rule: Notifications for Ambiente 107 & Cocina go to Nury Mildret Barrera (nbarrerac@sena.edu.co) AND to the reservation owner
+      // Business Rule: Notifications for Ambiente 107 & Cocina go to active coordinator AND to the reservation owner
       if (isAmbiente107 || isCocina) {
         const spaceLabel = isCocina ? "Ambiente de Cocina" : "Ambiente 107";
+        const coordinator = await getSpaceCoordinator(isCocina ? "5" : "4");
 
         const coordinatorSubject =
           reservation.status === "PENDING"
@@ -720,10 +834,10 @@ export async function createReservationAction(
 
         if (
           reservation.status === "PENDING" ||
-          recipientEmail.toLowerCase() !== "nbarrerac@sena.edu.co"
+          recipientEmail.toLowerCase() !== coordinator.email.toLowerCase()
         ) {
           await EmailService.send({
-            to: "nbarrerac@sena.edu.co",
+            to: coordinator.email,
             subject: coordinatorSubject,
             react: SpaceReservationEmail({
               spaceName: spaceLabel,
@@ -732,7 +846,7 @@ export async function createReservationAction(
               date: dateStr,
               timeRange: `${timeStr} (${durationHours.toFixed(1)} horas)`,
               specialRequirements: reservation.description || "Ninguno",
-              coordinatorName: "Nury Mildret Barrera",
+              coordinatorName: coordinator.full_name,
               type:
                 reservation.status === "PENDING"
                   ? "NEW_REQUEST"
@@ -754,7 +868,7 @@ export async function createReservationAction(
                 date: dateStr,
                 timeRange: `${timeStr} (${durationHours.toFixed(1)} horas)`,
                 specialRequirements: reservation.description || "Ninguno",
-                coordinatorName: "Nury Mildret Barrera",
+                coordinatorName: coordinator.full_name,
                 type: "NEW_REQUEST",
               }),
             });
@@ -773,8 +887,9 @@ export async function createReservationAction(
         }
       }
 
-      // Business Rule: Notifications for Library go to coordinator (egutierrezn@sena.edu.co) AND to the reservation owner
+      // Business Rule: Notifications for Library go to active coordinator AND to the reservation owner
       if (isLibrary) {
+        const libraryCoord = await getSpaceCoordinator("3");
         const coordinatorSubject =
           reservation.status === "PENDING"
             ? `Solicitud de Reserva Biblioteca: ${reservation.title}`
@@ -782,10 +897,10 @@ export async function createReservationAction(
 
         if (
           reservation.status === "PENDING" ||
-          recipientEmail.toLowerCase() !== "egutierrezn@sena.edu.co"
+          recipientEmail.toLowerCase() !== libraryCoord.email.toLowerCase()
         ) {
           await EmailService.send({
-            to: "egutierrezn@sena.edu.co",
+            to: libraryCoord.email,
             subject: coordinatorSubject,
             react: LibraryNotification({
               requesterName: user.full_name,
@@ -813,7 +928,7 @@ export async function createReservationAction(
                 date: dateStr,
                 timeRange: `${timeStr} (${durationHours.toFixed(1)} horas)`,
                 specialRequirements: reservation.description || "Ninguno",
-                coordinatorName: "Coordinación de Biblioteca",
+                coordinatorName: libraryCoord.full_name,
                 type: "NEW_REQUEST",
               }),
             });
@@ -1471,9 +1586,10 @@ export async function createReservationBatchAction(
           (r) => String(r.auditorium_id) === "5",
         );
 
-        // A1. Ambiente 107 & Cocina Batch Notification (Nury Mildret Barrera + Funcionario/Instructor titular)
+        // A1. Ambiente 107 & Cocina Batch Notification (Coordinador Activo + Funcionario/Instructor titular)
         if (isAmbiente107 || isCocina) {
           const spaceLabel = isCocina ? "Ambiente de Cocina" : "Ambiente 107";
+          const coordinator = await getSpaceCoordinator(isCocina ? "5" : "4");
           const coordinatorSubject =
             initialStatus === "PENDING"
               ? `Solicitud de Prereserva ${spaceLabel}: ${titles[0]}`
@@ -1483,10 +1599,10 @@ export async function createReservationBatchAction(
 
           if (
             initialStatus === "PENDING" ||
-            recipientEmail.toLowerCase() !== "nbarrerac@sena.edu.co"
+            recipientEmail.toLowerCase() !== coordinator.email.toLowerCase()
           ) {
             await EmailService.send({
-              to: "nbarrerac@sena.edu.co",
+              to: coordinator.email,
               subject: coordinatorSubject,
               react: SpaceReservationEmail({
                 spaceName: spaceLabel,
@@ -1498,7 +1614,7 @@ export async function createReservationBatchAction(
                 timeRange: timeStr,
                 specialRequirements:
                   validReservations[0].description || "Ninguno",
-                coordinatorName: "Nury Mildret Barrera",
+                coordinatorName: coordinator.full_name,
                 type:
                   initialStatus === "PENDING" ? "NEW_REQUEST" : "VIP_AUTOMATIC",
               }),
@@ -1521,7 +1637,7 @@ export async function createReservationBatchAction(
                   timeRange: timeStr,
                   specialRequirements:
                     validReservations[0].description || "Ninguno",
-                  coordinatorName: "Nury Mildret Barrera",
+                  coordinatorName: coordinator.full_name,
                   type: "NEW_REQUEST",
                 }),
               });
@@ -1540,8 +1656,9 @@ export async function createReservationBatchAction(
           }
         }
 
-        // A2. Library Batch Notification (Coordinación Biblioteca + Funcionario/Instructor titular)
+        // A2. Library Batch Notification (Coordinación Biblioteca Activa + Funcionario/Instructor titular)
         if (isLibrary) {
+          const libraryCoord = await getSpaceCoordinator("3");
           const coordinatorSubject =
             initialStatus === "PENDING"
               ? `Solicitud de Reserva Biblioteca: ${titles[0]}`
@@ -1551,10 +1668,10 @@ export async function createReservationBatchAction(
 
           if (
             initialStatus === "PENDING" ||
-            recipientEmail.toLowerCase() !== "egutierrezn@sena.edu.co"
+            recipientEmail.toLowerCase() !== libraryCoord.email.toLowerCase()
           ) {
             await EmailService.send({
-              to: "egutierrezn@sena.edu.co",
+              to: libraryCoord.email,
               subject: coordinatorSubject,
               react: SupportNotification({
                 requesterName: user.full_name,
@@ -2204,13 +2321,7 @@ export async function getEnvironmentsGlobalConfigAction() {
       .eq("key", "environments_global_config")
       .maybeSingle();
 
-    const val = (data?.value || {}) as {
-      tab_order?: number[];
-      disabled_area_ids?: number[];
-      disabled_special_spaces?: string[];
-      updated_at?: string;
-      updated_by?: string;
-    };
+    const val = (data?.value || {}) as EnvironmentsGlobalConfig;
 
     return {
       success: true,
@@ -2222,6 +2333,7 @@ export async function getEnvironmentsGlobalConfigAction() {
         disabled_special_spaces: Array.isArray(val.disabled_special_spaces)
           ? val.disabled_special_spaces
           : [],
+        coordinators: val.coordinators || {},
         updated_at: val.updated_at,
         updated_by: val.updated_by,
       },
@@ -2236,6 +2348,7 @@ export async function getEnvironmentsGlobalConfigAction() {
         tab_order: [] as number[],
         disabled_area_ids: [] as number[],
         disabled_special_spaces: [] as string[],
+        coordinators: {},
       },
     };
   }
@@ -2422,6 +2535,186 @@ export async function toggleSpaceStatusBySuperAdminAction(params: {
         err instanceof Error
           ? err.message
           : "Error al cambiar el estado del espacio",
+    };
+  }
+}
+
+export async function assignSpaceCoordinatorAction(params: {
+  spaceId: string;
+  userId: string | null;
+}) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    if (!authUser) throw new Error("No autenticado");
+
+    const { data: publicUser } = await supabase
+      .from("users")
+      .select("id, full_name, role, username")
+      .eq("auth_id", authUser.id)
+      .single();
+
+    const roleLower = (publicUser?.role || "").toLowerCase();
+    if (roleLower !== "superadmin") {
+      throw new Error(
+        "Acceso denegado: Únicamente el SuperAdmin tiene autorización para asignar o cambiar coordinadores de ambientes.",
+      );
+    }
+
+    const adminSupabase = getSupabaseAdmin();
+    const sid = String(params.spaceId);
+
+    if (!["3", "4", "5"].includes(sid)) {
+      throw new Error("Espacio no válido para asignación de coordinación");
+    }
+
+    const { data: existing } = await adminSupabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "environments_global_config")
+      .maybeSingle();
+
+    const currentVal = (existing?.value || {}) as EnvironmentsGlobalConfig;
+    const currentCoordinators = { ...(currentVal.coordinators || {}) };
+
+    let assignedCoordinator: SpaceCoordinatorAssignment | null = null;
+    let transferredCount = 0;
+    const spaceName = getSpaceDisplayName(sid);
+
+    if (params.userId) {
+      const { data: targetUser, error: userError } = await adminSupabase
+        .from("users")
+        .select(
+          "id, full_name, username, email, is_vip, role, job_category, employment_type, perm_manage_assignments",
+        )
+        .eq("id", params.userId)
+        .single();
+
+      if (userError || !targetUser) {
+        throw new Error("Usuario no encontrado en la base de datos.");
+      }
+
+      // Auto-elevación a VIP y perm_manage_assignments si aún no los tiene
+      if (!targetUser.is_vip || !targetUser.perm_manage_assignments) {
+        await adminSupabase
+          .from("users")
+          .update({
+            is_vip: true,
+            perm_manage_assignments: true,
+            job_category: targetUser.job_category || "coordinador",
+          })
+          .eq("id", targetUser.id);
+      }
+
+      const userEmail = resolveReservationUserEmail(targetUser);
+
+      assignedCoordinator = {
+        user_id: targetUser.id,
+        username: targetUser.username || "",
+        email: userEmail,
+        full_name: targetUser.full_name || "Coordinador",
+        is_vip: true,
+        assigned_at: new Date().toISOString(),
+        assigned_by: publicUser?.full_name || "SuperAdmin",
+      };
+
+      currentCoordinators[sid] = assignedCoordinator;
+
+      // Traslado de solicitudes pendientes del ambiente
+      const nowIso = new Date().toISOString();
+      const { data: pendingReservations } = await adminSupabase
+        .from("reservations")
+        .select(
+          "id, title, start_time, end_time, user_id, users(full_name, email)",
+        )
+        .eq("auditorium_id", sid)
+        .eq("status", "PENDING")
+        .gte("end_time", nowIso);
+
+      transferredCount = pendingReservations?.length || 0;
+
+      if (transferredCount > 0 && assignedCoordinator.user_id) {
+        // Alerta In-App para el nuevo coordinador
+        await adminSupabase.from("user_notifications").insert([
+          {
+            user_id: assignedCoordinator.user_id,
+            title: `Traslado de Gestión: Solicitudes pendientes (${spaceName})`,
+            message: `Has sido asignado como coordinador de ${spaceName}. Se te han transferido ${transferredCount} solicitud(es) pendiente(s) por autorizar.`,
+            type: "INFO",
+            read: false,
+          },
+        ]);
+
+        // Email institucional de traspaso de mando con listado de eventos pendientes
+        if (
+          assignedCoordinator.email &&
+          assignedCoordinator.email.includes("@")
+        ) {
+          const eventsList = (pendingReservations || [])
+            .map(
+              (r) =>
+                `• "${r.title}" - Fecha: ${new Date(r.start_time).toLocaleDateString("es-CO")} (${new Date(r.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })}) | Solicitante: ${(r.users as unknown as { full_name?: string })?.full_name || "Instructor"}`,
+            )
+            .join("\n");
+
+          await EmailService.send({
+            to: assignedCoordinator.email,
+            subject: `[Traslado de Gestión] ${transferredCount} solicitudes pendientes de ${spaceName} asignadas a tu cuenta`,
+            text: `Estimado/a ${assignedCoordinator.full_name},\n\nHas sido asignado/a como Coordinador/a responsable de ${spaceName} por la administración.\n\nActualmente existen ${transferredCount} solicitud(es) de reserva pendiente(s) de autorización que han sido trasladadas a tu bandeja:\n\n${eventsList}\n\nPuedes ingresar al portal de Mesa de Ayuda TIC para autorizar o denegar estas solicitudes.\n\nCordialmente,\nAdministración del Sistema`,
+          });
+        }
+      }
+    } else {
+      // Restablecer a coordinador predeterminado
+      delete currentCoordinators[sid];
+    }
+
+    const newConfig: EnvironmentsGlobalConfig = {
+      tab_order: Array.isArray(currentVal.tab_order)
+        ? currentVal.tab_order
+        : [],
+      disabled_area_ids: Array.isArray(currentVal.disabled_area_ids)
+        ? currentVal.disabled_area_ids
+        : [],
+      disabled_special_spaces: Array.isArray(currentVal.disabled_special_spaces)
+        ? currentVal.disabled_special_spaces
+        : [],
+      coordinators: currentCoordinators,
+      updated_at: new Date().toISOString(),
+      updated_by: publicUser?.full_name || "SuperAdmin",
+    };
+
+    const { error: upsertError } = await adminSupabase
+      .from("system_settings")
+      .upsert(
+        {
+          key: "environments_global_config",
+          value: newConfig,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" },
+      );
+
+    if (upsertError) throw upsertError;
+
+    revalidatePath("/");
+    revalidatePath("/dashboard");
+    revalidatePath("/admin");
+
+    return {
+      success: true,
+      config: newConfig,
+      transferredCount,
+      coordinator: assignedCoordinator || DEFAULT_SPACE_COORDINATORS[sid],
+    };
+  } catch (err: unknown) {
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error al asignar coordinador de ambiente",
     };
   }
 }

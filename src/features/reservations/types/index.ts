@@ -24,10 +24,21 @@ export interface SpaceMaintenanceConfig {
   custom_message?: string;
 }
 
+export interface SpaceCoordinatorAssignment {
+  user_id: string; // UUID de public.users
+  username: string;
+  email: string;
+  full_name: string;
+  is_vip?: boolean;
+  assigned_at?: string;
+  assigned_by?: string;
+}
+
 export interface EnvironmentsGlobalConfig {
   tab_order: number[]; // Ordered array of area IDs
   disabled_area_ids: number[]; // Area IDs disabled by superadmin (in Gestión de Ambientes)
   disabled_special_spaces: string[]; // '1' | '2' | '3' | '4' | '5' disabled by superadmin
+  coordinators?: Record<string, SpaceCoordinatorAssignment>; // "3" (Biblioteca) | "4" (107) | "5" (Cocina)
   updated_at?: string;
   updated_by?: string;
 }

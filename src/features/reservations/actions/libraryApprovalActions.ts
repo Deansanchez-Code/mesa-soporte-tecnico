@@ -6,6 +6,10 @@ import { revalidatePath } from "next/cache";
 import { EmailService } from "@/lib/email/email-service";
 import { LibraryNotification } from "@/lib/email/templates/LibraryNotification";
 import Logger from "@/lib/logger";
+import {
+  isUserSpaceCoordinator,
+  getSpaceCoordinator,
+} from "./reservationActions";
 
 async function verifyLibraryCoordinator() {
   const supabase = await createClient();
@@ -15,7 +19,21 @@ async function verifyLibraryCoordinator() {
   if (!user) throw new Error("No autenticado");
 
   const email = (user.email || "").toLowerCase();
+  const username = (
+    (user.user_metadata?.username as string) || ""
+  ).toLowerCase();
   const role = (user.user_metadata?.role || "").toLowerCase();
+
+  if (
+    role === "admin" ||
+    role === "superadmin" ||
+    username === "dasanchezh" ||
+    email.includes("dasanchezh")
+  ) {
+    return;
+  }
+
+  const isDynamicCoord = await isUserSpaceCoordinator(username, email, "3");
   const allowed = [
     "dasanchezh@sena.edu.co",
     "egutierrezn@sena.edu.co",
@@ -24,7 +42,12 @@ async function verifyLibraryCoordinator() {
     "emgutierrezn@sistema.local",
   ];
 
-  if (!allowed.includes(email) && role !== "admin" && role !== "superadmin") {
+  if (
+    !isDynamicCoord &&
+    !allowed.includes(email) &&
+    !allowed.includes(username) &&
+    role !== "coordinator"
+  ) {
     throw new Error("No autorizado para gestionar reservas de biblioteca");
   }
 }
@@ -187,11 +210,12 @@ export async function approveLibraryReservation(id: number) {
     }
 
     // Insert In-App Notification
+    const coordinator = await getSpaceCoordinator("3");
     await supabaseAdmin.from("user_notifications").insert([
       {
         user_id: reservation.user_id,
         title: "Reserva Aprobada ✅",
-        message: `Tu reserva de biblioteca "${reservation.title}" para el ${new Date(reservation.start_time).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })} ha sido autorizada.`,
+        message: `Tu reserva de biblioteca "${reservation.title}" para el ${new Date(reservation.start_time).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })} ha sido autorizada por ${coordinator.full_name}.`,
       },
     ]);
 
@@ -260,6 +284,7 @@ export async function cancelLibraryReservation(id: number, reason: string) {
     }
 
     // Insert In-App Notification
+    const coordinator = await getSpaceCoordinator("3");
     const cancelDateFormatted = new Date(
       reservation.start_time,
     ).toLocaleDateString("es-CO", {
@@ -269,7 +294,7 @@ export async function cancelLibraryReservation(id: number, reason: string) {
       {
         user_id: reservation.user_id,
         title: "Reserva Cancelada ❌",
-        message: `Tu reserva de biblioteca "${reservation.title}" para el ${cancelDateFormatted} ha sido cancelada. Motivo: ${reason}`,
+        message: `Tu reserva de biblioteca "${reservation.title}" para el ${cancelDateFormatted} ha sido cancelada por ${coordinator.full_name}. Motivo: ${reason}`,
       },
     ]);
 
@@ -367,6 +392,7 @@ export async function requestModificationAction(
     }
 
     // Insert In-App Notification
+    const coordinator = await getSpaceCoordinator("3");
     const modDateFormatted = new Date(
       reservation.start_time,
     ).toLocaleDateString("es-CO", {
@@ -376,7 +402,7 @@ export async function requestModificationAction(
       {
         user_id: reservation.user_id,
         title: "Modificación Sugerida ⚠️",
-        message: `Se sugiere una modificación para tu reserva "${reservation.title}" (${modDateFormatted}): ${suggestion}`,
+        message: `${coordinator.full_name} sugiere una modificación para tu reserva "${reservation.title}" (${modDateFormatted}): ${suggestion}`,
       },
     ]);
 

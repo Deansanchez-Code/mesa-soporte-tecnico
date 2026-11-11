@@ -6,6 +6,10 @@ import { revalidatePath } from "next/cache";
 import { EmailService } from "@/lib/email/email-service";
 import { SpaceReservationEmail } from "@/lib/email/templates/SpaceReservationEmail";
 import Logger from "@/lib/logger";
+import {
+  isUserSpaceCoordinator,
+  getSpaceCoordinator,
+} from "./reservationActions";
 
 const ALLOWED_107_APPROVERS = [
   "nbarrerac@sena.edu.co",
@@ -53,7 +57,7 @@ function resolveReservationUserEmail(
   return "";
 }
 
-async function verifyAmbiente107Coordinator() {
+async function verifyAmbiente107Coordinator(spaceId?: string | number) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -69,23 +73,45 @@ async function verifyAmbiente107Coordinator() {
     (user.user_metadata?.job_category as string) || ""
   ).toLowerCase();
 
+  if (
+    role === "admin" ||
+    role === "superadmin" ||
+    username === "dasanchezh" ||
+    email.includes("dasanchezh")
+  ) {
+    return { isSuperAdmin: true, allowedSpaces: ["4", "5"] };
+  }
+
+  const isCoord4 = await isUserSpaceCoordinator(username, email, "4");
+  const isCoord5 = await isUserSpaceCoordinator(username, email, "5");
+
   const isExplicitAllowed = ALLOWED_107_APPROVERS.some(
     (allowed) =>
       email.includes(allowed.toLowerCase()) ||
       username.includes(allowed.toLowerCase()),
   );
 
-  if (
-    !isExplicitAllowed &&
-    role !== "admin" &&
-    role !== "superadmin" &&
-    role !== "coordinator" &&
-    jobCategory !== "coordinador"
-  ) {
+  const allowedSpaces: string[] = [];
+  if (isCoord4 || isExplicitAllowed) allowedSpaces.push("4");
+  if (isCoord5 || isExplicitAllowed) allowedSpaces.push("5");
+  if (role === "coordinator" || jobCategory === "coordinador") {
+    if (!allowedSpaces.includes("4")) allowedSpaces.push("4");
+    if (!allowedSpaces.includes("5")) allowedSpaces.push("5");
+  }
+
+  if (spaceId && !allowedSpaces.includes(String(spaceId))) {
+    throw new Error(
+      `No autorizado para gestionar reservas del espacio ${spaceId}`,
+    );
+  }
+
+  if (allowedSpaces.length === 0) {
     throw new Error(
       "No autorizado para gestionar reservas de Ambiente 107 / Cocina",
     );
   }
+
+  return { isSuperAdmin: false, allowedSpaces };
 }
 
 interface ReservationData {
@@ -102,11 +128,11 @@ interface ReservationData {
 }
 
 /**
- * Consulta todas las solicitudes pendientes vigentes del Ambiente 107 (Space ID 4) y Ambiente de Cocina (Space ID 5)
+ * Consulta todas las solicitudes pendientes vigentes de los ambientes autorizados (107 / Cocina)
  */
 export async function getPendingAmbiente107Reservations() {
   try {
-    await verifyAmbiente107Coordinator();
+    const { allowedSpaces } = await verifyAmbiente107Coordinator();
     const supabaseAdmin = getSupabaseAdmin();
     const nowIso = new Date().toISOString();
     const { data, error } = await supabaseAdmin
@@ -122,7 +148,7 @@ export async function getPendingAmbiente107Reservations() {
         users(full_name, email)
       `,
       )
-      .in("auditorium_id", ["4", "5"])
+      .in("auditorium_id", allowedSpaces)
       .eq("status", "PENDING")
       .gte("end_time", nowIso)
       .order("start_time", { ascending: true });
@@ -176,6 +202,9 @@ export async function approveAmbiente107Reservation(id: number) {
 
     if (fetchError || !reservation) throw new Error("Reserva no encontrada");
 
+    await verifyAmbiente107Coordinator(reservation.auditorium_id);
+    const coordinator = await getSpaceCoordinator(reservation.auditorium_id);
+
     const { error: updateError } = await supabaseAdmin
       .from("reservations")
       .update({ status: "APPROVED" })
@@ -225,7 +254,7 @@ export async function approveAmbiente107Reservation(id: number) {
           date: dateStr,
           timeRange: timeStr,
           specialRequirements: reservation.description || "Ninguno",
-          coordinatorName: "Nury Mildret Barrera",
+          coordinatorName: coordinator.full_name,
           type: "APPROVED",
         }),
       });
@@ -236,7 +265,7 @@ export async function approveAmbiente107Reservation(id: number) {
       {
         user_id: reservation.user_id,
         title: "¡Reserva Aprobada! 🎉",
-        message: `Tu reserva para el ${spaceLabel} ("${reservation.title}" - ${dateStr}) ha sido autorizada por Nury Mildret Barrera.`,
+        message: `Tu reserva para el ${spaceLabel} ("${reservation.title}" - ${dateStr}) ha sido autorizada por ${coordinator.full_name}.`,
       },
     ]);
 
@@ -255,7 +284,6 @@ export async function approveAmbiente107Reservation(id: number) {
  */
 export async function cancelAmbiente107Reservation(id: number, reason: string) {
   try {
-    await verifyAmbiente107Coordinator();
     const supabaseAdmin = getSupabaseAdmin();
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
@@ -266,6 +294,9 @@ export async function cancelAmbiente107Reservation(id: number, reason: string) {
       .single();
 
     if (fetchError || !reservation) throw new Error("Reserva no encontrada");
+
+    await verifyAmbiente107Coordinator(reservation.auditorium_id);
+    const coordinator = await getSpaceCoordinator(reservation.auditorium_id);
 
     const { error: updateError } = await supabaseAdmin
       .from("reservations")
@@ -309,7 +340,7 @@ export async function cancelAmbiente107Reservation(id: number, reason: string) {
           date: dateFormatted,
           timeRange: "N/A",
           specialRequirements: reason,
-          coordinatorName: "Nury Mildret Barrera",
+          coordinatorName: coordinator.full_name,
           type: "CANCELLED",
         }),
       });
@@ -319,7 +350,7 @@ export async function cancelAmbiente107Reservation(id: number, reason: string) {
       {
         user_id: reservation.user_id,
         title: "Reserva No Confirmada ❌",
-        message: `Tu solicitud para el ${spaceLabel} (${dateFormatted}) no pudo ser autorizada. Motivo: ${reason}`,
+        message: `Tu solicitud para el ${spaceLabel} (${dateFormatted}) no pudo ser autorizada por ${coordinator.full_name}. Motivo: ${reason}`,
       },
     ]);
 
@@ -341,7 +372,6 @@ export async function suggestModification107Action(
   suggestion: string,
 ) {
   try {
-    await verifyAmbiente107Coordinator();
     const supabaseAdmin = getSupabaseAdmin();
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
@@ -352,6 +382,9 @@ export async function suggestModification107Action(
       .single();
 
     if (fetchError || !reservation) throw new Error("Reserva no encontrada");
+
+    await verifyAmbiente107Coordinator(reservation.auditorium_id);
+    const coordinator = await getSpaceCoordinator(reservation.auditorium_id);
 
     const user = (
       reservation as unknown as {
@@ -388,7 +421,7 @@ export async function suggestModification107Action(
           date: dateFormatted,
           timeRange: "N/A",
           specialRequirements: suggestion,
-          coordinatorName: "Nury Mildret Barrera",
+          coordinatorName: coordinator.full_name,
           type: "MODIFICATION_SUGGESTED",
         }),
       });
@@ -398,7 +431,7 @@ export async function suggestModification107Action(
       {
         user_id: reservation.user_id,
         title: "Ajuste Sugerido en Reserva 💡",
-        message: `Nury Mildret Barrera sugiere un ajuste para tu reserva de ${spaceLabel} (${dateFormatted}): "${suggestion}"`,
+        message: `${coordinator.full_name} sugiere un ajuste para tu reserva de ${spaceLabel} (${dateFormatted}): "${suggestion}"`,
       },
     ]);
 

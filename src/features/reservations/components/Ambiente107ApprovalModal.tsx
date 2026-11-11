@@ -20,6 +20,7 @@ import {
   cancelAmbiente107Reservation,
   suggestModification107Action,
 } from "@/features/reservations/actions/ambiente107ApprovalActions";
+import { getEnvironmentsGlobalConfigAction } from "@/features/reservations/actions/reservationActions";
 
 import { supabase } from "@/lib/supabase/client";
 
@@ -57,6 +58,33 @@ export default function Ambiente107ApprovalModal({
   } | null>(null);
   const [actionText, setActionText] = useState("");
 
+  const [authorizedEmails, setAuthorizedEmails] = useState<string[]>([
+    "nbarrerac@sena.edu.co",
+    "nbarrerac",
+    "dasanchezh@sena.edu.co",
+    "dasanchezh",
+  ]);
+
+  useEffect(() => {
+    getEnvironmentsGlobalConfigAction().then((res) => {
+      if (res.config?.coordinators) {
+        const list = [
+          "nbarrerac@sena.edu.co",
+          "nbarrerac",
+          "dasanchezh@sena.edu.co",
+          "dasanchezh",
+        ];
+        const c4 = res.config.coordinators["4"];
+        const c5 = res.config.coordinators["5"];
+        if (c4?.email) list.push(c4.email.toLowerCase());
+        if (c4?.username) list.push(c4.username.toLowerCase());
+        if (c5?.email) list.push(c5.email.toLowerCase());
+        if (c5?.username) list.push(c5.username.toLowerCase());
+        setAuthorizedEmails(Array.from(new Set(list)));
+      }
+    });
+  }, []);
+
   useEffect(() => {
     if (userEmail) {
       setDetectedEmail(userEmail);
@@ -70,13 +98,8 @@ export default function Ambiente107ApprovalModal({
     });
   }, [userEmail]);
 
-  // Autorizada exclusiva: Nury Mildret Barrera (nbarrerac@sena.edu.co o username nbarrerac)
-  const isCoordinator = [
-    "nbarrerac@sena.edu.co",
-    "nbarrerac",
-    "dasanchezh@sena.edu.co",
-    "dasanchezh",
-  ].some((allowed) =>
+  // Autorizados: Coordinadores dinámicos asignados (107 / Cocina), fallback institucional o SuperAdmin
+  const isCoordinator = authorizedEmails.some((allowed) =>
     (detectedEmail || "").toLowerCase().includes(allowed.toLowerCase()),
   );
 

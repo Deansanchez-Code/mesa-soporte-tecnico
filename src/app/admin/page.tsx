@@ -27,6 +27,7 @@ import {
   ShieldAlert,
   Loader2,
   Clock, // Nuevo para Turnos
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -43,6 +44,10 @@ import {
   getEnvironmentsGlobalConfigAction,
   toggleSpaceStatusBySuperAdminAction,
   saveEnvironmentsTabOrderAction,
+  assignSpaceCoordinatorAction,
+  getAssignableUsersAction,
+  DEFAULT_SPACE_COORDINATORS,
+  AssignableUser,
 } from "@/features/reservations/actions/reservationActions";
 import {
   SpaceMaintenanceConfig,
@@ -164,7 +169,19 @@ export default function AdminDashboard() {
       tab_order: [],
       disabled_area_ids: [],
       disabled_special_spaces: [],
+      coordinators: {},
     });
+
+  const [assignableStaffUsers, setAssignableStaffUsers] = useState<
+    AssignableUser[]
+  >([]);
+  const [selectedSpaceForCoord, setSelectedSpaceForCoord] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [selectedCoordUserId, setSelectedCoordUserId] = useState("");
+  const [isAssigningCoord, setIsAssigningCoord] = useState(false);
+  const [coordSearchQuery, setCoordSearchQuery] = useState("");
 
   useEffect(() => {
     getAuditoriumMaintenanceAction().then((res) => {
@@ -175,6 +192,11 @@ export default function AdminDashboard() {
     getEnvironmentsGlobalConfigAction().then((res) => {
       if (res?.config) {
         setEnvGlobalConfig(res.config);
+      }
+    });
+    getAssignableUsersAction().then((res) => {
+      if (res?.success && res.users) {
+        setAssignableStaffUsers(res.users);
       }
     });
   }, []);
@@ -1505,6 +1527,103 @@ export default function AdminDashboard() {
                                 <p className="text-[11px] text-slate-500 mt-1">
                                   {sp.desc}
                                 </p>
+
+                                {["3", "4", "5"].includes(sp.id) &&
+                                  (() => {
+                                    const customCoord =
+                                      envGlobalConfig.coordinators?.[sp.id];
+                                    const defaultCoord =
+                                      DEFAULT_SPACE_COORDINATORS[sp.id];
+                                    const activeCoord =
+                                      customCoord || defaultCoord;
+                                    const isCustom = !!customCoord;
+
+                                    return (
+                                      <div className="mt-2.5 pt-2 border-t border-slate-200/70 flex flex-col gap-1.5 bg-white/80 p-2 rounded-lg">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-[10px] font-black uppercase text-slate-600 tracking-wider flex items-center gap-1">
+                                            <Shield className="w-3 h-3 text-sena-green" />{" "}
+                                            Coordinación
+                                          </span>
+                                          <span
+                                            className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                                              isCustom
+                                                ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                                : "bg-slate-100 text-slate-600"
+                                            }`}
+                                          >
+                                            {isCustom
+                                              ? "Personalizado"
+                                              : "Por Defecto"}
+                                          </span>
+                                        </div>
+
+                                        <div className="text-[11px] leading-tight">
+                                          <p className="font-bold text-slate-800 truncate">
+                                            {activeCoord?.full_name}
+                                          </p>
+                                          <p className="text-[10px] text-slate-500 truncate">
+                                            {activeCoord?.email}
+                                          </p>
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5 pt-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedSpaceForCoord({
+                                                id: sp.id,
+                                                name: sp.name,
+                                              });
+                                              setSelectedCoordUserId(
+                                                customCoord?.user_id || "",
+                                              );
+                                              setCoordSearchQuery("");
+                                            }}
+                                            className="text-[10px] font-bold text-white bg-sena-green hover:bg-emerald-700 px-2 py-1 rounded transition-colors flex-1 text-center"
+                                          >
+                                            {isCustom ? "Cambiar" : "Asignar"}
+                                          </button>
+                                          {isCustom && (
+                                            <button
+                                              type="button"
+                                              title="Restablecer coordinador por defecto"
+                                              onClick={async () => {
+                                                if (
+                                                  !confirm(
+                                                    `¿Restablecer el coordinador institucional por defecto (${defaultCoord?.full_name}) para ${sp.name}?`,
+                                                  )
+                                                )
+                                                  return;
+                                                const res =
+                                                  await assignSpaceCoordinatorAction(
+                                                    {
+                                                      spaceId: sp.id,
+                                                      userId: null,
+                                                    },
+                                                  );
+                                                if (res.error) {
+                                                  toast.error(res.error);
+                                                  return;
+                                                }
+                                                if (res.config) {
+                                                  setEnvGlobalConfig(
+                                                    res.config,
+                                                  );
+                                                  toast.success(
+                                                    `Coordinador de ${sp.name} restablecido a ${defaultCoord?.full_name}.`,
+                                                  );
+                                                }
+                                              }}
+                                              className="text-[10px] font-bold text-slate-500 hover:text-red-600 bg-slate-100 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                                            >
+                                              Restablecer
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
                               </div>
 
                               <div className="flex items-center justify-between pt-2 border-t border-slate-200/70">
@@ -1999,6 +2118,190 @@ export default function AdminDashboard() {
               }}
             />
           </React.Suspense>
+        )}
+
+        {/* --- MODAL 5: ASIGNAR COORDINADOR DE AMBIENTE (SUPERADMIN) --- */}
+        {selectedSpaceForCoord && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="bg-sena-green px-6 py-4 flex items-center justify-between text-white">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  <div>
+                    <h3 className="font-black text-base leading-tight">
+                      Asignar Coordinador
+                    </h3>
+                    <p className="text-xs text-white/90">
+                      {selectedSpaceForCoord.name}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSpaceForCoord(null)}
+                  className="text-white/80 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto space-y-4 flex-1">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-900 flex items-start gap-2.5">
+                  <ShieldAlert className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Privilegios y Requisitos:</p>
+                    <p className="mt-0.5 text-blue-800">
+                      Solo funcionarios VIP o de planta pueden ser designados.
+                      Al asignar al usuario, el sistema garantizará
+                      automáticamente sus credenciales VIP y reasignará las
+                      solicitudes pendientes de autorización de este espacio.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1.5">
+                    Buscar Funcionario / Coordinador
+                  </label>
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Filtrar por nombre, usuario o correo..."
+                      value={coordSearchQuery}
+                      onChange={(e) => setCoordSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1.5">
+                    Seleccionar Funcionario
+                  </label>
+                  <div className="border border-slate-200 rounded-xl max-h-60 overflow-y-auto divide-y divide-slate-100">
+                    {assignableStaffUsers
+                      .filter((u) => {
+                        const q = coordSearchQuery.toLowerCase().trim();
+                        if (!q) return true;
+                        return (
+                          (u.full_name || "").toLowerCase().includes(q) ||
+                          (u.username || "").toLowerCase().includes(q) ||
+                          (u.email || "").toLowerCase().includes(q)
+                        );
+                      })
+                      .map((u) => {
+                        const isVipUser =
+                          !!u.is_vip ||
+                          u.role === "coordinator" ||
+                          u.job_category === "coordinador";
+                        const isSelected = selectedCoordUserId === u.id;
+                        return (
+                          <div
+                            key={u.id}
+                            onClick={() => setSelectedCoordUserId(u.id)}
+                            className={`p-3 cursor-pointer flex items-center justify-between transition-colors ${
+                              isSelected
+                                ? "bg-emerald-50 border-l-4 border-sena-green"
+                                : "hover:bg-slate-50"
+                            }`}
+                          >
+                            <div className="min-w-0 pr-2">
+                              <p className="text-xs font-bold text-slate-800 truncate">
+                                {u.full_name}
+                              </p>
+                              <p className="text-[11px] text-slate-500 truncate">
+                                {u.email || `${u.username}@sena.edu.co`}
+                              </p>
+                            </div>
+                            <div className="shrink-0 flex items-center gap-1.5">
+                              {isVipUser ? (
+                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                                  VIP
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                  Planta
+                                </span>
+                              )}
+                              <input
+                                type="radio"
+                                name="coordUser"
+                                checked={isSelected}
+                                onChange={() => setSelectedCoordUserId(u.id)}
+                                className="text-sena-green focus:ring-sena-green h-4 w-4"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSpaceForCoord(null)}
+                  disabled={isAssigningCoord}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200/70 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={!selectedCoordUserId || isAssigningCoord}
+                  onClick={async () => {
+                    if (!selectedCoordUserId) return;
+                    setIsAssigningCoord(true);
+                    try {
+                      const res = await assignSpaceCoordinatorAction({
+                        spaceId: selectedSpaceForCoord.id,
+                        userId: selectedCoordUserId,
+                      });
+                      if (res.error) {
+                        toast.error(res.error);
+                        return;
+                      }
+                      if (res.config) {
+                        setEnvGlobalConfig(res.config);
+                        if (
+                          typeof res.transferredCount === "number" &&
+                          res.transferredCount > 0
+                        ) {
+                          toast.success(
+                            `Coordinador asignado con éxito. Se trasladaron ${res.transferredCount} solicitud(es) pendiente(s) a su bandeja.`,
+                          );
+                        } else {
+                          toast.success(
+                            `Coordinador de ${selectedSpaceForCoord.name} asignado correctamente.`,
+                          );
+                        }
+                        setSelectedSpaceForCoord(null);
+                      }
+                    } catch {
+                      toast.error("Error al asignar coordinador");
+                    } finally {
+                      setIsAssigningCoord(false);
+                    }
+                  }}
+                  className="px-5 py-2 text-xs font-bold text-white bg-sena-green hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors flex items-center gap-2"
+                >
+                  {isAssigningCoord ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Asignando...
+                    </>
+                  ) : (
+                    "Confirmar Asignación"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </AuthGuard>
