@@ -4,6 +4,7 @@ import { forbidden, verifyUserPermissions } from "@/lib/auth-check";
 import { withAuth, AuthenticatedContext } from "@/lib/api-middleware";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { buildUserIdOrFilter, UUID_SCHEMA } from "@/lib/security";
+import { isPrivilegedKioskUser } from "@/lib/kiosk-pin";
 import Logger from "@/lib/logger";
 
 const USER_PUBLIC_COLUMNS =
@@ -361,6 +362,14 @@ async function updateUserHandler(
     }
   }
 
+  const { data: previousUser } = await supabaseAdmin
+    .from("users")
+    .select(
+      "id, auth_id, username, role, job_category, is_vip, perm_manage_assignments",
+    )
+    .or(buildUserIdOrFilter(id))
+    .maybeSingle();
+
   dbUpdates.updated_at = new Date().toISOString();
 
   const { error: updateError } = await supabaseAdmin
@@ -369,6 +378,68 @@ async function updateUserHandler(
     .or(buildUserIdOrFilter(id));
 
   if (updateError) throw updateError;
+
+  const targetAuthLookupId = previousUser?.auth_id || id;
+  if (previousUser) {
+    const mergedAfter = {
+      role: (updatesRecord.role as string | undefined) ?? previousUser.role,
+      username:
+        (updatesRecord.username as string | undefined) ?? previousUser.username,
+      job_category:
+        (updatesRecord.job_category as string | null | undefined) ??
+        previousUser.job_category,
+      is_vip:
+        (updatesRecord.is_vip as boolean | undefined) ?? previousUser.is_vip,
+      perm_manage_assignments:
+        (updatesRecord.perm_manage_assignments as boolean | undefined) ??
+        previousUser.perm_manage_assignments,
+    };
+
+    const wasPrivileged = isPrivilegedKioskUser(previousUser);
+    const willBePrivileged = isPrivilegedKioskUser(mergedAfter);
+
+    if (wasPrivileged && !willBePrivileged) {
+      try {
+        const { data: authInfo } =
+          await supabaseAdmin.auth.admin.getUserById(targetAuthLookupId);
+        const existingAppMeta =
+          (authInfo?.user?.app_metadata as Record<string, unknown>) || {};
+        await supabaseAdmin.auth.admin.updateUserById(targetAuthLookupId, {
+          app_metadata: {
+            ...existingAppMeta,
+            kiosk_pin_hash: null,
+            kiosk_pin_revoked_pending_notice: true,
+            kiosk_pin_revoked_at: new Date().toISOString(),
+          },
+        });
+      } catch (revokeErr) {
+        Logger.warn(
+          "No se pudo limpiar PIN al retirar privilegio VIP",
+          revokeErr,
+        );
+      }
+    } else if (!wasPrivileged && willBePrivileged) {
+      try {
+        const { data: authInfo } =
+          await supabaseAdmin.auth.admin.getUserById(targetAuthLookupId);
+        const existingAppMeta =
+          (authInfo?.user?.app_metadata as Record<string, unknown>) || {};
+        if (existingAppMeta.kiosk_pin_revoked_pending_notice) {
+          await supabaseAdmin.auth.admin.updateUserById(targetAuthLookupId, {
+            app_metadata: {
+              ...existingAppMeta,
+              kiosk_pin_revoked_pending_notice: false,
+            },
+          });
+        }
+      } catch (promoErr) {
+        Logger.warn(
+          "No se pudo actualizar estado PIN al promover a VIP",
+          promoErr,
+        );
+      }
+    }
+  }
 
   const metadataUpdates: Record<string, unknown> = {};
   const metadataFields = [

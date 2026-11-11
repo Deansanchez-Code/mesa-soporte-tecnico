@@ -8,12 +8,14 @@ const {
   mockGenerateLink,
   mockVerifyOtp,
   mockGetUserById,
+  mockUpdateUserById,
   mockMaybeSingle,
 } = vi.hoisted(() => ({
   mockSendEmail: vi.fn(),
   mockGenerateLink: vi.fn(),
   mockVerifyOtp: vi.fn(),
   mockGetUserById: vi.fn(),
+  mockUpdateUserById: vi.fn(),
   mockMaybeSingle: vi.fn(),
 }));
 
@@ -39,6 +41,7 @@ vi.mock("@/lib/supabase/admin", () => ({
     auth: {
       admin: {
         getUserById: mockGetUserById,
+        updateUserById: mockUpdateUserById,
         generateLink: mockGenerateLink,
       },
     },
@@ -70,6 +73,7 @@ vi.mock("@/lib/logger", () => ({
 describe("POST /api/auth/kiosk-otp (PIN VIP + Directo SENA + OTP Personal)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUpdateUserById.mockResolvedValue({ error: null });
     mockSendEmail.mockResolvedValue({ success: true });
     mockGenerateLink.mockResolvedValue({
       data: { properties: { hashed_token: "magic-hash-token" } },
@@ -215,6 +219,60 @@ describe("POST /api/auth/kiosk-otp (PIN VIP + Directo SENA + OTP Personal)", () 
     expect(res.status).toBe(200);
     expect(json.authMode).toBe("pin_not_configured");
     expect(json.pinConfigured).toBe(false);
+    expect(json.message).toContain("Dinamizador TIC");
+    expect(json.message).toContain("Deivis Andrés Sánchez");
+    expect(json.message).toContain("Oficina de Sistemas");
+    expect(mockSendEmail).not.toHaveBeenCalled();
+  });
+
+  it("limpia PIN y devuelve pinRemovedNotice cuando a un ex-VIP se le retira privilegio VIP", async () => {
+    const oldPinHash = hashKioskPin("112233");
+    mockMaybeSingle.mockResolvedValue({
+      data: {
+        id: "exvip-uuid-1",
+        auth_id: "auth-exvip-1",
+        username: "exvipuser",
+        full_name: "Ex VIP Usuario",
+        role: "user",
+        area: "Sistemas",
+        employment_type: "planta",
+        job_category: "instructor",
+        email: "exvipuser@sena.edu.co",
+        is_vip: false,
+        perm_manage_assignments: false,
+        is_active: true,
+      },
+      error: null,
+    });
+    mockGetUserById.mockResolvedValue({
+      data: {
+        user: {
+          id: "auth-exvip-1",
+          app_metadata: {
+            kiosk_pin_hash: oldPinHash,
+            kiosk_pin_revoked_pending_notice: true,
+          },
+        },
+      },
+    });
+
+    const req = new NextRequest("http://localhost/api/auth/kiosk-otp", {
+      method: "POST",
+      headers: { "x-forwarded-for": "10.0.0.15" },
+      body: JSON.stringify({ action: "request", username: "exvipuser" }),
+    });
+    const res = await POST(req);
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.authMode).toBe("direct");
+    expect(json.verified).toBe(true);
+    expect(json.pinRemovedNotice).toBe(true);
+    expect(mockUpdateUserById).toHaveBeenCalledWith("auth-exvip-1", {
+      app_metadata: {
+        kiosk_pin_hash: null,
+        kiosk_pin_revoked_pending_notice: false,
+      },
+    });
     expect(mockSendEmail).not.toHaveBeenCalled();
   });
 

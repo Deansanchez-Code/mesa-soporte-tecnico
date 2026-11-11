@@ -439,7 +439,7 @@ export async function POST(req: NextRequest) {
       );
       if (provisioned.errorResponse) return provisioned.errorResponse;
 
-      // 1. Personal VIP / Coordinadores -> PIN numérico de 6 dígitos asignado por SuperAdmin (sin correo SENA)
+      // 1. Personal VIP / Coordinadores -> PIN numérico de 6 dígitos asignado por Dinamizador TIC
       if (isPrivilegedKioskUser(publicUser)) {
         const hasPin =
           typeof provisioned.appMetadata.kiosk_pin_hash === "string" &&
@@ -451,7 +451,7 @@ export async function POST(req: NextRequest) {
             pinConfigured: false,
             fullName: publicUser.full_name || cleanUsername,
             message:
-              "Tu cuenta VIP / Coordinación requiere un PIN numérico de 6 dígitos asignado por el SuperAdmin. Comunícate con Administración TIC para validar tu identidad y activar tu PIN.",
+              "Tu perfil cuenta con privilegios VIP / Coordinación y necesita un PIN de seguridad de 6 dígitos para proteger tu acceso. Por favor contáctate con el Dinamizador TIC, Ing. Deivis Andrés Sánchez H., por WhatsApp o acércate a la Oficina de Sistemas del Centro de Formación para asignártelo.",
           });
         }
 
@@ -460,6 +460,28 @@ export async function POST(req: NextRequest) {
           pinConfigured: true,
           fullName: publicUser.full_name || cleanUsername,
         });
+      }
+
+      const hadVipPinOrPendingNotice =
+        (typeof provisioned.appMetadata.kiosk_pin_hash === "string" &&
+          provisioned.appMetadata.kiosk_pin_hash.length > 0) ||
+        provisioned.appMetadata.kiosk_pin_revoked_pending_notice === true;
+
+      if (hadVipPinOrPendingNotice && provisioned.authId) {
+        try {
+          await supabaseAdmin.auth.admin.updateUserById(provisioned.authId, {
+            app_metadata: {
+              ...provisioned.appMetadata,
+              kiosk_pin_hash: null,
+              kiosk_pin_revoked_pending_notice: false,
+            },
+          });
+        } catch (clearErr) {
+          Logger.warn(
+            "No se pudo limpiar bandera de PIN al ingresar sin VIP",
+            clearErr,
+          );
+        }
       }
 
       const recipientEmail = resolveOtpRecipientEmail({
@@ -481,12 +503,15 @@ export async function POST(req: NextRequest) {
         Logger.info("Kiosk direct login (non-VIP institutional)", {
           userId: publicUser.id,
           username: cleanUsername,
+          pinRemovedNotice: hadVipPinOrPendingNotice,
           ip,
         });
 
         return NextResponse.json({
           authMode: "direct",
           verified: true,
+          pinRemovedNotice: hadVipPinOrPendingNotice,
+          fullName: publicUser.full_name || cleanUsername,
           user: issued.user,
           session: issued.session,
         });
@@ -530,6 +555,8 @@ export async function POST(req: NextRequest) {
       const res = NextResponse.json({
         authMode: "otp",
         otpSent: true,
+        pinRemovedNotice: hadVipPinOrPendingNotice,
+        fullName: publicUser.full_name || cleanUsername,
         maskedEmail: maskEmail(recipientEmail),
       });
       setChallengeCookie(res, token);

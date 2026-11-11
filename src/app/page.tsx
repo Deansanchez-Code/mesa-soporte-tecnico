@@ -10,6 +10,9 @@ import {
   Monitor,
   Calendar,
   MapPin,
+  ShieldCheck,
+  CheckCircle2,
+  MessageCircle,
 } from "lucide-react";
 import UserRequestForm from "@/features/requests/components/UserRequestForm";
 import Link from "next/link";
@@ -31,7 +34,13 @@ function HomeContent() {
   const router = useRouter();
   // Estados de Vista
   const [viewState, setViewState] = useState<
-    "login" | "contractor" | "otp" | "pin" | "pin_pending" | "request"
+    | "login"
+    | "contractor"
+    | "otp"
+    | "pin"
+    | "pin_pending"
+    | "pin_removed_notice"
+    | "request"
   >("login");
 
   // Estados Login Corporativo, PIN VIP y OTP
@@ -47,6 +56,7 @@ function HomeContent() {
   const [pinError, setPinError] = useState("");
   const [pinTargetFullName, setPinTargetFullName] = useState("");
   const [pinNoticeMessage, setPinNoticeMessage] = useState("");
+  const [pinRemovedBanner, setPinRemovedBanner] = useState(false);
   const [otpReturnView, setOtpReturnView] = useState<"login" | "contractor">(
     "login",
   );
@@ -214,16 +224,26 @@ function HomeContent() {
         };
       }
       setUserData(payload.user as UserData);
-      setViewState("request");
+      if (payload.pinRemovedNotice) {
+        setPinTargetFullName(
+          payload.fullName ||
+            (payload.user as UserData)?.full_name ||
+            targetUsername,
+        );
+        setViewState("pin_removed_notice");
+      } else {
+        setViewState("request");
+      }
       return { ok: true as const };
     }
 
-    // Caso 2: Usuario VIP / Coordinador -> exige PIN numérico de 6 dígitos asignado por SuperAdmin
+    // Caso 2: Usuario VIP / Coordinador -> exige PIN numérico de 6 dígitos asignado por Dinamizador TIC
     if (payload.authMode === "pin") {
       setOtpUsername(targetUsername);
       setPinTargetFullName(payload.fullName || targetUsername);
       setPinValue("");
       setPinError("");
+      setPinRemovedBanner(false);
       setOtpReturnView(returnView);
       setViewState("pin");
       return { ok: true as const };
@@ -234,8 +254,9 @@ function HomeContent() {
       setPinTargetFullName(payload.fullName || targetUsername);
       setPinNoticeMessage(
         payload.message ||
-          "Tu cuenta VIP aún no tiene PIN de acceso asignado por el SuperAdmin.",
+          "Tu perfil cuenta con privilegios VIP y requiere un PIN numérico de 6 dígitos asignado por el Dinamizador TIC.",
       );
+      setPinRemovedBanner(false);
       setOtpReturnView(returnView);
       setViewState("pin_pending");
       return { ok: true as const };
@@ -246,6 +267,8 @@ function HomeContent() {
     setOtpMaskedEmail(payload.maskedEmail || "correo registrado");
     setOtpCode("");
     setOtpError("");
+    setPinRemovedBanner(Boolean(payload.pinRemovedNotice));
+    setPinTargetFullName(payload.fullName || targetUsername);
     setOtpReturnView(returnView);
     setResendCooldown(30);
     setViewState("otp");
@@ -684,6 +707,18 @@ function HomeContent() {
           {/* --- VISTA 2.5: VERIFICACIÓN CÓDIGO OTP --- */}
           {viewState === "otp" && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
+              {pinRemovedBanner && (
+                <div className="bg-sena-green/10 border border-sena-green/30 p-3 rounded-xl text-xs text-sena-blue">
+                  <p className="font-bold flex items-center gap-1.5 text-sena-green">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    Ya no requieres PIN VIP de seguridad
+                  </p>
+                  <p className="mt-1 text-slate-600">
+                    Tus privilegios VIP fueron actualizados; confirma únicamente
+                    el código enviado a tu correo personal para ingresar.
+                  </p>
+                </div>
+              )}
               <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl text-xs text-emerald-900">
                 <p className="font-bold">Código de verificación enviado</p>
                 <p className="mt-1 text-emerald-800">
@@ -767,20 +802,20 @@ function HomeContent() {
           {/* --- VISTA 2.6: VALIDACIÓN PIN NUMÉRICO VIP / COORDINADORES --- */}
           {viewState === "pin" && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
-              <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl text-xs text-amber-950">
-                <p className="font-bold flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-amber-700" />
+              <div className="bg-sena-blue/5 border border-sena-blue/20 p-4 rounded-xl text-xs text-sena-blue space-y-1.5">
+                <p className="font-black uppercase tracking-wider text-[11px] flex items-center gap-1.5 text-sena-blue">
+                  <ShieldCheck className="w-4 h-4 text-sena-green shrink-0" />
                   Acceso Protegido VIP / Coordinación
                 </p>
-                <p className="mt-1 text-amber-900">
-                  Hola <strong>{pinTargetFullName}</strong>, ingresa el PIN
-                  numérico de 6 dígitos asignado por el SuperAdmin para activar
-                  tus privilegios.
+                <p className="text-slate-700 leading-relaxed">
+                  ¡Hola, <strong>{pinTargetFullName}</strong>! Ingresa tu PIN
+                  numérico de 6 dígitos asignado por el Dinamizador TIC para
+                  continuar de forma segura.
                 </p>
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-600 ml-1">
+                <label className="text-xs font-bold text-sena-blue ml-1">
                   PIN de Seguridad (6 dígitos)
                 </label>
                 <input
@@ -822,10 +857,17 @@ function HomeContent() {
                 )}
               </button>
 
-              <div className="flex items-center justify-between text-xs pt-1">
-                <span className="text-gray-400">
-                  ¿Sin PIN? Solicítalo a Mesa TIC
-                </span>
+              <p className="text-[11px] text-slate-500 text-center leading-relaxed bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                ¿Olvidaste o aún no tienes tu PIN? Escríbele por{" "}
+                <strong className="text-sena-green">WhatsApp</strong> al
+                Dinamizador TIC{" "}
+                <strong className="text-sena-blue">
+                  Ing. Deivis Andrés Sánchez H.
+                </strong>{" "}
+                o pasa por la <strong>Oficina de Sistemas</strong>.
+              </p>
+
+              <div className="flex items-center justify-end text-xs">
                 <button
                   type="button"
                   onClick={() => {
@@ -833,7 +875,7 @@ function HomeContent() {
                     setPinError("");
                     setViewState(otpReturnView);
                   }}
-                  className="text-sena-blue font-semibold hover:underline"
+                  className="text-sena-blue font-semibold hover:underline cursor-pointer"
                 >
                   Cambiar usuario
                 </button>
@@ -844,14 +886,58 @@ function HomeContent() {
           {/* --- VISTA 2.7: VIP SIN PIN ASIGNADO AÚN --- */}
           {viewState === "pin_pending" && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-xs text-amber-950 space-y-2">
-                <p className="font-bold text-sm flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-amber-700" />
-                  PIN de 6 Dígitos Pendiente de Asignación
+              <div className="rounded-2xl border-2 border-sena-green/30 bg-gradient-to-br from-emerald-50/80 via-white to-blue-50/60 p-5 space-y-3.5 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-sena-green text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-sena-orange/15 text-sena-orange">
+                      Activación PIN VIP Requerida
+                    </span>
+                    <h3 className="text-sm font-black text-sena-blue leading-snug mt-0.5">
+                      ¡Hola, {pinTargetFullName}!
+                    </h3>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-700 leading-relaxed">
+                  {pinNoticeMessage ||
+                    "Tu perfil cuenta con privilegios VIP / Coordinación y requiere un PIN numérico de 6 dígitos para resguardar tus permisos de autorización y gestión."}
                 </p>
-                <p className="leading-relaxed text-amber-900">
-                  Hola <strong>{pinTargetFullName}</strong>, {pinNoticeMessage}
-                </p>
+
+                <div className="rounded-xl bg-white border border-sena-blue/15 p-3.5 space-y-2.5 shadow-2xs">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-sena-blue">
+                    ¿Cómo activar tu PIN ahora?
+                  </p>
+                  <p className="text-xs font-bold text-slate-800">
+                    Dinamizador TIC:{" "}
+                    <span className="text-sena-green">
+                      Ing. Deivis Andrés Sánchez H.
+                    </span>
+                  </p>
+                  <div className="space-y-1.5 text-xs text-slate-600">
+                    <p className="flex items-start gap-2">
+                      <MessageCircle className="w-4 h-4 text-sena-green shrink-0 mt-0.5" />
+                      <span>
+                        Contáctalo por{" "}
+                        <strong className="text-slate-800">WhatsApp</strong>{" "}
+                        indicando tu nombre y usuario corporativo (
+                        <strong>@{otpUsername}</strong>).
+                      </span>
+                    </p>
+                    <p className="flex items-start gap-2">
+                      <MapPin className="w-4 h-4 text-sena-orange shrink-0 mt-0.5" />
+                      <span>
+                        O dirígete directamente a la{" "}
+                        <strong className="text-slate-800">
+                          Oficina de Sistemas del Centro de Formación
+                        </strong>{" "}
+                        para validar tu identidad y asignártelo al instante.
+                      </span>
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <button
@@ -860,9 +946,52 @@ function HomeContent() {
                   setPinNoticeMessage("");
                   setViewState(otpReturnView);
                 }}
-                className="w-full bg-sena-blue hover:bg-blue-900 text-white py-3 rounded-lg font-bold shadow-md transition cursor-pointer"
+                className="w-full bg-sena-blue hover:bg-blue-950 text-white py-3 rounded-lg font-bold shadow-md transition cursor-pointer"
               >
                 Volver al inicio
+              </button>
+            </div>
+          )}
+
+          {/* --- VISTA 2.8: AVISO RETIRO DE PRIVILEGIO VIP (YA NO REQUIERE PIN) --- */}
+          {viewState === "pin_removed_notice" && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
+              <div className="rounded-2xl border-2 border-sena-green/35 bg-gradient-to-br from-emerald-50/90 via-white to-slate-50 p-5 space-y-3 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-sena-green text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-sena-green/15 text-sena-green">
+                      Actualización de Acceso
+                    </span>
+                    <h3 className="text-sm font-black text-sena-blue leading-snug mt-0.5">
+                      ¡Hola, {pinTargetFullName}!
+                    </h3>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-700 leading-relaxed">
+                  Te informamos que tus privilegios VIP han sido actualizados y{" "}
+                  <strong className="text-sena-blue">
+                    ya no requieres PIN de seguridad
+                  </strong>{" "}
+                  para ingresar a la plataforma.
+                </p>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  A partir de ahora puedes acceder directamente con tu usuario
+                  corporativo para gestionar tus reservas, prerreservas y
+                  solicitudes de soporte técnico con total agilidad.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setViewState("request")}
+                className="w-full bg-sena-green hover:bg-[#2d8500] text-white py-3 rounded-lg font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                CONTINUAR AL PORTAL TIC
+                <ArrowRight className="w-5 h-5" />
               </button>
             </div>
           )}

@@ -119,6 +119,7 @@ async function assignKioskPinHandler(
   const newAppMeta = {
     ...existingAppMeta,
     kiosk_pin_hash: pinHash,
+    kiosk_pin_revoked_pending_notice: false,
     kiosk_pin_updated_at: nowIso,
     kiosk_pin_updated_by: ctx.user.id,
   };
