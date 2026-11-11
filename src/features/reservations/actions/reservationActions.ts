@@ -20,6 +20,7 @@ import {
   EnvironmentsGlobalConfig,
   SpaceMaintenanceConfig,
 } from "../types";
+import { DEFAULT_SPACE_COORDINATORS } from "../constants";
 import Logger from "@/lib/logger";
 import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
 
@@ -131,43 +132,24 @@ async function resolveAuthenticatedPublicUser(accessToken?: string) {
 
   if (!authUser) return null;
 
-  const { data: publicUser } = await adminSupabase
+  const userFilter = isValidUuid(authUser.id)
+    ? buildUserIdOrFilter(authUser.id)
+    : null;
+
+  const userQuery = adminSupabase
     .from("users")
     .select(
-      "id, full_name, role, username, job_category, is_vip, perm_manage_assignments",
-    )
-    .eq("auth_id", authUser.id)
-    .maybeSingle();
+      "id, full_name, role, username, job_category, is_vip, perm_manage_assignments, is_active",
+    );
+
+  const { data: publicUser } = userFilter
+    ? await userQuery.or(userFilter).maybeSingle()
+    : await userQuery.eq("auth_id", authUser.id).maybeSingle();
+
+  if (!publicUser || publicUser.is_active === false) return null;
 
   return publicUser;
 }
-
-export const DEFAULT_SPACE_COORDINATORS: Record<
-  string,
-  SpaceCoordinatorAssignment
-> = {
-  "3": {
-    user_id: "",
-    username: "egutierrezn",
-    email: "egutierrezn@sena.edu.co",
-    full_name: "Esperanza Gutiérrez Numpaque",
-    is_vip: true,
-  },
-  "4": {
-    user_id: "",
-    username: "nbarrerac",
-    email: "nbarrerac@sena.edu.co",
-    full_name: "Nury Mildret Barrera",
-    is_vip: true,
-  },
-  "5": {
-    user_id: "",
-    username: "nbarrerac",
-    email: "nbarrerac@sena.edu.co",
-    full_name: "Nury Mildret Barrera",
-    is_vip: true,
-  },
-};
 
 export async function getSpaceCoordinator(
   spaceId: string | number,
@@ -2923,6 +2905,10 @@ export async function assignSpaceCoordinatorAction(params: {
     const spaceName = getSpaceDisplayName(sid);
 
     if (params.userId) {
+      if (!isValidUuid(params.userId)) {
+        throw new Error("Identificador de funcionario inválido.");
+      }
+
       const { data: targetUser, error: userError } = await adminSupabase
         .from("users")
         .select(
@@ -2937,7 +2923,7 @@ export async function assignSpaceCoordinatorAction(params: {
 
       // Auto-elevación a VIP y perm_manage_assignments si aún no los tiene
       if (!targetUser.is_vip || !targetUser.perm_manage_assignments) {
-        await adminSupabase
+        const { error: elevateError } = await adminSupabase
           .from("users")
           .update({
             is_vip: true,
@@ -2945,6 +2931,12 @@ export async function assignSpaceCoordinatorAction(params: {
             job_category: targetUser.job_category || "coordinador",
           })
           .eq("id", targetUser.id);
+        if (elevateError) {
+          Logger.warn(
+            "No se pudo elevar privilegios VIP del coordinador asignado",
+            { userId: targetUser.id, error: elevateError.message },
+          );
+        }
       }
 
       const userEmail = resolveReservationUserEmail(targetUser);

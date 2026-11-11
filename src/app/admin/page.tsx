@@ -50,9 +50,9 @@ import {
   saveEnvironmentsTabOrderAction,
   assignSpaceCoordinatorAction,
   getAssignableUsersAction,
-  DEFAULT_SPACE_COORDINATORS,
   AssignableUser,
 } from "@/features/reservations/actions/reservationActions";
+import { DEFAULT_SPACE_COORDINATORS } from "@/features/reservations/constants";
 import { SPECIAL_SPACES_CATALOG } from "@/features/reservations/services/maintenanceService";
 import {
   SpaceMaintenanceConfig,
@@ -279,29 +279,37 @@ export default function AdminDashboard() {
   }, [assignableStaffUsers, usersList]);
 
   useEffect(() => {
-    getAllSpacesMaintenanceAction().then((res) => {
-      if (res?.configs) {
-        setSpacesMaintenanceMap(res.configs);
-        if (res.configs["1"]) {
-          setMaintenanceConfig(res.configs["1"]);
-        }
-      }
-    });
-    getEnvironmentsGlobalConfigAction().then((res) => {
-      if (res?.config) {
-        setEnvGlobalConfig(res.config);
-      }
-    });
-    supabase.auth.getSession().then(({ data }) => {
-      setIsLoadingAssignableUsers(true);
-      getAssignableUsersAction(data.session?.access_token)
-        .then((res) => {
-          if (res?.success && res.users) {
-            setAssignableStaffUsers(res.users);
+    getAllSpacesMaintenanceAction()
+      .then((res) => {
+        if (res?.configs) {
+          setSpacesMaintenanceMap(res.configs);
+          if (res.configs["1"]) {
+            setMaintenanceConfig(res.configs["1"]);
           }
-        })
-        .finally(() => setIsLoadingAssignableUsers(false));
-    });
+        }
+      })
+      .catch(() => {});
+    getEnvironmentsGlobalConfigAction()
+      .then((res) => {
+        if (res?.config) {
+          setEnvGlobalConfig(res.config);
+        }
+      })
+      .catch(() => {});
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        setIsLoadingAssignableUsers(true);
+        getAssignableUsersAction(data.session?.access_token)
+          .then((res) => {
+            if (res?.success && res.users) {
+              setAssignableStaffUsers(res.users);
+            }
+          })
+          .catch(() => {})
+          .finally(() => setIsLoadingAssignableUsers(false));
+      })
+      .catch(() => setIsLoadingAssignableUsers(false));
   }, []);
 
   // Estados Modales
@@ -1701,12 +1709,18 @@ export default function AdminDashboard() {
                                                         );
                                                       }
                                                     })
+                                                    .catch(() => {})
                                                     .finally(() =>
                                                       setIsLoadingAssignableUsers(
                                                         false,
                                                       ),
                                                     );
-                                                });
+                                                })
+                                                .catch(() =>
+                                                  setIsLoadingAssignableUsers(
+                                                    false,
+                                                  ),
+                                                );
                                             }}
                                             className="text-[10px] font-bold text-white bg-sena-green hover:bg-emerald-700 px-2 py-1 rounded transition-colors flex-1 text-center cursor-pointer"
                                           >
@@ -1723,29 +1737,35 @@ export default function AdminDashboard() {
                                                   )
                                                 )
                                                   return;
-                                                const {
-                                                  data: { session },
-                                                } =
-                                                  await supabase.auth.getSession();
-                                                const res =
-                                                  await assignSpaceCoordinatorAction(
-                                                    {
-                                                      spaceId: sp.id,
-                                                      userId: null,
-                                                      accessToken:
-                                                        session?.access_token,
-                                                    },
-                                                  );
-                                                if (res.error) {
-                                                  toast.error(res.error);
-                                                  return;
-                                                }
-                                                if (res.config) {
-                                                  setEnvGlobalConfig(
-                                                    res.config,
-                                                  );
-                                                  toast.success(
-                                                    `Coordinador de ${sp.name} restablecido a ${defaultCoord?.full_name}.`,
+                                                try {
+                                                  const {
+                                                    data: { session },
+                                                  } =
+                                                    await supabase.auth.getSession();
+                                                  const res =
+                                                    await assignSpaceCoordinatorAction(
+                                                      {
+                                                        spaceId: sp.id,
+                                                        userId: null,
+                                                        accessToken:
+                                                          session?.access_token,
+                                                      },
+                                                    );
+                                                  if (res.error) {
+                                                    toast.error(res.error);
+                                                    return;
+                                                  }
+                                                  if (res.config) {
+                                                    setEnvGlobalConfig(
+                                                      res.config,
+                                                    );
+                                                    toast.success(
+                                                      `Coordinador de ${sp.name} restablecido a ${defaultCoord?.full_name}.`,
+                                                    );
+                                                  }
+                                                } catch {
+                                                  toast.error(
+                                                    "Error al restablecer coordinador",
                                                   );
                                                 }
                                               }}
