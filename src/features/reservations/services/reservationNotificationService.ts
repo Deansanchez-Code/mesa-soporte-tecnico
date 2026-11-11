@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { EmailService } from "@/lib/email/email-service";
 import ReservationReminder from "@/lib/email/templates/ReservationReminder";
 import { isColombianHoliday } from "@/lib/domain/holidays";
@@ -40,6 +40,54 @@ function hasValidDescription(desc: string | null | undefined): boolean {
   return !blacklist.includes(normalized) && normalized.length > 0;
 }
 
+function resolveReservationUserEmail(
+  user:
+    | {
+        email?: string | null;
+        username?: string | null;
+        employment_type?: string | null;
+        job_category?: string | null;
+      }
+    | null
+    | undefined,
+): string {
+  if (!user) return "";
+  const empType = (user.employment_type || "").toLowerCase();
+  const jobCat = (user.job_category || "").toLowerCase();
+  const isOfficial =
+    empType.includes("planta") ||
+    empType.includes("funcionario") ||
+    empType.includes("oficial") ||
+    jobCat.includes("coordinador");
+
+  const rawEmail = (user.email || "").trim().toLowerCase();
+  const cleanUser = (user.username || "").trim().toLowerCase();
+
+  if (isOfficial && cleanUser) {
+    return `${cleanUser}@sena.edu.co`;
+  }
+  if (
+    rawEmail &&
+    rawEmail.includes("@") &&
+    !rawEmail.endsWith("@sistema.local")
+  ) {
+    return rawEmail;
+  }
+  if (cleanUser) {
+    return `${cleanUser}@sena.edu.co`;
+  }
+  return "";
+}
+
+function getSpaceDisplayName(auditoriumId?: string | number | null): string {
+  const id = String(auditoriumId || "1");
+  if (id === "2") return "Subdirección";
+  if (id === "3") return "Biblioteca";
+  if (id === "4") return "Ambiente 107";
+  if (id === "5") return "Ambiente de Cocina";
+  return "Auditorio Principal";
+}
+
 type ReservationWithUser =
   Database["public"]["Tables"]["reservations"]["Row"] & {
     users: Database["public"]["Tables"]["users"]["Row"] | null;
@@ -48,10 +96,11 @@ type ReservationWithUser =
 export class ReservationNotificationService {
   /**
    * Procesa todas las notificaciones pendientes de reservas.
+   * Utiliza getSupabaseAdmin() para garantizar lectura/escritura consistente en audit_logs sin bloqueo por RLS.
    */
   static async processNotifications() {
     console.log("🔔 Iniciando procesamiento de notificaciones de reserva...");
-    const supabase = await createClient();
+    const supabase = getSupabaseAdmin() as unknown as SupabaseClient<Database>;
     const now = new Date();
 
     // 1. Obtener reservas aprobadas futuras (o recientes para el recordatorio de 15 min)
@@ -226,7 +275,7 @@ export class ReservationNotificationService {
   }
 
   /**
-   * Envía el correo electrónico con los datos de la reserva.
+   * Envía el correo electrónico con los datos de la reserva únicamente al funcionario/instructor titular.
    */
   private static async sendReminderEmail(
     res: ReservationWithUser,
@@ -235,16 +284,21 @@ export class ReservationNotificationService {
     const user = res.users;
     if (!user) return;
 
-    const employmentType = (user.employment_type || "").toLowerCase();
-    const isOfficial =
-      employmentType.includes("planta") ||
-      employmentType.includes("funcionario") ||
-      employmentType.includes("oficial");
-
-    let recipientEmail = user.email;
-    if (isOfficial && user.username) {
-      recipientEmail = `${user.username.trim()}@sena.edu.co`.toLowerCase();
+    // Evitar enviar correos de recordatorio al SuperAdmin (dasanchezh) por reservas de prueba o editadas administrativamente
+    const cleanUsername = (user.username || "").trim().toLowerCase();
+    const cleanRole = (user.role || "").trim().toLowerCase();
+    if (cleanUsername === "dasanchezh" || cleanRole === "superadmin") {
+      return;
     }
+
+    const recipientEmail = resolveReservationUserEmail(
+      user as {
+        email?: string | null;
+        username?: string | null;
+        employment_type?: string | null;
+        job_category?: string | null;
+      },
+    );
 
     if (!recipientEmail || !recipientEmail.includes("@")) return;
 
@@ -272,23 +326,25 @@ export class ReservationNotificationService {
     const description = (res as any).description;
     const hasSpecialRequirements = hasValidDescription(description);
 
-    // Si hay requerimientos especiales, enviar copia a coordinación
-    if (hasSpecialRequirements) {
+    // Si hay requerimientos especiales, enviar copia a soporte/logística
+    if (hasSpecialRequirements && String(res.auditorium_id) !== "3") {
       recipients.push("jeavendano@sena.edu.co");
     }
+
+    const spaceName = getSpaceDisplayName(res.auditorium_id);
 
     await EmailService.send({
       to: recipients,
       subject:
         type === "ONE_DAY"
-          ? `Recordatorio: Tu evento "${res.title}" es mañana`
-          : `Recordatorio: Tu evento "${res.title}" comienza en 15 minutos`,
+          ? `Recordatorio: Tu evento "${res.title}" (${spaceName}) es mañana`
+          : `Recordatorio: Tu evento "${res.title}" (${spaceName}) comienza en 15 minutos`,
       react: ReservationReminder({
         userName: user.full_name,
         eventTitle: res.title,
         date: dateStr,
         timeRange: timeStr,
-        location: "Auditorio Principal",
+        location: spaceName,
         resources: res.resources || [],
         specialRequirements: description,
         reminderType: type,

@@ -44,6 +44,59 @@ function hasValidDescription(desc: string | null | undefined): boolean {
   return !blacklist.includes(normalized) && normalized.length > 0;
 }
 
+/**
+ * Resuelve el correo electrónico real del titular/responsable de la reserva:
+ * - Funcionarios de planta / oficiales / coordinadores -> {username}@sena.edu.co
+ * - Contratistas / externos -> correo registrado (si no es @sistema.local), o fallback a {username}@sena.edu.co
+ */
+function resolveReservationUserEmail(
+  user:
+    | {
+        email?: string | null;
+        username?: string | null;
+        employment_type?: string | null;
+        job_category?: string | null;
+      }
+    | null
+    | undefined,
+): string {
+  if (!user) return "";
+  const empType = (user.employment_type || "").toLowerCase();
+  const jobCat = (user.job_category || "").toLowerCase();
+  const isOfficial =
+    empType.includes("planta") ||
+    empType.includes("funcionario") ||
+    empType.includes("oficial") ||
+    jobCat.includes("coordinador");
+
+  const rawEmail = (user.email || "").trim().toLowerCase();
+  const cleanUser = (user.username || "").trim().toLowerCase();
+
+  if (isOfficial && cleanUser) {
+    return `${cleanUser}@sena.edu.co`;
+  }
+  if (
+    rawEmail &&
+    rawEmail.includes("@") &&
+    !rawEmail.endsWith("@sistema.local")
+  ) {
+    return rawEmail;
+  }
+  if (cleanUser) {
+    return `${cleanUser}@sena.edu.co`;
+  }
+  return "";
+}
+
+function getSpaceDisplayName(auditoriumId?: string | number | null): string {
+  const id = String(auditoriumId || "1");
+  if (id === "2") return "Subdirección";
+  if (id === "3") return "Biblioteca";
+  if (id === "4") return "Ambiente 107";
+  if (id === "5") return "Ambiente de Cocina";
+  return "Auditorio Principal";
+}
+
 export async function cancelReservationAction(
   reservationId: number,
   options: { silent?: boolean } = {},
@@ -120,16 +173,12 @@ export async function cancelReservationAction(
 
         const { data: victim } = await supabase
           .from("users")
-          .select("full_name, email, employment_type, username")
+          .select("full_name, email, employment_type, job_category, username")
           .eq("id", reservation.user_id)
           .single();
 
         if (victim) {
-          const victimEmail =
-            victim.employment_type?.toLowerCase().includes("planta") ||
-            victim.employment_type?.toLowerCase().includes("funcionario")
-              ? `${victim.username.trim()}@sena.edu.co`.toLowerCase()
-              : victim.email;
+          const victimEmail = resolveReservationUserEmail(victim);
 
           if (victimEmail && victimEmail.includes("@") && !silent) {
             await EmailService.send({
@@ -353,7 +402,8 @@ export async function getAssignableUsersAction(): Promise<{
       .select(
         "id, full_name, username, email, role, job_category, employment_type, area",
       )
-      .eq("is_active", true)
+      .or("is_active.eq.true,is_active.is.null")
+      .is("deleted_at", null)
       .order("full_name", { ascending: true });
 
     if (error || !data) return { success: false, users: [] };
@@ -607,22 +657,32 @@ export async function createReservationAction(
       }
     }
 
-    // 5. Insert
-    const { data: result, error } = await supabase
+    // 5. Insert (use adminSupabase so assigned user_id is always respected and joined properly)
+    const adminSupabase = getSupabaseAdmin();
+    const { data: targetOwner } = await adminSupabase
+      .from("users")
+      .select("id")
+      .or(`id.eq.${user_id},auth_id.eq.${user_id}`)
+      .maybeSingle();
+    const resolvedOwnerId = targetOwner?.id || user_id;
+
+    const { data: result, error } = await adminSupabase
       .from("reservations")
       .insert([
         {
           title,
           start_time,
           end_time,
-          user_id,
+          user_id: resolvedOwnerId,
           auditorium_id: auditorium_id || "1",
           resources,
           description,
           status: initialStatus,
         },
       ])
-      .select("*, users(full_name, email, employment_type, username)")
+      .select(
+        "*, users(full_name, email, employment_type, job_category, username)",
+      )
       .single();
 
     if (error) throw error;
@@ -631,136 +691,149 @@ export async function createReservationAction(
     try {
       const reservation = result;
       const user = reservation.users;
+      const recipientEmail = resolveReservationUserEmail(user);
       const isLibrary = String(reservation.auditorium_id) === "3";
       const isAmbiente107 = String(reservation.auditorium_id) === "4";
       const isCocina = String(reservation.auditorium_id) === "5";
 
-      // Business Rule: Notifications for Ambiente 107 & Cocina go to Nury Mildret Barrera (nbarrerac@sena.edu.co)
+      const startDate = new Date(reservation.start_time);
+      const endDate = new Date(reservation.end_time);
+      const dateStr = startDate.toLocaleDateString("es-CO", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        timeZone: "America/Bogota",
+      });
+      const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })}`;
+      const durationHours =
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+
+      // Business Rule: Notifications for Ambiente 107 & Cocina go to Nury Mildret Barrera (nbarrerac@sena.edu.co) AND to the reservation owner
       if (isAmbiente107 || isCocina) {
         const spaceLabel = isCocina ? "Ambiente de Cocina" : "Ambiente 107";
-        const startDate = new Date(reservation.start_time);
-        const endDate = new Date(reservation.end_time);
-        const dateStr = startDate.toLocaleDateString("es-CO", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          timeZone: "America/Bogota",
-        });
-        const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })}`;
-        const durationHours =
-          (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
 
         const coordinatorSubject =
           reservation.status === "PENDING"
             ? `Solicitud de Prereserva ${spaceLabel}: ${reservation.title}`
             : `Reserva VIP Aprobada (${spaceLabel}): ${reservation.title}`;
 
-        await EmailService.send({
-          to: "nbarrerac@sena.edu.co",
-          subject: coordinatorSubject,
-          react: SpaceReservationEmail({
-            spaceName: spaceLabel,
-            requesterName: user.full_name,
-            eventTitle: reservation.title,
-            date: dateStr,
-            timeRange: `${timeStr} (${durationHours.toFixed(1)} horas)`,
-            specialRequirements: reservation.description || "Ninguno",
-            coordinatorName: "Nury Mildret Barrera",
-            type:
-              reservation.status === "PENDING"
-                ? "NEW_REQUEST"
-                : "VIP_AUTOMATIC",
-          }),
-        });
+        if (
+          reservation.status === "PENDING" ||
+          recipientEmail.toLowerCase() !== "nbarrerac@sena.edu.co"
+        ) {
+          await EmailService.send({
+            to: "nbarrerac@sena.edu.co",
+            subject: coordinatorSubject,
+            react: SpaceReservationEmail({
+              spaceName: spaceLabel,
+              requesterName: user.full_name,
+              eventTitle: reservation.title,
+              date: dateStr,
+              timeRange: `${timeStr} (${durationHours.toFixed(1)} horas)`,
+              specialRequirements: reservation.description || "Ninguno",
+              coordinatorName: "Nury Mildret Barrera",
+              type:
+                reservation.status === "PENDING"
+                  ? "NEW_REQUEST"
+                  : "VIP_AUTOMATIC",
+            }),
+          });
+        }
 
         if (reservation.status === "PENDING") {
+          // Enviar constancia de prerreserva al funcionario/instructor que queda con la reserva
+          if (recipientEmail && recipientEmail.includes("@")) {
+            await EmailService.send({
+              to: recipientEmail,
+              subject: `Solicitud de Prereserva Recibida (${spaceLabel}): ${reservation.title}`,
+              react: SpaceReservationEmail({
+                spaceName: spaceLabel,
+                requesterName: user.full_name,
+                eventTitle: reservation.title,
+                date: dateStr,
+                timeRange: `${timeStr} (${durationHours.toFixed(1)} horas)`,
+                specialRequirements: reservation.description || "Ninguno",
+                coordinatorName: "Nury Mildret Barrera",
+                type: "NEW_REQUEST",
+              }),
+            });
+          }
+
+          await adminSupabase.from("user_notifications").insert([
+            {
+              user_id: resolvedOwnerId,
+              title: `Prereserva en revisión (${spaceLabel}) ⏳`,
+              message: `Tu solicitud "${reservation.title}" para el ${dateStr} fue enviada a coordinación para autorización.`,
+            },
+          ]);
+
           revalidatePath("/dashboard");
           return { success: true, data: result, pendingApproval: true };
         }
       }
 
-      // Business Rule: Notifications for Library always go to the coordinator (temp: dasanchezh)
+      // Business Rule: Notifications for Library go to coordinator (egutierrezn@sena.edu.co) AND to the reservation owner
       if (isLibrary) {
-        const startDate = new Date(reservation.start_time);
-        const endDate = new Date(reservation.end_time);
-        const dateStr = startDate.toLocaleDateString("es-CO", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          timeZone: "America/Bogota",
-        });
-        const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })}`;
-
-        const durationHours =
-          (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
-
-        // Notify Coordinator (Temporary: dasanchezh@sena.edu.co)
         const coordinatorSubject =
           reservation.status === "PENDING"
             ? `Solicitud de Reserva Biblioteca: ${reservation.title}`
             : `Reserva VIP Aprobada (Cuentadante): ${reservation.title}`;
 
-        // TODO(MERGE): Cambiar correo a egutierrezn@sena.edu.co (o emgutierrezn@sena.edu.co) para produccion.
-        await EmailService.send({
-          to: "dasanchezh@sena.edu.co",
-          subject: coordinatorSubject,
-          react: LibraryNotification({
-            requesterName: user.full_name,
-            eventTitle: reservation.title,
-            date: dateStr,
-            timeRange: `${timeStr} (${durationHours.toFixed(1)} horas)`,
-            specialRequirements: reservation.description || "Ninguno",
-            type:
-              reservation.status === "PENDING"
-                ? "NEW_REQUEST"
-                : "VIP_AUTOMATIC",
-          }),
-        });
+        if (
+          reservation.status === "PENDING" ||
+          recipientEmail.toLowerCase() !== "egutierrezn@sena.edu.co"
+        ) {
+          await EmailService.send({
+            to: "egutierrezn@sena.edu.co",
+            subject: coordinatorSubject,
+            react: LibraryNotification({
+              requesterName: user.full_name,
+              eventTitle: reservation.title,
+              date: dateStr,
+              timeRange: `${timeStr} (${durationHours.toFixed(1)} horas)`,
+              specialRequirements: reservation.description || "Ninguno",
+              type:
+                reservation.status === "PENDING"
+                  ? "NEW_REQUEST"
+                  : "VIP_AUTOMATIC",
+            }),
+          });
+        }
 
-        // Don't send "Confirmation" to user yet if it's PENDING
         if (reservation.status === "PENDING") {
+          if (recipientEmail && recipientEmail.includes("@")) {
+            await EmailService.send({
+              to: recipientEmail,
+              subject: `Solicitud de Prereserva Recibida (Biblioteca): ${reservation.title}`,
+              react: SpaceReservationEmail({
+                spaceName: "Biblioteca",
+                requesterName: user.full_name,
+                eventTitle: reservation.title,
+                date: dateStr,
+                timeRange: `${timeStr} (${durationHours.toFixed(1)} horas)`,
+                specialRequirements: reservation.description || "Ninguno",
+                coordinatorName: "Coordinación de Biblioteca",
+                type: "NEW_REQUEST",
+              }),
+            });
+          }
+
+          await adminSupabase.from("user_notifications").insert([
+            {
+              user_id: resolvedOwnerId,
+              title: "Prereserva en revisión (Biblioteca) ⏳",
+              message: `Tu solicitud "${reservation.title}" para el ${dateStr} fue enviada a Biblioteca para autorización.`,
+            },
+          ]);
+
           revalidatePath("/dashboard");
           return { success: true, data: result, pendingApproval: true };
         }
       }
 
-      // Default confirmation for Auditorium / Subdireccion or Library (if already APPROVED)
-      // Regla de Negocio:
-      // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
-      // - Contratistas -> Correo registrado (personal o corporativo)
-      const employmentType = (user.employment_type || "").toLowerCase();
-      const isOfficial =
-        employmentType.includes("planta") ||
-        employmentType.includes("funcionario") ||
-        employmentType.includes("oficial");
-
-      let recipientEmail = user.email;
-
-      if (isOfficial) {
-        recipientEmail = `${user.username.trim()}@sena.edu.co`.toLowerCase();
-      }
+      // Confirmación al funcionario/instructor titular de la reserva (cuando ya está APPROVED)
       if (recipientEmail && recipientEmail.includes("@")) {
-        const startDate = new Date(reservation.start_time);
-        const endDate = new Date(reservation.end_time);
-        const dateStr = startDate.toLocaleDateString("es-CO", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          timeZone: "America/Bogota",
-        });
-        const timeStr = `${startDate.toLocaleTimeString("es-CO", {
-          hour: "2-digit",
-          minute: "2-digit",
-          timeZone: "America/Bogota",
-        })} - ${endDate.toLocaleTimeString("es-CO", {
-          hour: "2-digit",
-          minute: "2-digit",
-          timeZone: "America/Bogota",
-        })}`;
-
         await EmailService.send({
           to: recipientEmail,
           subject: `Reserva Confirmada: ${reservation.title}`,
@@ -769,24 +842,12 @@ export async function createReservationAction(
             eventTitle: reservation.title,
             date: dateStr,
             timeRange: timeStr,
-            location: isLibrary
-              ? "Biblioteca"
-              : isAmbiente107
-                ? "Ambiente 107"
-                : isCocina
-                  ? "Ambiente de Cocina"
-                  : String(reservation.auditorium_id) === "2"
-                    ? "Subdirección"
-                    : "Auditorio Principal",
+            location: getSpaceDisplayName(reservation.auditorium_id),
             resources: reservation.resources || [],
             specialRequirements: reservation.description,
           }),
         });
-        if (
-          reservation.description &&
-          reservation.description.trim().length > 0 &&
-          !isLibrary
-        ) {
+        if (hasValidDescription(reservation.description) && !isLibrary) {
           await EmailService.send({
             to: "jeavendano@sena.edu.co",
             subject: `⚠️ Nuevo Requerimiento Especial: ${reservation.title}`,
@@ -796,7 +857,7 @@ export async function createReservationAction(
               eventTitle: reservation.title,
               date: dateStr,
               timeRange: timeStr,
-              specialRequirements: reservation.description,
+              specialRequirements: reservation.description!,
               type: "NEW_REQUIREMENT",
             }),
           });
@@ -927,13 +988,21 @@ export async function updateReservationAction(
 
     // 5. Update (use adminSupabase so Coordinators/VIPs can edit & reassign any instructor's reservation without RLS blocking)
     const adminSupabase = getSupabaseAdmin();
+    const { data: targetOwner } = await adminSupabase
+      .from("users")
+      .select("id, full_name, email, employment_type, job_category, username")
+      .or(`id.eq.${user_id},auth_id.eq.${user_id}`)
+      .maybeSingle();
+
+    const resolvedOwnerId = targetOwner?.id || user_id || existing.user_id;
+
     const { data: result, error } = await adminSupabase
       .from("reservations")
       .update({
         title,
         start_time,
         end_time,
-        user_id,
+        user_id: resolvedOwnerId,
         auditorium_id: auditorium_id || "1",
         resources,
         description,
@@ -944,6 +1013,59 @@ export async function updateReservationAction(
 
     if (error) throw error;
 
+    // 6. Enviar correo de actualización al funcionario/instructor que queda con la reserva
+    try {
+      if (targetOwner) {
+        const recipientEmail = resolveReservationUserEmail(targetOwner);
+        const startDate = new Date(start_time);
+        const endDate = new Date(end_time);
+        const dateStr = startDate.toLocaleDateString("es-CO", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          timeZone: "America/Bogota",
+        });
+        const timeStr = `${startDate.toLocaleTimeString("es-CO", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "America/Bogota",
+        })} - ${endDate.toLocaleTimeString("es-CO", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "America/Bogota",
+        })}`;
+        const spaceLabel = getSpaceDisplayName(auditorium_id);
+
+        if (recipientEmail && recipientEmail.includes("@")) {
+          await EmailService.send({
+            to: recipientEmail,
+            subject: `Actualización de Reserva (${spaceLabel}): ${title}`,
+            react: ReservationConfirmation({
+              userName: targetOwner.full_name,
+              eventTitle: `${title} (Actualizada)`,
+              date: dateStr,
+              timeRange: timeStr,
+              location: spaceLabel,
+              resources: resources || [],
+              specialRequirements: description,
+            }),
+          });
+        }
+
+        await adminSupabase.from("user_notifications").insert([
+          {
+            user_id: resolvedOwnerId,
+            title: "Reserva Actualizada 📅",
+            message: `Tu reserva "${title}" en ${spaceLabel} para el ${dateStr} (${timeStr}) ha sido actualizada.`,
+          },
+        ]);
+      }
+    } catch (emailErr) {
+      console.error("Update Reservation Email Error:", emailErr);
+    }
+
+    revalidatePath("/dashboard");
     return { success: true, data: result };
   } catch (error: unknown) {
     const errorMsg =
@@ -1259,12 +1381,28 @@ export async function createReservationBatchAction(
 
     // 4. Batch Upsert (Insert or Update) via adminSupabase so Coordinators/VIPs can edit/reassign any instructor's reservation
     const adminSupabase = getSupabaseAdmin();
+    const isEditingExisting = validReservations.some((r) => !!r.id);
+
+    // Normalizar siempre el user_id al ID público en la tabla users del funcionario/instructor que queda con la reserva
+    const firstTargetUserId = validReservations[0]?.user_id;
+    let resolvedBatchUserId = firstTargetUserId;
+    if (firstTargetUserId) {
+      const { data: resolvedOwner } = await adminSupabase
+        .from("users")
+        .select("id")
+        .or(`id.eq.${firstTargetUserId},auth_id.eq.${firstTargetUserId}`)
+        .maybeSingle();
+      if (resolvedOwner?.id) {
+        resolvedBatchUserId = resolvedOwner.id;
+      }
+    }
+
     const toInsert = validReservations.map((r) => ({
       ...(r.id ? { id: r.id } : {}), // Only include ID if it exists
       title: r.title,
       start_time: r.start_time,
       end_time: r.end_time,
-      user_id: r.user_id,
+      user_id: resolvedBatchUserId || r.user_id,
       auditorium_id: r.auditorium_id || "1",
       resources: r.resources || [], // Ensure array
       description: r.description || null,
@@ -1284,11 +1422,15 @@ export async function createReservationBatchAction(
     // --- NOTIFICATION LOGIC (BATCH SUMMARY) ---
     try {
       if (result && result.length > 0) {
-        const { data: userRaw } = await supabase
+        const targetOwnerId =
+          resolvedBatchUserId || validReservations[0].user_id;
+        const { data: userRaw } = await adminSupabase
           .from("users")
-          .select("full_name, email, employment_type, username, id")
-          .eq("id", validReservations[0].user_id)
-          .single();
+          .select(
+            "full_name, email, employment_type, job_category, username, id",
+          )
+          .or(`id.eq.${targetOwnerId},auth_id.eq.${targetOwnerId}`)
+          .maybeSingle();
 
         if (!userRaw)
           throw new Error("Usuario no encontrado para notificación");
@@ -1299,18 +1441,8 @@ export async function createReservationBatchAction(
         );
         const isMultiDay = validReservations.length > 1;
 
-        // Regla de Negocio:
-        // - Funcionarios/Planta -> Siempre @sena.edu.co (basado en username)
-        const employmentType = (user.employment_type || "").toLowerCase();
-        const isOfficial =
-          employmentType.includes("planta") ||
-          employmentType.includes("funcionario") ||
-          employmentType.includes("oficial");
-
-        let recipientEmail = user.email;
-        if (isOfficial) {
-          recipientEmail = `${user.username.trim()}@sena.edu.co`.toLowerCase();
-        }
+        // Resolver correo real de la persona o funcionario que queda con la reserva
+        const recipientEmail = resolveReservationUserEmail(user);
 
         const titles = [...new Set(validReservations.map((r) => r.title))];
         const sortedRes = [...validReservations].sort(
@@ -1339,102 +1471,157 @@ export async function createReservationBatchAction(
           (r) => String(r.auditorium_id) === "5",
         );
 
-        // A1. Ambiente 107 & Cocina Batch Notification (Nury Mildret Barrera)
+        // A1. Ambiente 107 & Cocina Batch Notification (Nury Mildret Barrera + Funcionario/Instructor titular)
         if (isAmbiente107 || isCocina) {
           const spaceLabel = isCocina ? "Ambiente de Cocina" : "Ambiente 107";
           const coordinatorSubject =
             initialStatus === "PENDING"
-              ? `Solicitud de Prereserva ${spaceLabel} (Grupal): ${titles[0]}`
-              : `Reserva Grupal VIP Aprobada (${spaceLabel}): ${titles[0]}`;
+              ? `Solicitud de Prereserva ${spaceLabel}: ${titles[0]}`
+              : isEditingExisting
+                ? `Reserva Actualizada (${spaceLabel}): ${titles[0]}`
+                : `Reserva VIP Aprobada (${spaceLabel}): ${titles[0]}`;
 
-          await EmailService.send({
-            to: "nbarrerac@sena.edu.co",
-            subject: coordinatorSubject,
-            react: SpaceReservationEmail({
-              spaceName: spaceLabel,
-              requesterName: user.full_name,
-              eventTitle: `${titles[0]} (Lote de ${validReservations.length} días)`,
-              date: datesList,
-              timeRange: timeStr,
-              specialRequirements:
-                validReservations[0].description || "Ninguno",
-              coordinatorName: "Nury Mildret Barrera",
-              type:
-                initialStatus === "PENDING" ? "NEW_REQUEST" : "VIP_AUTOMATIC",
-            }),
-          });
+          if (
+            initialStatus === "PENDING" ||
+            recipientEmail.toLowerCase() !== "nbarrerac@sena.edu.co"
+          ) {
+            await EmailService.send({
+              to: "nbarrerac@sena.edu.co",
+              subject: coordinatorSubject,
+              react: SpaceReservationEmail({
+                spaceName: spaceLabel,
+                requesterName: user.full_name,
+                eventTitle: isMultiDay
+                  ? `${titles[0]} (Lote de ${validReservations.length} días)`
+                  : titles[0],
+                date: datesList,
+                timeRange: timeStr,
+                specialRequirements:
+                  validReservations[0].description || "Ninguno",
+                coordinatorName: "Nury Mildret Barrera",
+                type:
+                  initialStatus === "PENDING" ? "NEW_REQUEST" : "VIP_AUTOMATIC",
+              }),
+            });
+          }
 
           if (initialStatus === "PENDING") {
+            // Enviar notificación de prerreserva al correo del funcionario/instructor que queda con la reserva
+            if (recipientEmail && recipientEmail.includes("@")) {
+              await EmailService.send({
+                to: recipientEmail,
+                subject: `Solicitud de Prereserva Recibida (${spaceLabel}): ${titles[0]}`,
+                react: SpaceReservationEmail({
+                  spaceName: spaceLabel,
+                  requesterName: user.full_name,
+                  eventTitle: isMultiDay
+                    ? `${titles[0]} (Lote de ${validReservations.length} días)`
+                    : titles[0],
+                  date: datesList,
+                  timeRange: timeStr,
+                  specialRequirements:
+                    validReservations[0].description || "Ninguno",
+                  coordinatorName: "Nury Mildret Barrera",
+                  type: "NEW_REQUEST",
+                }),
+              });
+            }
+
+            await adminSupabase.from("user_notifications").insert([
+              {
+                user_id: user.id,
+                title: `Prereserva en revisión (${spaceLabel}) ⏳`,
+                message: `Tu solicitud "${titles[0]}" (${datesList}) fue enviada a coordinación para autorización.`,
+              },
+            ]);
+
             revalidatePath("/dashboard");
             return { success: true, data: result, pendingApproval: true };
           }
         }
 
-        // A2. Library Batch Notification
+        // A2. Library Batch Notification (Coordinación Biblioteca + Funcionario/Instructor titular)
         if (isLibrary) {
           const coordinatorSubject =
             initialStatus === "PENDING"
-              ? `Solicitud de Reserva Biblioteca (Grupal): ${titles[0]}`
-              : `Reserva Grupal VIP Aprobada (Cuentadante): ${titles[0]}`;
+              ? `Solicitud de Reserva Biblioteca: ${titles[0]}`
+              : isEditingExisting
+                ? `Reserva Actualizada (Biblioteca): ${titles[0]}`
+                : `Reserva Grupal VIP Aprobada (Cuentadante): ${titles[0]}`;
 
-          await EmailService.send({
-            to: "egutierrezn@sena.edu.co",
-            subject: coordinatorSubject,
-            react: SupportNotification({
-              requesterName: user.full_name,
-              requesterEmail: recipientEmail || user.email || undefined,
-              eventTitle: `${titles[0]} (Lote de ${validReservations.length} días)`,
-              date: datesList,
-              timeRange: timeStr,
-              specialRequirements:
-                validReservations[0].description || "Ninguno",
-              type:
-                initialStatus === "PENDING"
-                  ? "NEW_REQUIREMENT"
-                  : "VIP_OVERRIDE",
-            }),
-          });
+          if (
+            initialStatus === "PENDING" ||
+            recipientEmail.toLowerCase() !== "egutierrezn@sena.edu.co"
+          ) {
+            await EmailService.send({
+              to: "egutierrezn@sena.edu.co",
+              subject: coordinatorSubject,
+              react: SupportNotification({
+                requesterName: user.full_name,
+                requesterEmail: recipientEmail || user.email || undefined,
+                eventTitle: isMultiDay
+                  ? `${titles[0]} (Lote de ${validReservations.length} días)`
+                  : titles[0],
+                date: datesList,
+                timeRange: timeStr,
+                specialRequirements:
+                  validReservations[0].description || "Ninguno",
+                type:
+                  initialStatus === "PENDING"
+                    ? "NEW_REQUIREMENT"
+                    : "VIP_OVERRIDE",
+              }),
+            });
+          }
 
           if (initialStatus === "PENDING") {
+            if (recipientEmail && recipientEmail.includes("@")) {
+              await EmailService.send({
+                to: recipientEmail,
+                subject: `Solicitud de Prereserva Recibida (Biblioteca): ${titles[0]}`,
+                react: SpaceReservationEmail({
+                  spaceName: "Biblioteca",
+                  requesterName: user.full_name,
+                  eventTitle: isMultiDay
+                    ? `${titles[0]} (Lote de ${validReservations.length} días)`
+                    : titles[0],
+                  date: datesList,
+                  timeRange: timeStr,
+                  specialRequirements:
+                    validReservations[0].description || "Ninguno",
+                  coordinatorName: "Coordinación de Biblioteca",
+                  type: "NEW_REQUEST",
+                }),
+              });
+            }
+
+            await adminSupabase.from("user_notifications").insert([
+              {
+                user_id: user.id,
+                title: "Prereserva en revisión (Biblioteca) ⏳",
+                message: `Tu solicitud "${titles[0]}" (${datesList}) fue enviada a Biblioteca para autorización.`,
+              },
+            ]);
+
             revalidatePath("/dashboard");
             return { success: true, data: result, pendingApproval: true };
           }
         }
 
-        // B. Default confirmation check
+        // B. Notificación de Confirmación o Actualización al correo de la persona/funcionario que queda con la reserva
         if (recipientEmail && recipientEmail.includes("@")) {
-          const emailSubject = isMultiDay
-            ? `Reserva Grupal Confirmada: ${titles[0]}`
-            : `Reserva Confirmada: ${titles[0]}`;
+          const spaceLabel = getSpaceDisplayName(first.auditorium_id);
+          const emailSubject = isEditingExisting
+            ? `Actualización de Reserva (${spaceLabel}): ${titles[0]}`
+            : isMultiDay
+              ? `Reserva Grupal Confirmada (${spaceLabel}): ${titles[0]}`
+              : `Reserva Confirmada (${spaceLabel}): ${titles[0]}`;
 
-          const eventTitleDisplay = isMultiDay
-            ? `${titles[0]} (Lote de ${validReservations.length} días)`
-            : titles[0];
-
-          const datesList = sortedRes
-            .map((r) => {
-              const d = new Date(r.start_time);
-              return d.toLocaleDateString("es-CO", {
-                day: "numeric",
-                month: "short",
-                timeZone: "America/Bogota",
-              });
-            })
-            .join(", ");
-
-          const first = sortedRes[0];
-          const timeStr = `${new Date(first.start_time).toLocaleTimeString(
-            "es-CO",
-            {
-              hour: "2-digit",
-              minute: "2-digit",
-              timeZone: "America/Bogota",
-            },
-          )} - ${new Date(first.end_time).toLocaleTimeString("es-CO", {
-            hour: "2-digit",
-            minute: "2-digit",
-            timeZone: "America/Bogota",
-          })}`;
+          const eventTitleDisplay = isEditingExisting
+            ? `${titles[0]} (Actualizada)`
+            : isMultiDay
+              ? `${titles[0]} (Lote de ${validReservations.length} días)`
+              : titles[0];
 
           await EmailService.send({
             to: recipientEmail,
@@ -1444,31 +1631,33 @@ export async function createReservationBatchAction(
               eventTitle: eventTitleDisplay,
               date: datesList,
               timeRange: timeStr,
-              location: isLibrary
-                ? "Biblioteca"
-                : isAmbiente107
-                  ? "Ambiente 107"
-                  : isCocina
-                    ? "Ambiente de Cocina"
-                    : validReservations.some(
-                          (r) => String(r.auditorium_id) === "2",
-                        )
-                      ? "Subdirección"
-                      : "Auditorio Principal",
+              location: spaceLabel,
               resources: first.resources || [],
               specialRequirements: first.description,
             }),
           });
 
-          // Coordinator summary - ONLY IF description matches search rule
+          if (isEditingExisting) {
+            await adminSupabase.from("user_notifications").insert([
+              {
+                user_id: user.id,
+                title: "Reserva Actualizada / Asignada 📅",
+                message: `La reserva "${titles[0]}" en ${spaceLabel} para el ${datesList} (${timeStr}) se encuentra registrada a tu nombre.`,
+              },
+            ]);
+          }
+
+          // Coordinator summary - ONLY IF description has valid special requirements
           const allDescriptions = validReservations
             .map((r) => r.description)
-            .filter((d) => d && d.trim().length > 0);
+            .filter((d) => hasValidDescription(d));
 
-          if (allDescriptions.length > 0) {
+          if (allDescriptions.length > 0 && !isLibrary) {
             await EmailService.send({
               to: "jeavendano@sena.edu.co",
-              subject: `⚠️ Múltiples Requerimientos: ${titles[0]}`,
+              subject: isEditingExisting
+                ? `🔄 Requerimiento Actualizado (${spaceLabel}): ${titles[0]}`
+                : `⚠️ Múltiples Requerimientos (${spaceLabel}): ${titles[0]}`,
               react: SupportNotification({
                 requesterName: user.full_name,
                 requesterEmail: recipientEmail,

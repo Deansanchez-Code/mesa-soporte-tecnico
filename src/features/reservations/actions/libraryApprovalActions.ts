@@ -29,6 +29,45 @@ async function verifyLibraryCoordinator() {
   }
 }
 
+function resolveReservationUserEmail(
+  user:
+    | {
+        email?: string | null;
+        username?: string | null;
+        employment_type?: string | null;
+        job_category?: string | null;
+      }
+    | null
+    | undefined,
+): string {
+  if (!user) return "";
+  const empType = (user.employment_type || "").toLowerCase();
+  const jobCat = (user.job_category || "").toLowerCase();
+  const isOfficial =
+    empType.includes("planta") ||
+    empType.includes("funcionario") ||
+    empType.includes("oficial") ||
+    jobCat.includes("coordinador");
+
+  const rawEmail = (user.email || "").trim().toLowerCase();
+  const cleanUser = (user.username || "").trim().toLowerCase();
+
+  if (isOfficial && cleanUser) {
+    return `${cleanUser}@sena.edu.co`;
+  }
+  if (
+    rawEmail &&
+    rawEmail.includes("@") &&
+    !rawEmail.endsWith("@sistema.local")
+  ) {
+    return rawEmail;
+  }
+  if (cleanUser) {
+    return `${cleanUser}@sena.edu.co`;
+  }
+  return "";
+}
+
 interface ReservationData {
   id: number;
   title: string;
@@ -99,7 +138,9 @@ export async function approveLibraryReservation(id: number) {
     const supabaseAdmin = getSupabaseAdmin();
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
-      .select("*, users(full_name, email, username, employment_type)")
+      .select(
+        "*, users(full_name, email, username, employment_type, job_category)",
+      )
       .eq("id", id)
       .single();
 
@@ -112,7 +153,7 @@ export async function approveLibraryReservation(id: number) {
 
     if (updateError) throw updateError;
 
-    // Send Confirmation Email to User
+    // Send Confirmation Email to User (owner of the reservation)
     const user = (
       reservation as unknown as {
         users: {
@@ -120,19 +161,11 @@ export async function approveLibraryReservation(id: number) {
           email: string;
           username: string;
           employment_type: string;
+          job_category?: string;
         };
       }
     ).users;
-    const employmentType = (user.employment_type || "").toLowerCase();
-    const isOfficial =
-      employmentType.includes("planta") ||
-      employmentType.includes("funcionario") ||
-      employmentType.includes("oficial");
-
-    let recipientEmail = user.email;
-    if (isOfficial) {
-      recipientEmail = `${user.username.trim()}@sena.edu.co`.toLowerCase();
-    }
+    const recipientEmail = resolveReservationUserEmail(user);
 
     if (recipientEmail && recipientEmail.includes("@")) {
       await EmailService.send({
@@ -180,7 +213,9 @@ export async function cancelLibraryReservation(id: number, reason: string) {
     const supabaseAdmin = getSupabaseAdmin();
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
-      .select("*, users(full_name, email, username, employment_type)")
+      .select(
+        "*, users(full_name, email, username, employment_type, job_category)",
+      )
       .eq("id", id)
       .single();
 
@@ -201,25 +236,28 @@ export async function cancelLibraryReservation(id: number, reason: string) {
           email: string;
           username: string;
           employment_type: string;
+          job_category?: string;
         };
       }
     ).users;
-    const recipientEmail = user.email; // Usually fallback to registered email for cancellations
+    const recipientEmail = resolveReservationUserEmail(user);
 
-    await EmailService.send({
-      to: recipientEmail,
-      subject: `Reserva de Biblioteca Cancelada: ${reservation.title}`,
-      react: LibraryNotification({
-        requesterName: user.full_name,
-        eventTitle: `CANCELADA: ${reservation.title}`,
-        date: new Date(reservation.start_time).toLocaleDateString("es-CO", {
-          timeZone: "America/Bogota",
+    if (recipientEmail && recipientEmail.includes("@")) {
+      await EmailService.send({
+        to: recipientEmail,
+        subject: `Reserva de Biblioteca Cancelada: ${reservation.title}`,
+        react: LibraryNotification({
+          requesterName: user.full_name,
+          eventTitle: `CANCELADA: ${reservation.title}`,
+          date: new Date(reservation.start_time).toLocaleDateString("es-CO", {
+            timeZone: "America/Bogota",
+          }),
+          timeRange: "N/A",
+          specialRequirements: `Motivo de la cancelación: ${reason}`,
+          type: "CANCELLED",
         }),
-        timeRange: "N/A",
-        specialRequirements: `Motivo de la cancelación: ${reason}`,
-        type: "CANCELLED",
-      }),
-    });
+      });
+    }
 
     // Insert In-App Notification
     const cancelDateFormatted = new Date(
@@ -288,31 +326,45 @@ export async function requestModificationAction(
     const supabaseAdmin = getSupabaseAdmin();
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
-      .select("*, users(full_name, email)")
+      .select(
+        "*, users(full_name, email, username, employment_type, job_category)",
+      )
       .eq("id", id)
       .single();
 
     if (fetchError || !reservation) throw new Error("Reserva no encontrada");
 
     const user = (
-      reservation as unknown as { users: { full_name: string; email: string } }
+      reservation as unknown as {
+        users: {
+          full_name: string;
+          email: string;
+          username: string;
+          employment_type: string;
+          job_category?: string;
+        };
+      }
     ).users;
 
+    const recipientEmail = resolveReservationUserEmail(user);
+
     // Notify User with a Suggestion
-    await EmailService.send({
-      to: user.email,
-      subject: `Sugerencia de Modificación para Reserva: ${reservation.title}`,
-      react: LibraryNotification({
-        requesterName: user.full_name,
-        eventTitle: `MODIFICACIÓN REQUERIDA: ${reservation.title}`,
-        date: new Date(reservation.start_time).toLocaleDateString("es-CO", {
-          timeZone: "America/Bogota",
+    if (recipientEmail && recipientEmail.includes("@")) {
+      await EmailService.send({
+        to: recipientEmail,
+        subject: `Sugerencia de Modificación para Reserva: ${reservation.title}`,
+        react: LibraryNotification({
+          requesterName: user.full_name,
+          eventTitle: `MODIFICACIÓN REQUERIDA: ${reservation.title}`,
+          date: new Date(reservation.start_time).toLocaleDateString("es-CO", {
+            timeZone: "America/Bogota",
+          }),
+          timeRange: "Revisar Sugerencia",
+          specialRequirements: suggestion,
+          type: "MODIFICATION_SUGGESTED",
         }),
-        timeRange: "Revisar Sugerencia",
-        specialRequirements: suggestion,
-        type: "MODIFICATION_SUGGESTED",
-      }),
-    });
+      });
+    }
 
     // Insert In-App Notification
     const modDateFormatted = new Date(

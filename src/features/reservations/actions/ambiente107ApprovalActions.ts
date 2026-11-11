@@ -14,6 +14,45 @@ const ALLOWED_107_APPROVERS = [
   "dasanchezh",
 ];
 
+function resolveReservationUserEmail(
+  user:
+    | {
+        email?: string | null;
+        username?: string | null;
+        employment_type?: string | null;
+        job_category?: string | null;
+      }
+    | null
+    | undefined,
+): string {
+  if (!user) return "";
+  const empType = (user.employment_type || "").toLowerCase();
+  const jobCat = (user.job_category || "").toLowerCase();
+  const isOfficial =
+    empType.includes("planta") ||
+    empType.includes("funcionario") ||
+    empType.includes("oficial") ||
+    jobCat.includes("coordinador");
+
+  const rawEmail = (user.email || "").trim().toLowerCase();
+  const cleanUser = (user.username || "").trim().toLowerCase();
+
+  if (isOfficial && cleanUser) {
+    return `${cleanUser}@sena.edu.co`;
+  }
+  if (
+    rawEmail &&
+    rawEmail.includes("@") &&
+    !rawEmail.endsWith("@sistema.local")
+  ) {
+    return rawEmail;
+  }
+  if (cleanUser) {
+    return `${cleanUser}@sena.edu.co`;
+  }
+  return "";
+}
+
 async function verifyAmbiente107Coordinator() {
   const supabase = await createClient();
   const {
@@ -129,7 +168,9 @@ export async function approveAmbiente107Reservation(id: number) {
     const supabaseAdmin = getSupabaseAdmin();
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
-      .select("*, users(full_name, email, username, employment_type)")
+      .select(
+        "*, users(full_name, email, username, employment_type, job_category)",
+      )
       .eq("id", id)
       .single();
 
@@ -142,7 +183,7 @@ export async function approveAmbiente107Reservation(id: number) {
 
     if (updateError) throw updateError;
 
-    // Destinatario y correo institucional
+    // Destinatario y correo institucional del funcionario/instructor que queda con la reserva
     const user = (
       reservation as unknown as {
         users: {
@@ -150,18 +191,12 @@ export async function approveAmbiente107Reservation(id: number) {
           email: string;
           username: string;
           employment_type: string;
+          job_category?: string;
         };
       }
     ).users;
 
-    const isOfficial =
-      user.employment_type?.toLowerCase().includes("planta") ||
-      user.employment_type?.toLowerCase().includes("funcionario");
-
-    let recipientEmail = user.email;
-    if (isOfficial && user.username) {
-      recipientEmail = `${user.username.trim()}@sena.edu.co`.toLowerCase();
-    }
+    const recipientEmail = resolveReservationUserEmail(user);
 
     const spaceLabel =
       String(reservation.auditorium_id) === "5"
@@ -179,20 +214,22 @@ export async function approveAmbiente107Reservation(id: number) {
     });
     const timeStr = `${startDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })} - ${endDate.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })}`;
 
-    await EmailService.send({
-      to: recipientEmail,
-      subject: `¡Reserva Confirmada! ${spaceLabel}: ${reservation.title}`,
-      react: SpaceReservationEmail({
-        spaceName: spaceLabel,
-        requesterName: user.full_name,
-        eventTitle: reservation.title,
-        date: dateStr,
-        timeRange: timeStr,
-        specialRequirements: reservation.description || "Ninguno",
-        coordinatorName: "Nury Mildret Barrera",
-        type: "APPROVED",
-      }),
-    });
+    if (recipientEmail && recipientEmail.includes("@")) {
+      await EmailService.send({
+        to: recipientEmail,
+        subject: `¡Reserva Confirmada! ${spaceLabel}: ${reservation.title}`,
+        react: SpaceReservationEmail({
+          spaceName: spaceLabel,
+          requesterName: user.full_name,
+          eventTitle: reservation.title,
+          date: dateStr,
+          timeRange: timeStr,
+          specialRequirements: reservation.description || "Ninguno",
+          coordinatorName: "Nury Mildret Barrera",
+          type: "APPROVED",
+        }),
+      });
+    }
 
     // In-App Notification
     await supabaseAdmin.from("user_notifications").insert([
@@ -222,7 +259,9 @@ export async function cancelAmbiente107Reservation(id: number, reason: string) {
     const supabaseAdmin = getSupabaseAdmin();
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
-      .select("*, users(full_name, email, username, employment_type)")
+      .select(
+        "*, users(full_name, email, username, employment_type, job_category)",
+      )
       .eq("id", id)
       .single();
 
@@ -242,11 +281,12 @@ export async function cancelAmbiente107Reservation(id: number, reason: string) {
           email: string;
           username: string;
           employment_type: string;
+          job_category?: string;
         };
       }
     ).users;
 
-    const recipientEmail = user.email;
+    const recipientEmail = resolveReservationUserEmail(user);
     const spaceLabel =
       String(reservation.auditorium_id) === "5"
         ? "Ambiente de Cocina"
@@ -258,20 +298,22 @@ export async function cancelAmbiente107Reservation(id: number, reason: string) {
       },
     );
 
-    await EmailService.send({
-      to: recipientEmail,
-      subject: `Reserva ${spaceLabel} No Confirmada: ${reservation.title}`,
-      react: SpaceReservationEmail({
-        spaceName: spaceLabel,
-        requesterName: user.full_name,
-        eventTitle: reservation.title,
-        date: dateFormatted,
-        timeRange: "N/A",
-        specialRequirements: reason,
-        coordinatorName: "Nury Mildret Barrera",
-        type: "CANCELLED",
-      }),
-    });
+    if (recipientEmail && recipientEmail.includes("@")) {
+      await EmailService.send({
+        to: recipientEmail,
+        subject: `Reserva ${spaceLabel} No Confirmada: ${reservation.title}`,
+        react: SpaceReservationEmail({
+          spaceName: spaceLabel,
+          requesterName: user.full_name,
+          eventTitle: reservation.title,
+          date: dateFormatted,
+          timeRange: "N/A",
+          specialRequirements: reason,
+          coordinatorName: "Nury Mildret Barrera",
+          type: "CANCELLED",
+        }),
+      });
+    }
 
     await supabaseAdmin.from("user_notifications").insert([
       {
@@ -303,7 +345,9 @@ export async function suggestModification107Action(
     const supabaseAdmin = getSupabaseAdmin();
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
-      .select("*, users(full_name, email, username, employment_type)")
+      .select(
+        "*, users(full_name, email, username, employment_type, job_category)",
+      )
       .eq("id", id)
       .single();
 
@@ -316,10 +360,12 @@ export async function suggestModification107Action(
           email: string;
           username: string;
           employment_type: string;
+          job_category?: string;
         };
       }
     ).users;
 
+    const recipientEmail = resolveReservationUserEmail(user);
     const spaceLabel =
       String(reservation.auditorium_id) === "5"
         ? "Ambiente de Cocina"
@@ -331,20 +377,22 @@ export async function suggestModification107Action(
       },
     );
 
-    await EmailService.send({
-      to: user.email,
-      subject: `Sugerencia sobre tu reserva de ${spaceLabel}: ${reservation.title}`,
-      react: SpaceReservationEmail({
-        spaceName: spaceLabel,
-        requesterName: user.full_name,
-        eventTitle: reservation.title,
-        date: dateFormatted,
-        timeRange: "N/A",
-        specialRequirements: suggestion,
-        coordinatorName: "Nury Mildret Barrera",
-        type: "MODIFICATION_SUGGESTED",
-      }),
-    });
+    if (recipientEmail && recipientEmail.includes("@")) {
+      await EmailService.send({
+        to: recipientEmail,
+        subject: `Sugerencia sobre tu reserva de ${spaceLabel}: ${reservation.title}`,
+        react: SpaceReservationEmail({
+          spaceName: spaceLabel,
+          requesterName: user.full_name,
+          eventTitle: reservation.title,
+          date: dateFormatted,
+          timeRange: "N/A",
+          specialRequirements: suggestion,
+          coordinatorName: "Nury Mildret Barrera",
+          type: "MODIFICATION_SUGGESTED",
+        }),
+      });
+    }
 
     await supabaseAdmin.from("user_notifications").insert([
       {
