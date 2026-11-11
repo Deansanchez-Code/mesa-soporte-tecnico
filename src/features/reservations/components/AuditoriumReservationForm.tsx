@@ -9,6 +9,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase/client";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
 import { useReservations } from "../hooks/useReservations";
@@ -22,10 +23,11 @@ import {
 import { UserProfile } from "@/features/auth/hooks/useUserProfile";
 import { Skeleton } from "@/components/Skeleton";
 import {
-  getAuditoriumMaintenanceConfig,
+  getAllSpacesMaintenanceConfig,
   DEFAULT_AUDITORIUM_MAINTENANCE,
   getEnvironmentsGlobalConfig,
   DEFAULT_ENVIRONMENTS_CONFIG,
+  resolveSpaceDisplayName,
 } from "../services/maintenanceService";
 import { SpaceMaintenanceConfig, EnvironmentsGlobalConfig } from "../types";
 
@@ -186,8 +188,9 @@ export default function AuditoriumReservationForm({
   const [conflicts, setConflicts] = useState<Reservation[]>([]);
   const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
 
-  const [maintenanceConfig, setMaintenanceConfig] =
-    useState<SpaceMaintenanceConfig>(DEFAULT_AUDITORIUM_MAINTENANCE);
+  const [spacesMaintenance, setSpacesMaintenance] = useState<
+    Record<string, SpaceMaintenanceConfig>
+  >({});
   const [envGlobalConfig, setEnvGlobalConfig] =
     useState<EnvironmentsGlobalConfig>(DEFAULT_ENVIRONMENTS_CONFIG);
 
@@ -228,17 +231,19 @@ export default function AuditoriumReservationForm({
 
   useEffect(() => {
     if (!canAssignToOthers) return;
-    getAssignableUsersAction().then((res) => {
-      if (res.success && res.users) {
-        setAssignableUsers(res.users);
-      }
+    supabase.auth.getSession().then(({ data }) => {
+      getAssignableUsersAction(data.session?.access_token).then((res) => {
+        if (res.success && res.users) {
+          setAssignableUsers(res.users);
+        }
+      });
     });
   }, [canAssignToOthers]);
 
   // Cargar configuración de mantenimiento y estado global de espacios
   useEffect(() => {
-    getAuditoriumMaintenanceConfig().then((cfg) => {
-      setMaintenanceConfig(cfg);
+    getAllSpacesMaintenanceConfig().then((cfgs) => {
+      setSpacesMaintenance(cfgs || {});
     });
     getEnvironmentsGlobalConfig().then((cfg) => {
       setEnvGlobalConfig(cfg);
@@ -260,13 +265,16 @@ export default function AuditoriumReservationForm({
     }
   }, [initialSpace, reservationToEdit]);
 
-  // Verificar si las fechas seleccionadas caen en remodelación del auditorio
+  // Verificar si las fechas seleccionadas caen en remodelación/pausa del espacio seleccionado
+  const maintenanceConfig =
+    spacesMaintenance[selectedSpace] || DEFAULT_AUDITORIUM_MAINTENANCE;
   const isAuditoriumMaintenanceActive =
-    selectedSpace === "1" &&
-    maintenanceConfig.is_active &&
+    Boolean(spacesMaintenance[selectedSpace]?.is_active) &&
     targetDates.some((d) => {
-      const start = maintenanceConfig.start_date;
-      const end = maintenanceConfig.end_date || "2026-12-31";
+      const cfg = spacesMaintenance[selectedSpace];
+      if (!cfg) return false;
+      const start = cfg.start_date;
+      const end = cfg.end_date || "2026-12-31";
       return d >= start && d <= end;
     });
 
@@ -469,7 +477,7 @@ export default function AuditoriumReservationForm({
 
       // Helpers para nombres de espacio
       const getSpaceName = (spaceId: string) => {
-        if (spaceId === "1") return "Auditorio";
+        if (spaceId === "1") return "Auditorio 103";
         if (spaceId === "3") return "Biblioteca";
         if (spaceId === "4") return "Ambiente 107";
         if (spaceId === "5") return "Ambiente de Cocina";
@@ -602,7 +610,7 @@ export default function AuditoriumReservationForm({
             <>
               <CheckCircle className="w-5 h-5" />
               <span className="font-bold text-sm">
-                Nueva Reserva de Auditorio
+                Nueva Reserva — {resolveSpaceDisplayName(selectedSpace)}
               </span>
             </>
           )}
@@ -628,7 +636,7 @@ export default function AuditoriumReservationForm({
                 <div className="w-10 h-10 rounded-full bg-sena-green/10 flex items-center justify-center">
                   <Calendar className="w-5 h-5 text-sena-green" />
                 </div>
-                <span className="font-bold text-sm">Auditorio Principal</span>
+                <span className="font-bold text-sm">Auditorio 103</span>
                 <span className="text-[10px] opacity-70">Uso General</span>
               </button>
             )}
@@ -1209,11 +1217,18 @@ export default function AuditoriumReservationForm({
                 <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <h4 className="font-black text-amber-900 text-sm uppercase">
-                    Auditorio en Remodelación / Fuera de Servicio
+                    {maintenanceConfig.space_name ||
+                      resolveSpaceDisplayName(selectedSpace)}{" "}
+                    en Remodelación / Fuera de Servicio
                   </h4>
                   <p className="text-xs text-amber-800 leading-relaxed">
                     Las fechas seleccionadas caen dentro del periodo de obras y
-                    adecuaciones del auditorio (a partir del{" "}
+                    adecuaciones de{" "}
+                    <strong>
+                      {maintenanceConfig.space_name ||
+                        resolveSpaceDisplayName(selectedSpace)}
+                    </strong>{" "}
+                    (a partir del{" "}
                     <strong>{maintenanceConfig.start_date}</strong>
                     {maintenanceConfig.end_date
                       ? ` hasta el ${maintenanceConfig.end_date}`

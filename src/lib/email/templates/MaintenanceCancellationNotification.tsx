@@ -23,6 +23,7 @@ interface MaintenanceCancellationNotificationProps {
   startDate: string;
   endDate?: string | null;
   reservations: ReservationItem[];
+  spaceName?: string;
 }
 
 export const MaintenanceCancellationNotification = ({
@@ -30,6 +31,7 @@ export const MaintenanceCancellationNotification = ({
   startDate,
   endDate,
   reservations,
+  spaceName = "Auditorio 103",
 }: MaintenanceCancellationNotificationProps) => {
   const isMultiple = reservations.length > 1;
 
@@ -37,8 +39,8 @@ export const MaintenanceCancellationNotification = ({
     <Html>
       <Head />
       <Preview>
-        Aviso Importante: Cancelación de Reservas por Obras de Remodelación en
-        Auditorio
+        Aviso Importante: Cancelación de Reservas por Obras de Remodelación en{" "}
+        {spaceName}
       </Preview>
       <Body style={main}>
         <Container style={container}>
@@ -57,7 +59,7 @@ export const MaintenanceCancellationNotification = ({
             </Text>
             <Text style={text}>
               Le informamos que a partir del <strong>{startDate}</strong> el{" "}
-              <strong>Auditorio Principal</strong> entrará en un proceso de{" "}
+              espacio <strong>{spaceName}</strong> entrará en un proceso de{" "}
               <strong>
                 obras de remodelación y adecuación de infraestructura
               </strong>

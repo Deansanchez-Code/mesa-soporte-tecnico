@@ -17,11 +17,16 @@ export interface Reservation {
 
 export interface SpaceMaintenanceConfig {
   is_active: boolean;
-  space_id: string; // '1': Auditorio
+  space_id: string; // '1': Auditorio 103, '2': Subdirección, '3': Biblioteca, '4': Ambiente 107, '5': Cocina, o 'area:<id>'
+  space_name?: string;
   start_date: string; // YYYY-MM-DD
   end_date?: string | null; // YYYY-MM-DD (optional)
   custom_title?: string;
   custom_message?: string;
+  reactivated_at?: string | null;
+  reactivated_message?: string | null;
+  updated_at?: string;
+  updated_by?: string;
 }
 
 export interface SpaceCoordinatorAssignment {

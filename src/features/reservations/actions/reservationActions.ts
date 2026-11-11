@@ -15,7 +15,11 @@ import {
   ReservationItem,
 } from "@/lib/email/templates/MaintenanceCancellationNotification";
 import { ReservationSchema } from "../schemas";
-import { SpaceCoordinatorAssignment, EnvironmentsGlobalConfig } from "../types";
+import {
+  SpaceCoordinatorAssignment,
+  EnvironmentsGlobalConfig,
+  SpaceMaintenanceConfig,
+} from "../types";
 import Logger from "@/lib/logger";
 
 function hasValidDescription(desc: string | null | undefined): boolean {
@@ -89,13 +93,52 @@ function resolveReservationUserEmail(
   return "";
 }
 
-function getSpaceDisplayName(auditoriumId?: string | number | null): string {
+function getSpaceDisplayName(
+  auditoriumId?: string | number | null,
+  fallbackName?: string,
+): string {
   const id = String(auditoriumId || "1");
   if (id === "2") return "Subdirección";
   if (id === "3") return "Biblioteca";
   if (id === "4") return "Ambiente 107";
   if (id === "5") return "Ambiente de Cocina";
-  return "Auditorio Principal";
+  if (id === "1") return "Auditorio 103";
+  return fallbackName || "Espacio Institucional";
+}
+
+async function resolveAuthenticatedPublicUser(accessToken?: string) {
+  const supabase = await createClient();
+  let authUser = null;
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    authUser = user;
+  } catch {
+    authUser = null;
+  }
+
+  const adminSupabase = getSupabaseAdmin();
+  if (!authUser && accessToken) {
+    try {
+      const { data: tokenData } = await adminSupabase.auth.getUser(accessToken);
+      authUser = tokenData?.user || null;
+    } catch {
+      authUser = null;
+    }
+  }
+
+  if (!authUser) return null;
+
+  const { data: publicUser } = await adminSupabase
+    .from("users")
+    .select(
+      "id, full_name, role, username, job_category, is_vip, perm_manage_assignments",
+    )
+    .eq("auth_id", authUser.id)
+    .maybeSingle();
+
+  return publicUser;
 }
 
 export const DEFAULT_SPACE_COORDINATORS: Record<
@@ -498,16 +541,13 @@ export interface AssignableUser {
  * Retorna la lista de instructores y funcionarios activos para que un coordinador o administrador
  * pueda asignar una reserva a su nombre.
  */
-export async function getAssignableUsersAction(): Promise<{
+export async function getAssignableUsersAction(accessToken?: string): Promise<{
   success: boolean;
   users: AssignableUser[];
 }> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser();
-    if (!authUser) return { success: false, users: [] };
+    const caller = await resolveAuthenticatedPublicUser(accessToken);
+    if (!caller) return { success: false, users: [] };
 
     const adminSupabase = getSupabaseAdmin();
     const { data, error } = await adminSupabase
@@ -516,10 +556,12 @@ export async function getAssignableUsersAction(): Promise<{
         "id, full_name, username, email, role, job_category, employment_type, area, is_vip",
       )
       .or("is_active.eq.true,is_active.is.null")
-      .is("deleted_at", null)
       .order("full_name", { ascending: true });
 
-    if (error || !data) return { success: false, users: [] };
+    if (error || !data) {
+      console.error("Error querying assignable users:", error);
+      return { success: false, users: [] };
+    }
     return { success: true, users: data as AssignableUser[] };
   } catch (error) {
     console.error("Error fetching assignable users:", error);
@@ -626,36 +668,54 @@ export async function createReservationAction(
       }
     }
 
-    // Validación de Remodelación / Mantenimiento
-    if ((auditorium_id || "1") === "1" && !isAdmin) {
-      const { data: mSetting } = await supabase
+    // Validación de Remodelación / Mantenimiento (Multi-espacio)
+    const targetSpaceForMaintenance = auditorium_id || "1";
+    if (!isAdmin) {
+      let mConfig: SpaceMaintenanceConfig | null = null;
+      const { data: spacesSetting } = await supabase
         .from("system_settings")
         .select("value")
-        .eq("key", "auditorium_maintenance")
+        .eq("key", "spaces_maintenance")
         .maybeSingle();
 
-      if (mSetting?.value) {
-        const mConfig = mSetting.value as unknown as {
-          is_active: boolean;
-          start_date: string;
-          end_date?: string | null;
-        };
+      if (spacesSetting?.value && typeof spacesSetting.value === "object") {
+        const map = spacesSetting.value as Record<
+          string,
+          SpaceMaintenanceConfig
+        >;
+        if (map[targetSpaceForMaintenance]) {
+          mConfig = map[targetSpaceForMaintenance];
+        }
+      }
 
-        if (mConfig.is_active && mConfig.start_date) {
-          const resDate = new Date(start_time).toLocaleDateString("en-CA", {
-            timeZone: "America/Bogota",
-          });
-          const mStart = mConfig.start_date;
-          const mEnd = mConfig.end_date || "2026-12-31";
+      if (!mConfig && targetSpaceForMaintenance === "1") {
+        const { data: mSetting } = await supabase
+          .from("system_settings")
+          .select("value")
+          .eq("key", "auditorium_maintenance")
+          .maybeSingle();
+        if (mSetting?.value) {
+          mConfig = mSetting.value as unknown as SpaceMaintenanceConfig;
+        }
+      }
 
-          if (resDate >= mStart && resDate <= mEnd) {
-            const endMsg = mConfig.end_date
-              ? `hasta el ${mConfig.end_date}`
-              : "por el resto de la vigencia 2026";
-            throw new Error(
-              `El Auditorio se encuentra fuera de servicio por remodelación a partir del ${mStart} (${endMsg}). Para más información, diríjase a la Coordinación Académica o de Formación.`,
-            );
-          }
+      if (mConfig?.is_active && mConfig.start_date) {
+        const resDate = new Date(start_time).toLocaleDateString("en-CA", {
+          timeZone: "America/Bogota",
+        });
+        const mStart = mConfig.start_date;
+        const mEnd = mConfig.end_date || "2026-12-31";
+
+        if (resDate >= mStart && resDate <= mEnd) {
+          const endMsg = mConfig.end_date
+            ? `hasta el ${mConfig.end_date}`
+            : "por el resto de la vigencia 2026";
+          const spaceName =
+            mConfig.space_name ||
+            getSpaceDisplayName(targetSpaceForMaintenance);
+          throw new Error(
+            `${spaceName} se encuentra fuera de servicio por remodelación/mantenimiento a partir del ${mStart} (${endMsg}). Para más información, diríjase a la Coordinación Académica o de Formación.`,
+          );
         }
       }
     }
@@ -1281,39 +1341,57 @@ export async function createReservationBatchAction(
         }
       }
 
-      // Validación de Remodelación / Mantenimiento
-      if ((data.auditorium_id || "1") === "1" && !isAdmin) {
-        const { data: mSetting } = await supabase
+      // Validación de Remodelación / Mantenimiento (Multi-espacio)
+      const targetSpaceForMaintenance = data.auditorium_id || "1";
+      if (!isAdmin) {
+        let mConfig: SpaceMaintenanceConfig | null = null;
+        const { data: spacesSetting } = await supabase
           .from("system_settings")
           .select("value")
-          .eq("key", "auditorium_maintenance")
+          .eq("key", "spaces_maintenance")
           .maybeSingle();
 
-        if (mSetting?.value) {
-          const mConfig = mSetting.value as unknown as {
-            is_active: boolean;
-            start_date: string;
-            end_date?: string | null;
-          };
+        if (spacesSetting?.value && typeof spacesSetting.value === "object") {
+          const map = spacesSetting.value as Record<
+            string,
+            SpaceMaintenanceConfig
+          >;
+          if (map[targetSpaceForMaintenance]) {
+            mConfig = map[targetSpaceForMaintenance];
+          }
+        }
 
-          if (mConfig.is_active && mConfig.start_date) {
-            const resDate = new Date(data.start_time).toLocaleDateString(
-              "en-CA",
-              {
-                timeZone: "America/Bogota",
-              },
+        if (!mConfig && targetSpaceForMaintenance === "1") {
+          const { data: mSetting } = await supabase
+            .from("system_settings")
+            .select("value")
+            .eq("key", "auditorium_maintenance")
+            .maybeSingle();
+          if (mSetting?.value) {
+            mConfig = mSetting.value as unknown as SpaceMaintenanceConfig;
+          }
+        }
+
+        if (mConfig?.is_active && mConfig.start_date) {
+          const resDate = new Date(data.start_time).toLocaleDateString(
+            "en-CA",
+            {
+              timeZone: "America/Bogota",
+            },
+          );
+          const mStart = mConfig.start_date;
+          const mEnd = mConfig.end_date || "2026-12-31";
+
+          if (resDate >= mStart && resDate <= mEnd) {
+            const endMsg = mConfig.end_date
+              ? `hasta el ${mConfig.end_date}`
+              : "por el resto de la vigencia 2026";
+            const spaceName =
+              mConfig.space_name ||
+              getSpaceDisplayName(targetSpaceForMaintenance);
+            throw new Error(
+              `${spaceName} se encuentra fuera de servicio por remodelación/mantenimiento a partir del ${mStart} (${endMsg}). Para más información, diríjase a la Coordinación Académica o de Formación.`,
             );
-            const mStart = mConfig.start_date;
-            const mEnd = mConfig.end_date || "2026-12-31";
-
-            if (resDate >= mStart && resDate <= mEnd) {
-              const endMsg = mConfig.end_date
-                ? `hasta el ${mConfig.end_date}`
-                : "por el resto de la vigencia 2026";
-              throw new Error(
-                `El Auditorio se encuentra fuera de servicio por remodelación a partir del ${mStart} (${endMsg}). Para más información, diríjase a la Coordinación Académica o de Formación.`,
-              );
-            }
           }
         }
       }
@@ -1805,6 +1883,93 @@ export async function createReservationBatchAction(
   }
 }
 
+async function broadcastSpaceReenabledNotifications(
+  adminSupabase: ReturnType<typeof getSupabaseAdmin>,
+  spaceName: string,
+) {
+  try {
+    const { data: activeUsers } = await adminSupabase
+      .from("users")
+      .select("id")
+      .or("is_active.eq.true,is_active.is.null");
+
+    if (!activeUsers || activeUsers.length === 0) return;
+
+    const notifications = activeUsers.map((u) => ({
+      user_id: u.id,
+      title: `¡Ambiente Habilitado: ${spaceName}!`,
+      message: `Ya se encuentra habilitado el espacio ${spaceName} para realizar reservas y programación de eventos con normalidad.`,
+    }));
+
+    const chunkSize = 250;
+    for (let i = 0; i < notifications.length; i += chunkSize) {
+      await adminSupabase
+        .from("user_notifications")
+        .insert(notifications.slice(i, i + chunkSize));
+    }
+  } catch (err) {
+    console.error("Error broadcasting space re-enabled notifications:", err);
+  }
+}
+
+export async function getAllSpacesMaintenanceAction(): Promise<{
+  success?: boolean;
+  configs?: Record<string, SpaceMaintenanceConfig>;
+  error?: string;
+}> {
+  try {
+    const adminSupabase = getSupabaseAdmin();
+    const { data, error } = await adminSupabase
+      .from("system_settings")
+      .select("key, value")
+      .in("key", ["spaces_maintenance", "auditorium_maintenance"]);
+
+    if (error) throw error;
+
+    const result: Record<string, SpaceMaintenanceConfig> = {};
+    let legacyAuditorium: SpaceMaintenanceConfig | null = null;
+
+    for (const row of data || []) {
+      if (
+        row.key === "spaces_maintenance" &&
+        row.value &&
+        typeof row.value === "object"
+      ) {
+        const rawMap = row.value as Record<string, SpaceMaintenanceConfig>;
+        for (const [k, v] of Object.entries(rawMap)) {
+          if (v && typeof v === "object") {
+            result[k] = {
+              ...v,
+              space_id: v.space_id || k,
+              space_name: v.space_name || getSpaceDisplayName(v.space_id || k),
+            };
+          }
+        }
+      }
+      if (row.key === "auditorium_maintenance" && row.value) {
+        legacyAuditorium = row.value as unknown as SpaceMaintenanceConfig;
+      }
+    }
+
+    if (legacyAuditorium && !result["1"]) {
+      result["1"] = {
+        ...legacyAuditorium,
+        space_id: "1",
+        space_name: "Auditorio 103",
+      };
+    }
+
+    return { success: true, configs: result };
+  } catch (err: unknown) {
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error al consultar configuraciones de pausa/remodelación",
+    };
+  }
+}
+
 export async function getAuditoriumMaintenanceAction() {
   try {
     const supabase = await createClient();
@@ -1822,9 +1987,10 @@ export async function getAuditoriumMaintenanceAction() {
       config: {
         is_active: false,
         space_id: "1",
+        space_name: "Auditorio 103",
         start_date: "2026-09-01",
         end_date: null,
-        custom_title: "Auditorio en Remodelación",
+        custom_title: "Auditorio 103 en Remodelación",
         custom_message: "",
       },
     };
@@ -1838,29 +2004,22 @@ export async function getAuditoriumMaintenanceAction() {
   }
 }
 
-export async function saveAuditoriumMaintenanceAction(config: {
+export async function saveSpaceMaintenanceAction(config: {
   is_active: boolean;
   space_id: string;
+  space_name?: string;
   start_date: string;
   end_date?: string | null;
   custom_title?: string;
   custom_message?: string;
+  accessToken?: string;
 }) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("No autenticado");
-
-    const { data: publicUser } = await supabase
-      .from("users")
-      .select("id, role")
-      .eq("auth_id", user.id)
-      .single();
+    const publicUser = await resolveAuthenticatedPublicUser(config.accessToken);
+    if (!publicUser) throw new Error("No autenticado");
 
     const isAdmin = ["admin", "superadmin"].includes(
-      publicUser?.role?.toLowerCase() || "",
+      publicUser.role?.toLowerCase() || "",
     );
     if (!isAdmin) {
       throw new Error(
@@ -1869,29 +2028,99 @@ export async function saveAuditoriumMaintenanceAction(config: {
     }
 
     const adminSupabase = getSupabaseAdmin();
-    const { error } = await adminSupabase.from("system_settings").upsert(
-      {
-        key: "auditorium_maintenance",
-        value: config,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "key" },
+    const spaceTarget = config.space_id || "1";
+    const resolvedSpaceName = getSpaceDisplayName(
+      spaceTarget,
+      config.space_name,
     );
 
-    if (error) throw error;
+    const { data: existingSpacesRow } = await adminSupabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "spaces_maintenance")
+      .maybeSingle();
+
+    const currentMap: Record<string, SpaceMaintenanceConfig> =
+      existingSpacesRow?.value && typeof existingSpacesRow.value === "object"
+        ? {
+            ...(existingSpacesRow.value as Record<
+              string,
+              SpaceMaintenanceConfig
+            >),
+          }
+        : {};
+
+    const wasPreviouslyActive = Boolean(currentMap[spaceTarget]?.is_active);
+    const nowIso = new Date().toISOString();
+
+    const cleanConfig: SpaceMaintenanceConfig = {
+      is_active: Boolean(config.is_active),
+      space_id: spaceTarget,
+      space_name: resolvedSpaceName,
+      start_date: config.start_date,
+      end_date: config.end_date || null,
+      custom_title:
+        config.custom_title || `${resolvedSpaceName} en Remodelación`,
+      custom_message: config.custom_message || "",
+      reactivated_at: !config.is_active && wasPreviouslyActive ? nowIso : null,
+      reactivated_message:
+        !config.is_active && wasPreviouslyActive
+          ? `Ya se encuentra habilitado ${resolvedSpaceName} para reservas.`
+          : null,
+      updated_at: nowIso,
+      updated_by: publicUser.full_name || "SuperAdmin",
+    };
+
+    currentMap[spaceTarget] = cleanConfig;
+
+    const { error: mapError } = await adminSupabase
+      .from("system_settings")
+      .upsert(
+        {
+          key: "spaces_maintenance",
+          value: currentMap,
+          updated_at: nowIso,
+        },
+        { onConflict: "key" },
+      );
+
+    if (mapError) throw mapError;
+
+    // Mantener compatibilidad con clave legacy si es Auditorio 103 ("1")
+    if (spaceTarget === "1") {
+      await adminSupabase.from("system_settings").upsert(
+        {
+          key: "auditorium_maintenance",
+          value: cleanConfig,
+          updated_at: nowIso,
+        },
+        { onConflict: "key" },
+      );
+    }
 
     let cancelledCount = 0;
     let usersNotified = 0;
 
+    // Si estaba activo y se acaba de desactivar, avisar de inmediato a usuarios
+    if (!cleanConfig.is_active && wasPreviouslyActive) {
+      await broadcastSpaceReenabledNotifications(
+        adminSupabase,
+        resolvedSpaceName,
+      );
+    }
+
     // --- BARRIDO DE RESERVAS Y CANCELACIÓN CONSOLIDADA POR USUARIO ---
-    if (config.is_active && config.start_date) {
-      const spaceTarget = config.space_id || "1";
-      const startDateTime = `${config.start_date}T00:00:00-05:00`;
-      const endDateTime = config.end_date
-        ? `${config.end_date}T23:59:59-05:00`
+    if (
+      cleanConfig.is_active &&
+      cleanConfig.start_date &&
+      ["1", "2", "3", "4", "5"].includes(spaceTarget)
+    ) {
+      const startDateTime = `${cleanConfig.start_date}T00:00:00-05:00`;
+      const endDateTime = cleanConfig.end_date
+        ? `${cleanConfig.end_date}T23:59:59-05:00`
         : "2026-12-31T23:59:59-05:00";
 
-      // 1. Buscar todas las reservas activas en el auditorio dentro de la ventana de suspensión
+      // 1. Buscar todas las reservas activas en el espacio dentro de la ventana de suspensión
       const { data: activeReservations, error: fetchErr } = await adminSupabase
         .from("reservations")
         .select(
@@ -1937,8 +2166,7 @@ export async function saveAuditoriumMaintenanceAction(config: {
                   action_type: "STATUS_CHANGE",
                   old_value: "PENDIENTE",
                   new_value: "CANCELADO",
-                  comment:
-                    "CANCELACIÓN AUTOMÁTICA: Reserva cancelada por obras de remodelación en Auditorio.",
+                  comment: `CANCELACIÓN AUTOMÁTICA: Reserva cancelada por obras de remodelación / pausa en ${resolvedSpaceName}.`,
                 });
 
                 await adminSupabase
@@ -2038,9 +2266,9 @@ export async function saveAuditoriumMaintenanceAction(config: {
           }
         };
 
-        const humanStart = formatHumanDate(config.start_date);
-        const humanEnd = config.end_date
-          ? formatHumanDate(config.end_date)
+        const humanStart = formatHumanDate(cleanConfig.start_date);
+        const humanEnd = cleanConfig.end_date
+          ? formatHumanDate(cleanConfig.end_date)
           : null;
 
         // 5. Enviar exactamente UN correo consolidado por usuario
@@ -2051,20 +2279,20 @@ export async function saveAuditoriumMaintenanceAction(config: {
               {
                 user_id: group.userId,
                 title: "Reserva(s) Cancelada(s) por Remodelación",
-                message: `Tus ${group.reservations.length} reserva(s) del Auditorio a partir del ${humanStart} han sido canceladas debido a obras de remodelación física.`,
+                message: `Tus ${group.reservations.length} reserva(s) de ${resolvedSpaceName} a partir del ${humanStart} han sido canceladas debido a obras de remodelación física o pausa del espacio.`,
               },
             ]);
 
             // Envío de correo electrónico consolidado
             await EmailService.send({
               to: group.email,
-              subject:
-                "⚠️ Aviso Importante: Cancelación de Reservas por Remodelación de Auditorio",
+              subject: `⚠️ Aviso Importante: Cancelación de Reservas por Remodelación en ${resolvedSpaceName}`,
               react: MaintenanceCancellationNotification({
                 userName: group.userName,
                 startDate: humanStart,
                 endDate: humanEnd,
                 reservations: group.reservations,
+                spaceName: resolvedSpaceName,
               }),
             });
 
@@ -2078,15 +2306,18 @@ export async function saveAuditoriumMaintenanceAction(config: {
         }
 
         await Logger.info(
-          `Barrido de remodelación: ${cancelledCount} reservas canceladas y ${usersNotified} usuarios notificados por correo consolidado.`,
+          `Barrido de remodelación (${resolvedSpaceName}): ${cancelledCount} reservas canceladas y ${usersNotified} usuarios notificados por correo consolidado.`,
         );
       }
     }
 
+    revalidatePath("/");
     revalidatePath("/dashboard");
     revalidatePath("/admin");
     return {
       success: true,
+      config: cleanConfig,
+      configs: currentMap,
       cancelledCount,
       usersNotified,
     };
@@ -2098,6 +2329,135 @@ export async function saveAuditoriumMaintenanceAction(config: {
           : "Error al guardar configuración de remodelación",
     };
   }
+}
+
+export async function disableSpaceMaintenanceAction(params: {
+  spaceId: string;
+  spaceName?: string;
+  accessToken?: string;
+}) {
+  try {
+    const publicUser = await resolveAuthenticatedPublicUser(params.accessToken);
+    if (!publicUser) throw new Error("No autenticado");
+
+    const isAdmin = ["admin", "superadmin"].includes(
+      publicUser.role?.toLowerCase() || "",
+    );
+    if (!isAdmin) {
+      throw new Error(
+        "Solo administradores pueden habilitar espacios en mantenimiento.",
+      );
+    }
+
+    const adminSupabase = getSupabaseAdmin();
+    const spaceTarget = params.spaceId || "1";
+
+    const { data: existingSpacesRow } = await adminSupabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "spaces_maintenance")
+      .maybeSingle();
+
+    const currentMap: Record<string, SpaceMaintenanceConfig> =
+      existingSpacesRow?.value && typeof existingSpacesRow.value === "object"
+        ? {
+            ...(existingSpacesRow.value as Record<
+              string,
+              SpaceMaintenanceConfig
+            >),
+          }
+        : {};
+
+    const prevEntry = currentMap[spaceTarget];
+    const resolvedSpaceName = getSpaceDisplayName(
+      spaceTarget,
+      params.spaceName || prevEntry?.space_name,
+    );
+    const nowIso = new Date().toISOString();
+
+    const updatedEntry: SpaceMaintenanceConfig = {
+      ...(prevEntry || {
+        space_id: spaceTarget,
+        start_date: nowIso.split("T")[0],
+        end_date: null,
+        custom_title: `${resolvedSpaceName} en Remodelación`,
+        custom_message: "",
+      }),
+      is_active: false,
+      space_id: spaceTarget,
+      space_name: resolvedSpaceName,
+      reactivated_at: nowIso,
+      reactivated_message: `Ya se encuentra habilitado ${resolvedSpaceName} para realizar reservas.`,
+      updated_at: nowIso,
+      updated_by: publicUser.full_name || "SuperAdmin",
+    };
+
+    currentMap[spaceTarget] = updatedEntry;
+
+    const { error: mapError } = await adminSupabase
+      .from("system_settings")
+      .upsert(
+        {
+          key: "spaces_maintenance",
+          value: currentMap,
+          updated_at: nowIso,
+        },
+        { onConflict: "key" },
+      );
+
+    if (mapError) throw mapError;
+
+    if (spaceTarget === "1") {
+      await adminSupabase.from("system_settings").upsert(
+        {
+          key: "auditorium_maintenance",
+          value: updatedEntry,
+          updated_at: nowIso,
+        },
+        { onConflict: "key" },
+      );
+    }
+
+    await broadcastSpaceReenabledNotifications(
+      adminSupabase,
+      resolvedSpaceName,
+    );
+
+    await Logger.info(
+      `Espacio ${resolvedSpaceName} habilitado de inmediato por ${publicUser.full_name || "Admin"}.`,
+    );
+
+    revalidatePath("/");
+    revalidatePath("/dashboard");
+    revalidatePath("/admin");
+
+    return {
+      success: true,
+      config: updatedEntry,
+      configs: currentMap,
+      spaceName: resolvedSpaceName,
+    };
+  } catch (err: unknown) {
+    return {
+      error:
+        err instanceof Error
+          ? err.message
+          : "Error al desactivar la pausa/remodelación",
+    };
+  }
+}
+
+export async function saveAuditoriumMaintenanceAction(config: {
+  is_active: boolean;
+  space_id: string;
+  space_name?: string;
+  start_date: string;
+  end_date?: string | null;
+  custom_title?: string;
+  custom_message?: string;
+  accessToken?: string;
+}) {
+  return saveSpaceMaintenanceAction(config);
 }
 
 export async function updateInstructorAssignmentAction(params: {
@@ -2354,21 +2714,13 @@ export async function getEnvironmentsGlobalConfigAction() {
   }
 }
 
-export async function saveEnvironmentsTabOrderAction(tabOrder: number[]) {
+export async function saveEnvironmentsTabOrderAction(
+  tabOrder: number[],
+  accessToken?: string,
+) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser();
-    if (!authUser) throw new Error("No autenticado");
-
-    const { data: publicUser } = await supabase
-      .from("users")
-      .select(
-        "id, full_name, role, job_category, username, is_vip, perm_manage_assignments",
-      )
-      .eq("auth_id", authUser.id)
-      .single();
+    const publicUser = await resolveAuthenticatedPublicUser(accessToken);
+    if (!publicUser) throw new Error("No autenticado");
 
     const roleLower = (publicUser?.role || "").toLowerCase();
     const jobCatLower = (publicUser?.job_category || "").toLowerCase();
@@ -2396,13 +2748,9 @@ export async function saveEnvironmentsTabOrderAction(tabOrder: number[]) {
       .eq("key", "environments_global_config")
       .maybeSingle();
 
-    const currentVal = (existing?.value || {}) as {
-      tab_order?: number[];
-      disabled_area_ids?: number[];
-      disabled_special_spaces?: string[];
-    };
+    const currentVal = (existing?.value || {}) as EnvironmentsGlobalConfig;
 
-    const newConfig = {
+    const newConfig: EnvironmentsGlobalConfig = {
       tab_order: tabOrder,
       disabled_area_ids: Array.isArray(currentVal.disabled_area_ids)
         ? currentVal.disabled_area_ids
@@ -2410,6 +2758,7 @@ export async function saveEnvironmentsTabOrderAction(tabOrder: number[]) {
       disabled_special_spaces: Array.isArray(currentVal.disabled_special_spaces)
         ? currentVal.disabled_special_spaces
         : [],
+      coordinators: currentVal.coordinators || {},
       updated_at: new Date().toISOString(),
       updated_by: publicUser?.full_name || cleanUsername || "Coordinación",
     };
@@ -2443,19 +2792,11 @@ export async function toggleSpaceStatusBySuperAdminAction(params: {
   areaId?: number;
   specialSpaceId?: string;
   enabled: boolean;
+  accessToken?: string;
 }) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser();
-    if (!authUser) throw new Error("No autenticado");
-
-    const { data: publicUser } = await supabase
-      .from("users")
-      .select("id, full_name, role, username")
-      .eq("auth_id", authUser.id)
-      .single();
+    const publicUser = await resolveAuthenticatedPublicUser(params.accessToken);
+    if (!publicUser) throw new Error("No autenticado");
 
     const roleLower = (publicUser?.role || "").toLowerCase();
     if (roleLower !== "superadmin") {
@@ -2471,11 +2812,7 @@ export async function toggleSpaceStatusBySuperAdminAction(params: {
       .eq("key", "environments_global_config")
       .maybeSingle();
 
-    const currentVal = (existing?.value || {}) as {
-      tab_order?: number[];
-      disabled_area_ids?: number[];
-      disabled_special_spaces?: string[];
-    };
+    const currentVal = (existing?.value || {}) as EnvironmentsGlobalConfig;
 
     let disabledAreaIds = Array.isArray(currentVal.disabled_area_ids)
       ? [...currentVal.disabled_area_ids]
@@ -2504,12 +2841,13 @@ export async function toggleSpaceStatusBySuperAdminAction(params: {
       }
     }
 
-    const newConfig = {
+    const newConfig: EnvironmentsGlobalConfig = {
       tab_order: Array.isArray(currentVal.tab_order)
         ? currentVal.tab_order
         : [],
       disabled_area_ids: disabledAreaIds,
       disabled_special_spaces: disabledSpecialSpaces,
+      coordinators: currentVal.coordinators || {},
       updated_at: new Date().toISOString(),
       updated_by: publicUser?.full_name || "SuperAdmin",
     };
@@ -2542,19 +2880,11 @@ export async function toggleSpaceStatusBySuperAdminAction(params: {
 export async function assignSpaceCoordinatorAction(params: {
   spaceId: string;
   userId: string | null;
+  accessToken?: string;
 }) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser();
-    if (!authUser) throw new Error("No autenticado");
-
-    const { data: publicUser } = await supabase
-      .from("users")
-      .select("id, full_name, role, username")
-      .eq("auth_id", authUser.id)
-      .single();
+    const publicUser = await resolveAuthenticatedPublicUser(params.accessToken);
+    if (!publicUser) throw new Error("No autenticado");
 
     const roleLower = (publicUser?.role || "").toLowerCase();
     if (roleLower !== "superadmin") {

@@ -125,7 +125,9 @@ export function useUserNotifications(userId?: string) {
               });
             } else if (
               titleLower.includes("aprobada") ||
-              titleLower.includes("confirmada")
+              titleLower.includes("confirmada") ||
+              titleLower.includes("habilitado") ||
+              titleLower.includes("reactivad")
             ) {
               toast.success(notif.title, {
                 description: notif.message,
@@ -184,7 +186,9 @@ export function useUserNotifications(userId?: string) {
             });
           } else if (
             titleLower.includes("aprobada") ||
-            titleLower.includes("confirmada")
+            titleLower.includes("confirmada") ||
+            titleLower.includes("habilitado") ||
+            titleLower.includes("reactivad")
           ) {
             toast.success(newNotif.title, {
               description: newNotif.message,

@@ -24,7 +24,7 @@ import Ambiente107ApprovalModal from "@/features/reservations/components/Ambient
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
 import AuditoriumMaintenanceModal from "@/features/reservations/components/AuditoriumMaintenanceModal";
 import {
-  getAuditoriumMaintenanceConfig,
+  getAllSpacesMaintenanceConfig,
   DEFAULT_AUDITORIUM_MAINTENANCE,
   getEnvironmentsGlobalConfig,
   DEFAULT_ENVIRONMENTS_CONFIG,
@@ -237,14 +237,30 @@ export default function UserRequestForm({
   }, []);
 
   const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
-  const [maintenanceConfig, setMaintenanceConfig] =
+  const [spacesMaintenance, setSpacesMaintenance] = useState<
+    Record<string, SpaceMaintenanceConfig>
+  >({});
+  const [activeModalConfig, setActiveModalConfig] =
     useState<SpaceMaintenanceConfig>(DEFAULT_AUDITORIUM_MAINTENANCE);
+  const [recentlyReopenedSpaces, setRecentlyReopenedSpaces] = useState<
+    SpaceMaintenanceConfig[]
+  >([]);
+  const [dismissedReopenedBanner, setDismissedReopenedBanner] = useState(false);
   const [envGlobalConfig, setEnvGlobalConfig] =
     useState<EnvironmentsGlobalConfig>(DEFAULT_ENVIRONMENTS_CONFIG);
 
   useEffect(() => {
-    getAuditoriumMaintenanceConfig().then((cfg) => {
-      setMaintenanceConfig(cfg);
+    getAllSpacesMaintenanceConfig().then((cfgs) => {
+      const safeCfgs = cfgs || {};
+      setSpacesMaintenance(safeCfgs);
+      const nowMs = Date.now();
+      const reopened = Object.values(safeCfgs).filter((cfg) => {
+        if (cfg.is_active || !cfg.reactivated_at) return false;
+        const diffHours =
+          (nowMs - new Date(cfg.reactivated_at).getTime()) / (1000 * 60 * 60);
+        return diffHours >= 0 && diffHours <= 48;
+      });
+      setRecentlyReopenedSpaces(reopened);
     });
     getEnvironmentsGlobalConfig().then((cfg) => {
       setEnvGlobalConfig(cfg);
@@ -261,9 +277,13 @@ export default function UserRequestForm({
     currentlyDisabled: boolean,
   ) => {
     e.stopPropagation();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     const res = await toggleSpaceStatusBySuperAdminAction({
       specialSpaceId: spaceId,
       enabled: currentlyDisabled,
+      accessToken: session?.access_token,
     });
     if (res.error) {
       toast.error(res.error);
@@ -346,15 +366,45 @@ export default function UserRequestForm({
     const isSpaceDisabled = (id: string) =>
       envGlobalConfig.disabled_special_spaces.includes(id);
 
+    const isSpacePaused = (id: string) =>
+      Boolean(spacesMaintenance[id]?.is_active);
+
+    const isAdminOrSuperAdmin = ["admin", "superadmin"].includes(
+      ((user?.role as string) || "").toLowerCase(),
+    );
+
+    const handleSpaceSelection = (
+      id: "1" | "2" | "3" | "4" | "5",
+      label: string,
+    ) => {
+      if (isSpaceDisabled(id) && !isSuperAdmin) {
+        toast.error(`${label} se encuentra deshabilitado temporalmente.`);
+        return;
+      }
+      if (isSpacePaused(id) && !isAdminOrSuperAdmin) {
+        setActiveModalConfig(
+          spacesMaintenance[id] || {
+            ...DEFAULT_AUDITORIUM_MAINTENANCE,
+            space_id: id,
+            space_name: label,
+          },
+        );
+        setShowMaintenanceModal(true);
+        return;
+      }
+      setSelectedReservationSpace(id);
+      handleViewChange("RESERVATION");
+    };
+
     const spaceCards = [
       {
         id: "1" as const,
         visible: isSuperAdmin || !isSpaceDisabled("1"),
         disabled: isSpaceDisabled("1"),
-        title: "Auditorio Principal",
+        title: "Auditorio 103",
         subtitle: "Capacitaciones institucionales y eventos masivos.",
-        badge: maintenanceConfig.is_active ? "En Remodelación" : "Uso General",
-        badgeClass: maintenanceConfig.is_active
+        badge: isSpacePaused("1") ? "En Remodelación" : "Uso General",
+        badgeClass: isSpacePaused("1")
           ? "bg-amber-100 text-amber-800 border border-amber-300 animate-pulse"
           : "bg-sena-blue/10 text-sena-blue",
         iconBg:
@@ -362,25 +412,7 @@ export default function UserRequestForm({
         borderHover: "hover:border-sena-blue",
         accentBar: "bg-sena-blue",
         icon: Calendar,
-        onClick: () => {
-          if (isSpaceDisabled("1") && !isSuperAdmin) {
-            toast.error(
-              "El Auditorio se encuentra deshabilitado temporalmente.",
-            );
-            return;
-          }
-          if (
-            maintenanceConfig.is_active &&
-            !["admin", "superadmin"].includes(
-              ((user?.role as string) || "").toLowerCase(),
-            )
-          ) {
-            setShowMaintenanceModal(true);
-            return;
-          }
-          setSelectedReservationSpace("1");
-          handleViewChange("RESERVATION");
-        },
+        onClick: () => handleSpaceSelection("1", "Auditorio 103"),
       },
       {
         id: "2" as const,
@@ -388,18 +420,16 @@ export default function UserRequestForm({
         disabled: isSpaceDisabled("2"),
         title: "Subdirección",
         subtitle: "Reuniones ejecutivas y de alta gerencia.",
-        badge: "VIP / Planta",
-        badgeClass: "bg-orange-100 text-sena-orange",
+        badge: isSpacePaused("2") ? "En Remodelación" : "VIP / Planta",
+        badgeClass: isSpacePaused("2")
+          ? "bg-amber-100 text-amber-800 border border-amber-300 animate-pulse"
+          : "bg-orange-100 text-sena-orange",
         iconBg:
           "bg-orange-50 text-sena-orange group-hover:bg-sena-orange group-hover:text-white",
         borderHover: "hover:border-sena-orange",
         accentBar: "bg-sena-orange",
         icon: Calendar,
-        onClick: () => {
-          if (isSpaceDisabled("2") && !isSuperAdmin) return;
-          setSelectedReservationSpace("2");
-          handleViewChange("RESERVATION");
-        },
+        onClick: () => handleSpaceSelection("2", "Subdirección"),
       },
       {
         id: "3" as const,
@@ -407,18 +437,16 @@ export default function UserRequestForm({
         disabled: isSpaceDisabled("3"),
         title: "Biblioteca",
         subtitle: "Entornos de consulta, lectura y aprendizaje.",
-        badge: "Académico",
-        badgeClass: "bg-sena-blue/10 text-sena-blue",
+        badge: isSpacePaused("3") ? "En Remodelación" : "Académico",
+        badgeClass: isSpacePaused("3")
+          ? "bg-amber-100 text-amber-800 border border-amber-300 animate-pulse"
+          : "bg-sena-blue/10 text-sena-blue",
         iconBg:
           "bg-sena-blue/10 text-sena-blue group-hover:bg-sena-blue group-hover:text-white",
         borderHover: "hover:border-sena-blue",
         accentBar: "bg-sena-blue",
         icon: Book,
-        onClick: () => {
-          if (isSpaceDisabled("3") && !isSuperAdmin) return;
-          setSelectedReservationSpace("3");
-          handleViewChange("RESERVATION");
-        },
+        onClick: () => handleSpaceSelection("3", "Biblioteca"),
       },
       {
         id: "4" as const,
@@ -426,18 +454,16 @@ export default function UserRequestForm({
         disabled: isSpaceDisabled("4"),
         title: "Ambiente 107",
         subtitle: "Formación y sesiones técnicas especializadas.",
-        badge: "Prerreserva",
-        badgeClass: "bg-emerald-100 text-emerald-800",
+        badge: isSpacePaused("4") ? "En Remodelación" : "Prerreserva",
+        badgeClass: isSpacePaused("4")
+          ? "bg-amber-100 text-amber-800 border border-amber-300 animate-pulse"
+          : "bg-emerald-100 text-emerald-800",
         iconBg:
           "bg-emerald-50 text-sena-green group-hover:bg-sena-green group-hover:text-white",
         borderHover: "hover:border-sena-green",
         accentBar: "bg-sena-green",
         icon: Calendar,
-        onClick: () => {
-          if (isSpaceDisabled("4") && !isSuperAdmin) return;
-          setSelectedReservationSpace("4");
-          handleViewChange("RESERVATION");
-        },
+        onClick: () => handleSpaceSelection("4", "Ambiente 107"),
       },
       {
         id: "5" as const,
@@ -445,25 +471,23 @@ export default function UserRequestForm({
         disabled: isSpaceDisabled("5"),
         title: "Ambiente de Cocina",
         subtitle: "Talleres gastronómicos y formación en cocina.",
-        badge: "Prerreserva",
-        badgeClass: "bg-amber-100 text-amber-800",
+        badge: isSpacePaused("5") ? "En Remodelación" : "Prerreserva",
+        badgeClass: isSpacePaused("5")
+          ? "bg-amber-100 text-amber-800 border border-amber-300 animate-pulse"
+          : "bg-amber-100 text-amber-800",
         iconBg:
           "bg-amber-50 text-amber-600 group-hover:bg-sena-orange group-hover:text-white",
         borderHover: "hover:border-sena-orange",
         accentBar: "bg-sena-orange",
         icon: Calendar,
-        onClick: () => {
-          if (isSpaceDisabled("5") && !isSuperAdmin) return;
-          setSelectedReservationSpace("5");
-          handleViewChange("RESERVATION");
-        },
+        onClick: () => handleSpaceSelection("5", "Ambiente de Cocina"),
       },
     ].filter((c) => c.visible);
 
     return (
       <div className="w-full max-w-[1600px] mx-auto animate-in fade-in duration-500 px-2 sm:px-4 py-4">
         {/* ENCABEZADO COMPACTO Y EDITORIAL */}
-        <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200/80 pb-5">
+        <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200/80 pb-5">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sena-green/10 text-sena-green text-xs font-black uppercase tracking-wider mb-2">
               <span className="w-2 h-2 rounded-full bg-sena-green animate-ping" />
@@ -487,6 +511,38 @@ export default function UserRequestForm({
             FINALIZAR SESIÓN
           </button>
         </div>
+
+        {/* AVISO INMEDIATO DE AMBIENTES REHABILITADOS */}
+        {!dismissedReopenedBanner && recentlyReopenedSpaces.length > 0 && (
+          <div className="mb-6 bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-xs animate-in fade-in">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider text-emerald-900">
+                  ¡Ambiente(s) Habilitado(s) para Reservas!
+                </p>
+                <p className="text-sm text-emerald-800 font-medium mt-0.5">
+                  Ya se encuentra habilitado{" "}
+                  <strong>
+                    {recentlyReopenedSpaces
+                      .map((s) => s.space_name || "Espacio Institucional")
+                      .join(", ")}
+                  </strong>{" "}
+                  para programar tus eventos y actividades con normalidad.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDismissedReopenedBanner(true)}
+              className="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-white border border-emerald-200 hover:bg-emerald-100 rounded-lg shrink-0 cursor-pointer"
+            >
+              Entendido
+            </button>
+          </div>
+        )}
 
         {/* BENTO GRID 12 COLUMNAS (3 - 6 - 3) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
@@ -774,6 +830,12 @@ export default function UserRequestForm({
             </div>
           </div>
         )}
+
+        <AuditoriumMaintenanceModal
+          isOpen={showMaintenanceModal}
+          onClose={() => setShowMaintenanceModal(false)}
+          config={activeModalConfig}
+        />
       </div>
     );
   }
@@ -824,7 +886,7 @@ export default function UserRequestForm({
                 ? "Servicio Técnico"
                 : view === "RESERVATION"
                   ? selectedReservationSpace === "1"
-                    ? "Reservar Auditorio"
+                    ? "Reservar Auditorio 103"
                     : selectedReservationSpace === "3"
                       ? "Reservar Biblioteca"
                       : selectedReservationSpace === "4"
@@ -887,7 +949,7 @@ export default function UserRequestForm({
       <AuditoriumMaintenanceModal
         isOpen={showMaintenanceModal}
         onClose={() => setShowMaintenanceModal(false)}
-        config={maintenanceConfig}
+        config={activeModalConfig}
       />
     </div>
   );

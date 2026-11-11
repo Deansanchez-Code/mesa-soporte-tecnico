@@ -211,4 +211,62 @@ describe("Prueba de Solapamiento", () => {
     expect(result.error).toBeDefined();
     expect(result.error).toContain("Horario no disponible");
   });
+
+  it("debe bloquear reserva si el espacio seleccionado se encuentra en pausa/remodelación en spaces_maintenance", async () => {
+    const targetStart = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const targetEnd = new Date(targetStart.getTime() + 2 * 60 * 60 * 1000);
+    const bogotaStartDate = targetStart.toLocaleDateString("en-CA", {
+      timeZone: "America/Bogota",
+    });
+
+    mockSupabase.from.mockImplementation((table: string) => {
+      const chain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        lt: vi.fn().mockReturnThis(),
+        gt: vi.fn().mockReturnThis(),
+        single: vi.fn(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null }),
+      };
+
+      if (table === "users") {
+        chain.single.mockResolvedValue({
+          data: {
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            role: "instructor",
+            job_category: "instructor",
+          },
+        });
+      } else if (table === "system_settings") {
+        chain.maybeSingle.mockResolvedValue({
+          data: {
+            value: {
+              "4": {
+                is_active: true,
+                space_id: "4",
+                space_name: "Ambiente 107",
+                start_date: bogotaStartDate,
+                end_date: bogotaStartDate,
+              },
+            },
+          },
+        });
+      }
+      return chain;
+    });
+
+    const result = await createReservationAction({
+      title: "Prueba Remodelación 107",
+      start_time: targetStart.toISOString(),
+      end_time: targetEnd.toISOString(),
+      user_id: "123e4567-e89b-12d3-a456-426614174000",
+      auditorium_id: "4",
+    });
+
+    expect(result.error).toBeDefined();
+    expect(result.error).toContain(
+      "Ambiente 107 se encuentra fuera de servicio",
+    );
+  });
 });

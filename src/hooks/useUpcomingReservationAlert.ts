@@ -72,7 +72,7 @@ export function useUpcomingReservationAlert(
       // Ventana de alerta: entre 1 y 10 minutos previos
       if (diffMinutes >= 1 && diffMinutes <= 10) {
         const getSpaceName = (auditoriumId?: string) => {
-          if (auditoriumId === "1") return "Auditorio Principal";
+          if (auditoriumId === "1") return "Auditorio 103";
           if (auditoriumId === "3") return "Biblioteca";
           if (auditoriumId === "4") return "Ambiente 107";
           if (auditoriumId === "5") return "Ambiente de Cocina";

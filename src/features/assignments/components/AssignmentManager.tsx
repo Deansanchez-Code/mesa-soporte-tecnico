@@ -31,9 +31,13 @@ import {
 } from "@/features/reservations/actions/reservationActions";
 import {
   getEnvironmentsGlobalConfig,
+  getAllSpacesMaintenanceConfig,
   DEFAULT_ENVIRONMENTS_CONFIG,
 } from "@/features/reservations/services/maintenanceService";
-import { EnvironmentsGlobalConfig } from "@/features/reservations/types";
+import {
+  EnvironmentsGlobalConfig,
+  SpaceMaintenanceConfig,
+} from "@/features/reservations/types";
 import { TIME_BLOCKS, TimeBlock } from "@/lib/scheduling";
 import { UserProfile } from "@/features/auth/hooks/useUserProfile";
 
@@ -74,10 +78,12 @@ export default function AssignmentManager({
       setEditTimeBlock((editingRes.time_block as TimeBlock) || "MANANA");
       setEditUserSearch("");
       if (assignableUsers.length === 0) {
-        getAssignableUsersAction().then((res) => {
-          if (res.success && res.users) {
-            setAssignableUsers(res.users);
-          }
+        supabase.auth.getSession().then(({ data }) => {
+          getAssignableUsersAction(data.session?.access_token).then((res) => {
+            if (res.success && res.users) {
+              setAssignableUsers(res.users);
+            }
+          });
         });
       }
     }
@@ -95,6 +101,9 @@ export default function AssignmentManager({
   const [globalConfig, setGlobalConfig] = useState<EnvironmentsGlobalConfig>(
     DEFAULT_ENVIRONMENTS_CONFIG,
   );
+  const [spacesMaintenance, setSpacesMaintenance] = useState<
+    Record<string, SpaceMaintenanceConfig>
+  >({});
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [draftOrderEnvList, setDraftOrderEnvList] = useState<Environment[]>([]);
   const [savingOrder, setSavingOrder] = useState(false);
@@ -124,9 +133,19 @@ export default function AssignmentManager({
   // REGLA 1: Solo las Coordinaciones y el SuperAdmin pueden modificar y fijar el orden de las pestañas
   const canReorderTabs = isCoordinator || isSuperAdmin;
 
+  const getSpaceKeyForEnv = (env: Environment): string => {
+    const upper = env.name.toUpperCase();
+    if (upper.includes("AUDITORIO")) return "1";
+    if (upper.includes("SUBDIRECCIÓN")) return "2";
+    if (upper.includes("BIBLIOTECA")) return "3";
+    if (upper.includes("107")) return "4";
+    if (upper.includes("COCINA")) return "5";
+    return `area:${env.id}`;
+  };
+
   const fetchEnvironments = async () => {
     setLoading(true);
-    const [{ data }, cfg] = await Promise.all([
+    const [{ data }, cfg, mCfgs] = await Promise.all([
       supabase
         .from("areas")
         .select("id, name")
@@ -136,9 +155,11 @@ export default function AssignmentManager({
         .not("name", "ilike", "%KIOSKO%")
         .order("name"),
       getEnvironmentsGlobalConfig(),
+      getAllSpacesMaintenanceConfig(),
     ]);
 
     setGlobalConfig(cfg);
+    setSpacesMaintenance(mCfgs || {});
 
     if (data) {
       // Filter out "AMBIENTE DE INSTRUCTORES"
@@ -243,8 +264,14 @@ export default function AssignmentManager({
 
   const handleSaveOrder = async () => {
     setSavingOrder(true);
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     const newIds = draftOrderEnvList.map((e) => e.id);
-    const res = await saveEnvironmentsTabOrderAction(newIds);
+    const res = await saveEnvironmentsTabOrderAction(
+      newIds,
+      session?.access_token,
+    );
     setSavingOrder(false);
     if (res.error) {
       toast.error(res.error);
@@ -264,9 +291,13 @@ export default function AssignmentManager({
     areaId: number,
     currentlyDisabled: boolean,
   ) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     const res = await toggleSpaceStatusBySuperAdminAction({
       areaId,
       enabled: currentlyDisabled, // if currently disabled, enable it
+      accessToken: session?.access_token,
     });
     if (res.error) {
       toast.error(res.error);
@@ -450,6 +481,8 @@ export default function AssignmentManager({
         <div className="flex flex-wrap gap-2 pb-1">
           {visibleEnvironments.map((env) => {
             const isDisabled = globalConfig.disabled_area_ids.includes(env.id);
+            const spaceKey = getSpaceKeyForEnv(env);
+            const isPaused = Boolean(spacesMaintenance[spaceKey]?.is_active);
             const isSelected = selectedEnvId === env.id;
             return (
               <button
@@ -469,6 +502,11 @@ export default function AssignmentManager({
                 {isDisabled && (
                   <span className="text-[9px] font-black uppercase bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
                     Inhabilitado
+                  </span>
+                )}
+                {!isDisabled && isPaused && (
+                  <span className="text-[9px] font-black uppercase bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded border border-amber-300">
+                    Remodelación
                   </span>
                 )}
               </button>
@@ -497,7 +535,27 @@ export default function AssignmentManager({
               const y = date.getFullYear();
               const m = String(date.getMonth() + 1).padStart(2, "0");
               const d = String(date.getDate()).padStart(2, "0");
-              setSelectedDateForCreate(`${y}-${m}-${d}`);
+              const dateStr = `${y}-${m}-${d}`;
+              setSelectedDateForCreate(dateStr);
+
+              if (selectedEnv) {
+                const spaceKey = getSpaceKeyForEnv(selectedEnv);
+                const pauseCfg = spacesMaintenance[spaceKey];
+                const isAdminRole = ["admin", "superadmin"].includes(
+                  userRoleLower,
+                );
+                if (
+                  !isAdminRole &&
+                  pauseCfg?.is_active &&
+                  dateStr >= pauseCfg.start_date &&
+                  dateStr <= (pauseCfg.end_date || "2026-12-31")
+                ) {
+                  toast.error(
+                    `${selectedEnv.name} se encuentra en pausa / remodelación desde ${pauseCfg.start_date}.`,
+                  );
+                  return;
+                }
+              }
 
               if (
                 selectedEnv?.name.toUpperCase().includes("AUDITORIO") ||

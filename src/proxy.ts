@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Exclude public assets, api routes (handled internally), and static files
   if (
     request.nextUrl.pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|json)$/)

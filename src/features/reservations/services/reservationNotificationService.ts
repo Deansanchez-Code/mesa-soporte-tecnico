@@ -85,7 +85,7 @@ function getSpaceDisplayName(auditoriumId?: string | number | null): string {
   if (id === "3") return "Biblioteca";
   if (id === "4") return "Ambiente 107";
   if (id === "5") return "Ambiente de Cocina";
-  return "Auditorio Principal";
+  return "Auditorio 103";
 }
 
 type ReservationWithUser =

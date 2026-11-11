@@ -28,6 +28,9 @@ import {
   Loader2,
   Clock, // Nuevo para Turnos
   X,
+  CheckCircle2,
+  Pencil,
+  Power,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -39,8 +42,9 @@ import MetricsTab from "@/features/monitoring/components/MetricsTab";
 import ShiftsTab from "@/features/shifts/components/ShiftsTab";
 import AuditTab from "@/features/audit/components/AuditTab";
 import {
-  getAuditoriumMaintenanceAction,
-  saveAuditoriumMaintenanceAction,
+  getAllSpacesMaintenanceAction,
+  saveSpaceMaintenanceAction,
+  disableSpaceMaintenanceAction,
   getEnvironmentsGlobalConfigAction,
   toggleSpaceStatusBySuperAdminAction,
   saveEnvironmentsTabOrderAction,
@@ -49,6 +53,7 @@ import {
   DEFAULT_SPACE_COORDINATORS,
   AssignableUser,
 } from "@/features/reservations/actions/reservationActions";
+import { SPECIAL_SPACES_CATALOG } from "@/features/reservations/services/maintenanceService";
 import {
   SpaceMaintenanceConfig,
   EnvironmentsGlobalConfig,
@@ -158,11 +163,16 @@ export default function AdminDashboard() {
     useState<SpaceMaintenanceConfig>({
       is_active: false,
       space_id: "1",
+      space_name: "Auditorio 103",
       start_date: "2026-09-01",
       end_date: null,
-      custom_title: "Auditorio en Remodelación",
+      custom_title: "Auditorio 103 en Remodelación",
       custom_message: "",
     });
+  const [spacesMaintenanceMap, setSpacesMaintenanceMap] = useState<
+    Record<string, SpaceMaintenanceConfig>
+  >({});
+  const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
 
   const [envGlobalConfig, setEnvGlobalConfig] =
     useState<EnvironmentsGlobalConfig>({
@@ -175,6 +185,8 @@ export default function AdminDashboard() {
   const [assignableStaffUsers, setAssignableStaffUsers] = useState<
     AssignableUser[]
   >([]);
+  const [isLoadingAssignableUsers, setIsLoadingAssignableUsers] =
+    useState(false);
   const [selectedSpaceForCoord, setSelectedSpaceForCoord] = useState<{
     id: string;
     name: string;
@@ -183,10 +195,96 @@ export default function AdminDashboard() {
   const [isAssigningCoord, setIsAssigningCoord] = useState(false);
   const [coordSearchQuery, setCoordSearchQuery] = useState("");
 
+  const availableMaintenanceSpaces = useMemo(() => {
+    const special = SPECIAL_SPACES_CATALOG.map((s) => ({
+      id: s.id,
+      name: s.name,
+      group: "Espacios de Reserva Institucional",
+    }));
+    const extraAreas = configData.areas
+      .filter((a) => {
+        const up = a.name.toUpperCase();
+        return (
+          (up.includes("AMBIENTE") ||
+            up.includes("AUDITORIO") ||
+            up.includes("SUBDIRECCIÓN") ||
+            up.includes("BIBLIOTECA") ||
+            up.includes("COCINA")) &&
+          !up.includes("KIOSKO") &&
+          !up.includes("INSTRUCTORES") &&
+          !up.includes("AUDITORIO") &&
+          !up.includes("SUBDIRECCIÓN") &&
+          !up.includes("BIBLIOTECA") &&
+          !up.includes("107") &&
+          !up.includes("COCINA")
+        );
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((a) => ({
+        id: `area:${a.id}`,
+        name: a.name,
+        group: "Ambientes de Formación (Calendario)",
+      }));
+    return { special, extraAreas, all: [...special, ...extraAreas] };
+  }, [configData.areas]);
+
+  const pausedSpacesList = useMemo(
+    () =>
+      Object.values(spacesMaintenanceMap)
+        .filter((cfg) => Boolean(cfg?.is_active))
+        .sort((a, b) =>
+          (a.space_name || a.space_id).localeCompare(
+            b.space_name || b.space_id,
+          ),
+        ),
+    [spacesMaintenanceMap],
+  );
+
+  const coordinatorCandidateUsers = useMemo(() => {
+    const baseList: AssignableUser[] =
+      assignableStaffUsers.length > 0
+        ? assignableStaffUsers
+        : usersList
+            .filter((u) => u.is_active !== false)
+            .map((u) => ({
+              id: u.id,
+              full_name: u.full_name,
+              username: u.username || (u.email ? u.email.split("@")[0] : ""),
+              email: u.email,
+              role: u.role,
+              job_category: u.job_category || null,
+              employment_type: u.employment_type || null,
+              area: u.area || null,
+              is_vip: !!u.is_vip,
+            }));
+
+    return [...baseList].sort((a, b) => {
+      const aPriority =
+        a.is_vip ||
+        a.role === "coordinator" ||
+        (a.job_category || "").toLowerCase().includes("coordinador") ||
+        (a.employment_type || "").toLowerCase().includes("planta")
+          ? 0
+          : 1;
+      const bPriority =
+        b.is_vip ||
+        b.role === "coordinator" ||
+        (b.job_category || "").toLowerCase().includes("coordinador") ||
+        (b.employment_type || "").toLowerCase().includes("planta")
+          ? 0
+          : 1;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return (a.full_name || "").localeCompare(b.full_name || "");
+    });
+  }, [assignableStaffUsers, usersList]);
+
   useEffect(() => {
-    getAuditoriumMaintenanceAction().then((res) => {
-      if (res?.config) {
-        setMaintenanceConfig(res.config as unknown as SpaceMaintenanceConfig);
+    getAllSpacesMaintenanceAction().then((res) => {
+      if (res?.configs) {
+        setSpacesMaintenanceMap(res.configs);
+        if (res.configs["1"]) {
+          setMaintenanceConfig(res.configs["1"]);
+        }
       }
     });
     getEnvironmentsGlobalConfigAction().then((res) => {
@@ -194,10 +292,15 @@ export default function AdminDashboard() {
         setEnvGlobalConfig(res.config);
       }
     });
-    getAssignableUsersAction().then((res) => {
-      if (res?.success && res.users) {
-        setAssignableStaffUsers(res.users);
-      }
+    supabase.auth.getSession().then(({ data }) => {
+      setIsLoadingAssignableUsers(true);
+      getAssignableUsersAction(data.session?.access_token)
+        .then((res) => {
+          if (res?.success && res.users) {
+            setAssignableStaffUsers(res.users);
+          }
+        })
+        .finally(() => setIsLoadingAssignableUsers(false));
     });
   }, []);
 
@@ -1472,7 +1575,7 @@ export default function AdminDashboard() {
                         {[
                           {
                             id: "1",
-                            name: "Auditorio Principal",
+                            name: "Auditorio 103",
                             desc: "Capacitaciones y eventos",
                           },
                           {
@@ -1579,8 +1682,33 @@ export default function AdminDashboard() {
                                                 customCoord?.user_id || "",
                                               );
                                               setCoordSearchQuery("");
+                                              supabase.auth
+                                                .getSession()
+                                                .then(({ data }) => {
+                                                  setIsLoadingAssignableUsers(
+                                                    true,
+                                                  );
+                                                  getAssignableUsersAction(
+                                                    data.session?.access_token,
+                                                  )
+                                                    .then((res) => {
+                                                      if (
+                                                        res?.success &&
+                                                        res.users
+                                                      ) {
+                                                        setAssignableStaffUsers(
+                                                          res.users,
+                                                        );
+                                                      }
+                                                    })
+                                                    .finally(() =>
+                                                      setIsLoadingAssignableUsers(
+                                                        false,
+                                                      ),
+                                                    );
+                                                });
                                             }}
-                                            className="text-[10px] font-bold text-white bg-sena-green hover:bg-emerald-700 px-2 py-1 rounded transition-colors flex-1 text-center"
+                                            className="text-[10px] font-bold text-white bg-sena-green hover:bg-emerald-700 px-2 py-1 rounded transition-colors flex-1 text-center cursor-pointer"
                                           >
                                             {isCustom ? "Cambiar" : "Asignar"}
                                           </button>
@@ -1595,11 +1723,17 @@ export default function AdminDashboard() {
                                                   )
                                                 )
                                                   return;
+                                                const {
+                                                  data: { session },
+                                                } =
+                                                  await supabase.auth.getSession();
                                                 const res =
                                                   await assignSpaceCoordinatorAction(
                                                     {
                                                       spaceId: sp.id,
                                                       userId: null,
+                                                      accessToken:
+                                                        session?.access_token,
                                                     },
                                                   );
                                                 if (res.error) {
@@ -1615,7 +1749,7 @@ export default function AdminDashboard() {
                                                   );
                                                 }
                                               }}
-                                              className="text-[10px] font-bold text-slate-500 hover:text-red-600 bg-slate-100 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                                              className="text-[10px] font-bold text-slate-500 hover:text-red-600 bg-slate-100 hover:bg-red-50 px-2 py-1 rounded transition-colors cursor-pointer"
                                             >
                                               Restablecer
                                             </button>
@@ -1633,11 +1767,15 @@ export default function AdminDashboard() {
                                 <button
                                   type="button"
                                   onClick={async () => {
+                                    const {
+                                      data: { session },
+                                    } = await supabase.auth.getSession();
                                     const res =
                                       await toggleSpaceStatusBySuperAdminAction(
                                         {
                                           specialSpaceId: sp.id,
                                           enabled: isDisabled,
+                                          accessToken: session?.access_token,
                                         },
                                       );
                                     if (res.error) {
@@ -1742,12 +1880,16 @@ export default function AdminDashboard() {
                                     type="button"
                                     disabled={index === 0}
                                     onClick={async () => {
+                                      const {
+                                        data: { session },
+                                      } = await supabase.auth.getSession();
                                       const ids = arr.map((x) => x.id);
                                       const [moved] = ids.splice(index, 1);
                                       ids.splice(index - 1, 0, moved);
                                       const res =
                                         await saveEnvironmentsTabOrderAction(
                                           ids,
+                                          session?.access_token,
                                         );
                                       if (res.config) {
                                         setEnvGlobalConfig(res.config);
@@ -1763,12 +1905,16 @@ export default function AdminDashboard() {
                                     type="button"
                                     disabled={index === arr.length - 1}
                                     onClick={async () => {
+                                      const {
+                                        data: { session },
+                                      } = await supabase.auth.getSession();
                                       const ids = arr.map((x) => x.id);
                                       const [moved] = ids.splice(index, 1);
                                       ids.splice(index + 1, 0, moved);
                                       const res =
                                         await saveEnvironmentsTabOrderAction(
                                           ids,
+                                          session?.access_token,
                                         );
                                       if (res.config) {
                                         setEnvGlobalConfig(res.config);
@@ -1790,50 +1936,88 @@ export default function AdminDashboard() {
                 )}
               </div>
 
-              {/* REMODELACIÓN / MANTENIMIENTO AUDITORIO */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-amber-200 md:col-span-2">
-                <div className="flex items-center justify-between mb-4 border-b pb-3">
+              {/* REMODELACIÓN / MANTENIMIENTO MULTI-AMBIENTE */}
+              <div
+                id="maintenance-config-card"
+                className="bg-white p-6 rounded-xl shadow-sm border border-amber-200 md:col-span-2 space-y-6"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
                       <ShieldAlert className="w-5 h-5" />
                     </div>
                     <div>
                       <h3 className="font-bold text-gray-800 text-base">
-                        Pausa de Reservas / Remodelación de Auditorio
+                        Pausa de Reservas / Remodelación de Ambientes
                       </h3>
                       <p className="text-xs text-gray-500">
-                        Bloquea la opción de reservar el auditorio y muestra el
-                        aviso institucional a los usuarios.
+                        Selecciona el ambiente o auditorio a pausar por obras o
+                        mantenimiento. Puedes gestionar varios espacios
+                        simultáneamente y habilitarlos de inmediato.
                       </p>
                     </div>
                   </div>
                   <button
+                    type="button"
+                    disabled={isSavingMaintenance}
                     onClick={async () => {
+                      setIsSavingMaintenance(true);
                       try {
-                        const updated = {
-                          ...maintenanceConfig,
-                          is_active: !maintenanceConfig.is_active,
-                        };
-                        const res =
-                          await saveAuditoriumMaintenanceAction(updated);
-                        if (res?.error) {
-                          toast.error(res.error);
-                          return;
-                        }
-                        setMaintenanceConfig(updated);
-                        if (updated.is_active) {
+                        const {
+                          data: { session },
+                        } = await supabase.auth.getSession();
+                        const selectedSpaceObj =
+                          availableMaintenanceSpaces.all.find(
+                            (s) => s.id === maintenanceConfig.space_id,
+                          );
+                        const spaceName =
+                          maintenanceConfig.space_name ||
+                          selectedSpaceObj?.name ||
+                          "Auditorio 103";
+
+                        if (maintenanceConfig.is_active) {
+                          const res = await disableSpaceMaintenanceAction({
+                            spaceId: maintenanceConfig.space_id,
+                            spaceName,
+                            accessToken: session?.access_token,
+                          });
+                          if (res?.error) {
+                            toast.error(res.error);
+                            return;
+                          }
+                          if (res?.config) setMaintenanceConfig(res.config);
+                          if (res?.configs)
+                            setSpacesMaintenanceMap(res.configs);
+                          toast.success(
+                            `¡${spaceName} HABILITADO de inmediato! Se envió notificación a los usuarios.`,
+                          );
+                        } else {
+                          const updated: SpaceMaintenanceConfig = {
+                            ...maintenanceConfig,
+                            space_name: spaceName,
+                            is_active: true,
+                          };
+                          const res = await saveSpaceMaintenanceAction({
+                            ...updated,
+                            accessToken: session?.access_token,
+                          });
+                          if (res?.error) {
+                            toast.error(res.error);
+                            return;
+                          }
+                          if (res?.config) setMaintenanceConfig(res.config);
+                          if (res?.configs)
+                            setSpacesMaintenanceMap(res.configs);
                           if (res.cancelledCount && res.cancelledCount > 0) {
                             toast.warning(
-                              `Pausa ACTIVADA. Se cancelaron ${res.cancelledCount} reserva(s) y se notificó a ${res.usersNotified} usuario(s) por correo consolidado.`,
+                              `Pausa ACTIVADA para ${spaceName}. Se cancelaron ${res.cancelledCount} reserva(s) y se notificó a ${res.usersNotified} usuario(s) por correo consolidado.`,
                               { duration: 8000 },
                             );
                           } else {
                             toast.success(
-                              "Bloqueo de auditorio por remodelación ACTIVADO (sin reservas previas por cancelar).",
+                              `Bloqueo por remodelación/pausa ACTIVADO en ${spaceName} (sin reservas previas por cancelar).`,
                             );
                           }
-                        } else {
-                          toast.success("Auditorio HABILITADO para reservas.");
                         }
                       } catch (err: unknown) {
                         toast.error(
@@ -1841,21 +2025,87 @@ export default function AdminDashboard() {
                             ? err.message
                             : "Error al guardar",
                         );
+                      } finally {
+                        setIsSavingMaintenance(false);
                       }
                     }}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50 ${
                       maintenanceConfig.is_active
                         ? "bg-red-600 hover:bg-red-700 text-white"
-                        : "bg-gray-100 hover:bg-gray-200 text-gray-700 border"
+                        : "bg-amber-600 hover:bg-amber-700 text-white"
                     }`}
                   >
                     {maintenanceConfig.is_active
-                      ? "DESACTIVAR PAUSA"
+                      ? "DESACTIVAR PAUSA Y HABILITAR"
                       : "ACTIVAR PAUSA"}
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* FORMULARIO POR AMBIENTE */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="lg:col-span-2">
+                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
+                      Ambiente o Auditorio *
+                    </label>
+                    <select
+                      value={maintenanceConfig.space_id}
+                      onChange={(e) => {
+                        const newId = e.target.value;
+                        const foundSpace = availableMaintenanceSpaces.all.find(
+                          (s) => s.id === newId,
+                        );
+                        const existingCfg = spacesMaintenanceMap[newId];
+                        if (existingCfg) {
+                          setMaintenanceConfig({
+                            ...existingCfg,
+                            space_name:
+                              existingCfg.space_name ||
+                              foundSpace?.name ||
+                              "Espacio Institucional",
+                          });
+                        } else {
+                          const sName =
+                            foundSpace?.name || "Espacio Institucional";
+                          setMaintenanceConfig({
+                            is_active: false,
+                            space_id: newId,
+                            space_name: sName,
+                            start_date:
+                              maintenanceConfig.start_date ||
+                              new Date().toISOString().split("T")[0],
+                            end_date: null,
+                            custom_title: `${sName} en Remodelación`,
+                            custom_message: "",
+                          });
+                        }
+                      }}
+                      className="border border-slate-300 p-2.5 rounded-lg w-full text-sm font-semibold text-slate-800 bg-white outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <optgroup label="Espacios de Reserva Institucional">
+                        {availableMaintenanceSpaces.special.map((sp) => (
+                          <option key={sp.id} value={sp.id}>
+                            {sp.name}
+                            {spacesMaintenanceMap[sp.id]?.is_active
+                              ? " (PAUSADO)"
+                              : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                      {availableMaintenanceSpaces.extraAreas.length > 0 && (
+                        <optgroup label="Otros Ambientes de Formación">
+                          {availableMaintenanceSpaces.extraAreas.map((ar) => (
+                            <option key={ar.id} value={ar.id}>
+                              {ar.name}
+                              {spacesMaintenanceMap[ar.id]?.is_active
+                                ? " (PAUSADO)"
+                                : ""}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
                       Fecha de Inicio de Obras / Pausa *
@@ -1869,7 +2119,7 @@ export default function AdminDashboard() {
                           start_date: e.target.value,
                         })
                       }
-                      className="border p-2.5 rounded-lg w-full text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                      className="border border-slate-300 p-2.5 rounded-lg w-full text-sm outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
 
@@ -1886,7 +2136,7 @@ export default function AdminDashboard() {
                           end_date: e.target.value || null,
                         })
                       }
-                      className="border p-2.5 rounded-lg w-full text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                      className="border border-slate-300 p-2.5 rounded-lg w-full text-sm outline-none focus:ring-2 focus:ring-amber-500"
                     />
                     <span className="text-[10px] text-gray-400 mt-1 block">
                       {maintenanceConfig.end_date
@@ -1894,22 +2144,77 @@ export default function AdminDashboard() {
                         : "Sin fecha: Bloqueará por el resto de la vigencia 2026."}
                     </span>
                   </div>
+
+                  <div className="md:col-span-2 lg:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
+                        Título / Motivo del Aviso (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Obras de adecuación eléctrica y pintura"
+                        value={maintenanceConfig.custom_title || ""}
+                        onChange={(e) =>
+                          setMaintenanceConfig({
+                            ...maintenanceConfig,
+                            custom_title: e.target.value,
+                          })
+                        }
+                        className="border border-slate-300 p-2.5 rounded-lg w-full text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 uppercase mb-1">
+                        Detalle o Instrucción para Usuarios (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Eventos reprogramados comunicarse con Coordinación"
+                        value={maintenanceConfig.custom_message || ""}
+                        onChange={(e) =>
+                          setMaintenanceConfig({
+                            ...maintenanceConfig,
+                            custom_message: e.target.value,
+                          })
+                        }
+                        className="border border-slate-300 p-2.5 rounded-lg w-full text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="mt-4 flex justify-end">
+                <div className="flex justify-end">
                   <button
+                    type="button"
+                    disabled={isSavingMaintenance}
                     onClick={async () => {
+                      setIsSavingMaintenance(true);
                       try {
-                        const res =
-                          await saveAuditoriumMaintenanceAction(
-                            maintenanceConfig,
+                        const {
+                          data: { session },
+                        } = await supabase.auth.getSession();
+                        const selectedSpaceObj =
+                          availableMaintenanceSpaces.all.find(
+                            (s) => s.id === maintenanceConfig.space_id,
                           );
+                        const spaceName =
+                          maintenanceConfig.space_name ||
+                          selectedSpaceObj?.name ||
+                          "Auditorio 103";
+
+                        const res = await saveSpaceMaintenanceAction({
+                          ...maintenanceConfig,
+                          space_name: spaceName,
+                          accessToken: session?.access_token,
+                        });
                         if (res?.error) {
                           toast.error(res.error);
                           return;
                         }
+                        if (res?.config) setMaintenanceConfig(res.config);
+                        if (res?.configs) setSpacesMaintenanceMap(res.configs);
                         toast.success(
-                          "Configuración de remodelación guardada exitosamente.",
+                          `Configuración de ${spaceName} guardada exitosamente.`,
                         );
                       } catch (err: unknown) {
                         toast.error(
@@ -1917,12 +2222,139 @@ export default function AdminDashboard() {
                             ? err.message
                             : "Error al guardar",
                         );
+                      } finally {
+                        setIsSavingMaintenance(false);
                       }
                     }}
-                    className="bg-sena-green hover:bg-green-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+                    className="bg-sena-green hover:bg-green-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50"
                   >
                     Guardar Configuración
                   </button>
+                </div>
+
+                {/* LISTADO DE AMBIENTES ACTUALMENTE PAUSADOS */}
+                <div className="pt-5 border-t border-amber-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                      Ambientes con Pausa o Remodelación Activa
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800">
+                        {pausedSpacesList.length}
+                      </span>
+                    </h4>
+                  </div>
+
+                  {pausedSpacesList.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      Todos los ambientes y auditorios se encuentran habilitados
+                      para reservas en este momento.
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {pausedSpacesList.map((entry) => {
+                        const displayName =
+                          entry.space_name ||
+                          availableMaintenanceSpaces.all.find(
+                            (s) => s.id === entry.space_id,
+                          )?.name ||
+                          entry.space_id;
+                        return (
+                          <div
+                            key={entry.space_id}
+                            className="p-4 rounded-xl border border-amber-200 bg-amber-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          >
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-black text-slate-800">
+                                  {displayName}
+                                </span>
+                                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                                  En Pausa / Remodelación
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600">
+                                <strong>Inicio:</strong> {entry.start_date}{" "}
+                                &nbsp;|&nbsp; <strong>Fin estimado:</strong>{" "}
+                                {entry.end_date || "Vigencia 2026"}
+                              </p>
+                              {(entry.custom_title || entry.custom_message) && (
+                                <p className="text-[11px] text-amber-900 truncate">
+                                  {entry.custom_title}
+                                  {entry.custom_message
+                                    ? ` — ${entry.custom_message}`
+                                    : ""}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMaintenanceConfig({
+                                    ...entry,
+                                    space_name: displayName,
+                                  });
+                                  document
+                                    .getElementById("maintenance-config-card")
+                                    ?.scrollIntoView({ behavior: "smooth" });
+                                  toast.info(
+                                    `Editando configuración de pausa para ${displayName}.`,
+                                  );
+                                }}
+                                className="px-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 flex items-center gap-1.5 transition cursor-pointer"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                                Modificar
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isSavingMaintenance}
+                                onClick={async () => {
+                                  setIsSavingMaintenance(true);
+                                  try {
+                                    const {
+                                      data: { session },
+                                    } = await supabase.auth.getSession();
+                                    const res =
+                                      await disableSpaceMaintenanceAction({
+                                        spaceId: entry.space_id,
+                                        spaceName: displayName,
+                                        accessToken: session?.access_token,
+                                      });
+                                    if (res?.error) {
+                                      toast.error(res.error);
+                                      return;
+                                    }
+                                    if (res?.configs) {
+                                      setSpacesMaintenanceMap(res.configs);
+                                    }
+                                    if (
+                                      maintenanceConfig.space_id ===
+                                        entry.space_id &&
+                                      res?.config
+                                    ) {
+                                      setMaintenanceConfig(res.config);
+                                    }
+                                    toast.success(
+                                      `¡${displayName} habilitado de inmediato! Los usuarios han sido notificados.`,
+                                      { duration: 6000 },
+                                    );
+                                  } finally {
+                                    setIsSavingMaintenance(false);
+                                  }
+                                }}
+                                className="px-3.5 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 transition shadow-xs cursor-pointer disabled:opacity-50"
+                              >
+                                <Power className="w-3.5 h-3.5" />
+                                Desactivar y Habilitar
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </section>
@@ -2182,21 +2614,48 @@ export default function AdminDashboard() {
                     Seleccionar Funcionario
                   </label>
                   <div className="border border-slate-200 rounded-xl max-h-60 overflow-y-auto divide-y divide-slate-100">
-                    {assignableStaffUsers
-                      .filter((u) => {
-                        const q = coordSearchQuery.toLowerCase().trim();
+                    {(() => {
+                      const q = coordSearchQuery.toLowerCase().trim();
+                      const filtered = coordinatorCandidateUsers.filter((u) => {
                         if (!q) return true;
                         return (
                           (u.full_name || "").toLowerCase().includes(q) ||
                           (u.username || "").toLowerCase().includes(q) ||
-                          (u.email || "").toLowerCase().includes(q)
+                          (u.email || "").toLowerCase().includes(q) ||
+                          (u.area || "").toLowerCase().includes(q) ||
+                          (u.job_category || "").toLowerCase().includes(q)
                         );
-                      })
-                      .map((u) => {
+                      });
+
+                      if (isLoadingAssignableUsers && filtered.length === 0) {
+                        return (
+                          <div className="p-6 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin text-sena-green" />
+                            Cargando directorio de funcionarios...
+                          </div>
+                        );
+                      }
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="p-6 text-center text-xs text-slate-500">
+                            {coordSearchQuery.trim()
+                              ? `No se encontraron funcionarios que coincidan con "${coordSearchQuery}".`
+                              : "No hay funcionarios disponibles en el directorio."}
+                          </div>
+                        );
+                      }
+
+                      return filtered.map((u) => {
                         const isVipUser =
                           !!u.is_vip ||
                           u.role === "coordinator" ||
-                          u.job_category === "coordinador";
+                          (u.job_category || "")
+                            .toLowerCase()
+                            .includes("coordinador");
+                        const isPlanta = (u.employment_type || "")
+                          .toLowerCase()
+                          .includes("planta");
                         const isSelected = selectedCoordUserId === u.id;
                         return (
                           <div
@@ -2213,6 +2672,7 @@ export default function AdminDashboard() {
                                 {u.full_name}
                               </p>
                               <p className="text-[11px] text-slate-500 truncate">
+                                @{u.username} ·{" "}
                                 {u.email || `${u.username}@sena.edu.co`}
                               </p>
                             </div>
@@ -2221,9 +2681,13 @@ export default function AdminDashboard() {
                                 <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
                                   VIP
                                 </span>
+                              ) : isPlanta ? (
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                  Planta
+                                </span>
                               ) : (
                                 <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                                  Planta
+                                  {u.role || "Funcionario"}
                                 </span>
                               )}
                               <input
@@ -2236,7 +2700,8 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                         );
-                      })}
+                      });
+                    })()}
                   </div>
                 </div>
               </div>
@@ -2258,9 +2723,13 @@ export default function AdminDashboard() {
                     if (!selectedCoordUserId) return;
                     setIsAssigningCoord(true);
                     try {
+                      const {
+                        data: { session },
+                      } = await supabase.auth.getSession();
                       const res = await assignSpaceCoordinatorAction({
                         spaceId: selectedSpaceForCoord.id,
                         userId: selectedCoordUserId,
+                        accessToken: session?.access_token,
                       });
                       if (res.error) {
                         toast.error(res.error);

@@ -31,6 +31,18 @@ export default function AuditoriumMaintenanceModal({
     }
   };
 
+  const SPACE_LABELS: Record<string, string> = {
+    "1": "Auditorio 103",
+    "2": "Subdirección",
+    "3": "Biblioteca",
+    "4": "Ambiente 107",
+    "5": "Ambiente de Cocina",
+  };
+  const spaceName =
+    config.space_name ||
+    SPACE_LABELS[config.space_id] ||
+    "Espacio Institucional";
+
   const formattedStart = formatDate(config.start_date);
   const formattedEnd = config.end_date ? formatDate(config.end_date) : null;
 
@@ -57,10 +69,10 @@ export default function AuditoriumMaintenanceModal({
             <AlertTriangle className="w-8 h-8 text-white" />
           </div>
           <h3 className="text-xl font-black tracking-tight uppercase">
-            Aviso de Remodelación
+            {config.custom_title || "Aviso de Remodelación / Pausa"}
           </h3>
           <p className="text-xs text-amber-100 font-semibold tracking-wider mt-0.5">
-            Auditorio Principal Fuera de Servicio
+            {spaceName} Fuera de Servicio
           </p>
         </div>
 
@@ -78,9 +90,14 @@ export default function AuditoriumMaintenanceModal({
                   <strong className="text-amber-800 underline">
                     {formattedStart}
                   </strong>
-                  , el auditorio entrará en proceso de{" "}
-                  <strong>obras de remodelación y adecuación física</strong>.
+                  , el espacio <strong>{spaceName}</strong> entrará en proceso
+                  de <strong>obras de remodelación y adecuación física</strong>.
                 </p>
+                {config.custom_message && (
+                  <p className="text-xs text-amber-900 font-semibold mt-2 bg-white/70 p-2 rounded-lg border border-amber-200/80">
+                    {config.custom_message}
+                  </p>
+                )}
               </div>
             </div>
 
