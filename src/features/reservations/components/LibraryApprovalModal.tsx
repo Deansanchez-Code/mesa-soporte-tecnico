@@ -23,6 +23,7 @@ import {
   requestModificationAction,
 } from "@/features/reservations/actions/libraryApprovalActions";
 import { getEnvironmentsGlobalConfigAction } from "@/features/reservations/actions/reservationActions";
+import { SpaceCoordinatorAssignment } from "@/features/reservations/types";
 
 interface PendingReservation {
   id: number;
@@ -67,6 +68,10 @@ export default function LibraryApprovalModal({
   useEffect(() => {
     getEnvironmentsGlobalConfigAction().then((res) => {
       if (res.config?.coordinators) {
+        const coords = res.config.coordinators as Record<
+          string,
+          SpaceCoordinatorAssignment
+        >;
         const list = [
           "dasanchezh@sena.edu.co",
           "dasanchezh",
@@ -75,7 +80,7 @@ export default function LibraryApprovalModal({
           "emgutierrezn@sena.edu.co",
           "emgutierrezn@sistema.local",
         ];
-        const c3 = res.config.coordinators["3"];
+        const c3 = coords["3"];
         if (c3?.email) list.push(c3.email.toLowerCase());
         if (c3?.username) list.push(c3.username.toLowerCase());
         setAuthorizedEmails(Array.from(new Set(list)));

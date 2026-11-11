@@ -2662,6 +2662,18 @@ export async function assignSpaceCoordinatorAction(params: {
           await EmailService.send({
             to: assignedCoordinator.email,
             subject: `[Traslado de Gestión] ${transferredCount} solicitudes pendientes de ${spaceName} asignadas a tu cuenta`,
+            react: SpaceReservationEmail({
+              spaceName,
+              requesterName: "Administración del Sistema",
+              eventTitle: `Traslado de ${transferredCount} solicitudes pendientes`,
+              date: new Date().toLocaleDateString("es-CO", {
+                timeZone: "America/Bogota",
+              }),
+              timeRange: "Pendientes por revisar",
+              specialRequirements: `Actualmente existen ${transferredCount} solicitud(es) de reserva pendiente(s) de autorización para ${spaceName} transferidas a tu gestión:\n\n${eventsList}`,
+              coordinatorName: assignedCoordinator.full_name,
+              type: "NEW_REQUEST",
+            }),
             text: `Estimado/a ${assignedCoordinator.full_name},\n\nHas sido asignado/a como Coordinador/a responsable de ${spaceName} por la administración.\n\nActualmente existen ${transferredCount} solicitud(es) de reserva pendiente(s) de autorización que han sido trasladadas a tu bandeja:\n\n${eventsList}\n\nPuedes ingresar al portal de Mesa de Ayuda TIC para autorizar o denegar estas solicitudes.\n\nCordialmente,\nAdministración del Sistema`,
           });
         }

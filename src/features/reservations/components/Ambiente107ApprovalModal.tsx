@@ -21,6 +21,7 @@ import {
   suggestModification107Action,
 } from "@/features/reservations/actions/ambiente107ApprovalActions";
 import { getEnvironmentsGlobalConfigAction } from "@/features/reservations/actions/reservationActions";
+import { SpaceCoordinatorAssignment } from "@/features/reservations/types";
 
 import { supabase } from "@/lib/supabase/client";
 
@@ -68,14 +69,18 @@ export default function Ambiente107ApprovalModal({
   useEffect(() => {
     getEnvironmentsGlobalConfigAction().then((res) => {
       if (res.config?.coordinators) {
+        const coords = res.config.coordinators as Record<
+          string,
+          SpaceCoordinatorAssignment
+        >;
         const list = [
           "nbarrerac@sena.edu.co",
           "nbarrerac",
           "dasanchezh@sena.edu.co",
           "dasanchezh",
         ];
-        const c4 = res.config.coordinators["4"];
-        const c5 = res.config.coordinators["5"];
+        const c4 = coords["4"];
+        const c5 = coords["5"];
         if (c4?.email) list.push(c4.email.toLowerCase());
         if (c4?.username) list.push(c4.username.toLowerCase());
         if (c5?.email) list.push(c5.email.toLowerCase());
