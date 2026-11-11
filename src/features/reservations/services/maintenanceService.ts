@@ -78,7 +78,15 @@ export async function getAllSpacesMaintenanceConfig(): Promise<
       }
     }
 
-    if (legacyAuditorium && !result["1"]) {
+    if (
+      legacyAuditorium &&
+      (!result["1"] ||
+        (legacyAuditorium.is_active &&
+          !result["1"].is_active &&
+          (!result["1"].updated_at ||
+            (legacyAuditorium.updated_at &&
+              legacyAuditorium.updated_at > result["1"].updated_at))))
+    ) {
       result["1"] = {
         ...DEFAULT_AUDITORIUM_MAINTENANCE,
         ...legacyAuditorium,

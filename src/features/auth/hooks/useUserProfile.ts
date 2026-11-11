@@ -96,16 +96,22 @@ export function useUserProfile() {
     }
 
     async function initUser() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const {
+          data: { user: verifiedUser },
+          error,
+        } = await supabase.auth.getUser();
 
-      if (!session?.user) {
-        setState((prev) => ({ ...prev, loading: false }));
-        return;
+        if (error || !verifiedUser) {
+          await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+          setState({ user: null, profile: null, loading: false, role: null });
+          return;
+        }
+        // Fetch inicial con usuario verificado contra Auth
+        fetchProfileData(verifiedUser);
+      } catch {
+        setState({ user: null, profile: null, loading: false, role: null });
       }
-      // Fetch inicial
-      fetchProfileData(session.user);
     }
 
     initUser();

@@ -252,21 +252,25 @@ export default function UserRequestForm({
     useState<EnvironmentsGlobalConfig>(DEFAULT_ENVIRONMENTS_CONFIG);
 
   useEffect(() => {
-    getAllSpacesMaintenanceConfig().then((cfgs) => {
-      const safeCfgs = cfgs || {};
-      setSpacesMaintenance(safeCfgs);
-      const nowMs = Date.now();
-      const reopened = Object.values(safeCfgs).filter((cfg) => {
-        if (cfg.is_active || !cfg.reactivated_at) return false;
-        const diffHours =
-          (nowMs - new Date(cfg.reactivated_at).getTime()) / (1000 * 60 * 60);
-        return diffHours >= 0 && diffHours <= 48;
-      });
-      setRecentlyReopenedSpaces(reopened);
-    });
-    getEnvironmentsGlobalConfig().then((cfg) => {
-      setEnvGlobalConfig(cfg);
-    });
+    getAllSpacesMaintenanceConfig()
+      .then((cfgs) => {
+        const safeCfgs = cfgs || {};
+        setSpacesMaintenance(safeCfgs);
+        const nowMs = Date.now();
+        const reopened = Object.values(safeCfgs).filter((cfg) => {
+          if (cfg.is_active || !cfg.reactivated_at) return false;
+          const diffHours =
+            (nowMs - new Date(cfg.reactivated_at).getTime()) / (1000 * 60 * 60);
+          return diffHours >= 0 && diffHours <= 48;
+        });
+        setRecentlyReopenedSpaces(reopened);
+      })
+      .catch(() => {});
+    getEnvironmentsGlobalConfig()
+      .then((cfg) => {
+        setEnvGlobalConfig(cfg);
+      })
+      .catch(() => {});
   }, []);
 
   const isSuperAdmin =
@@ -279,24 +283,30 @@ export default function UserRequestForm({
     currentlyDisabled: boolean,
   ) => {
     e.stopPropagation();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const res = await toggleSpaceStatusBySuperAdminAction({
-      specialSpaceId: spaceId,
-      enabled: currentlyDisabled,
-      accessToken: session?.access_token,
-    });
-    if (res.error) {
-      toast.error(res.error);
-      return;
-    }
-    if (res.config) {
-      setEnvGlobalConfig(res.config);
-      toast.success(
-        currentlyDisabled
-          ? `${spaceName} HABILITADO.`
-          : `${spaceName} DESHABILITADO.`,
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await toggleSpaceStatusBySuperAdminAction({
+        specialSpaceId: spaceId,
+        enabled: currentlyDisabled,
+        accessToken: session?.access_token,
+      });
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      if (res.config) {
+        setEnvGlobalConfig(res.config);
+        toast.success(
+          currentlyDisabled
+            ? `${spaceName} HABILITADO.`
+            : `${spaceName} DESHABILITADO.`,
+        );
+      }
+    } catch {
+      toast.error(
+        "No se pudo cambiar el estado del espacio. Verifica tu sesión.",
       );
     }
   };
@@ -546,14 +556,14 @@ export default function UserRequestForm({
           </div>
         )}
 
-        {/* BENTO GRID 12 COLUMNAS (3 - 6 - 3) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          {/* COLUMNA 1 (3 COLS): AGENDA / EVENTOS DE HOY */}
-          <div className="lg:col-span-3 flex flex-col bg-slate-50/80 rounded-3xl p-5 border border-slate-200/80 shadow-xs">
-            <div className="flex items-center justify-between mb-4 px-1">
+        {/* GRID DE 3 COLUMNAS EQUILIBRADAS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
+          {/* COLUMNA 1: AGENDA / EVENTOS DE HOY */}
+          <div className="flex flex-col gap-6 h-full bg-slate-50/70 rounded-[2.5rem] p-5 lg:p-7 border border-slate-200/70 shadow-xs">
+            <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-6 bg-sena-green rounded-full" />
-                <h4 className="text-xs font-black uppercase tracking-widest text-sena-blue flex items-center gap-1.5">
+                <div className="w-2.5 h-7 bg-sena-green rounded-full" />
+                <h4 className="text-xs font-black uppercase tracking-[0.18em] text-sena-blue flex items-center gap-1.5">
                   Eventos de Hoy
                 </h4>
               </div>
@@ -562,7 +572,7 @@ export default function UserRequestForm({
               </span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs flex flex-col gap-3 flex-1 overflow-y-auto max-h-[420px] scrollbar-thin scrollbar-thumb-gray-200 min-h-[300px]">
+            <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-2xs flex flex-col gap-3.5 flex-1 overflow-y-auto max-h-[540px] scrollbar-thin scrollbar-thumb-gray-200 min-h-[340px]">
               {loadingReservations ? (
                 <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400 h-full">
                   <Loader2 className="w-7 h-7 animate-spin text-sena-green" />
@@ -576,7 +586,7 @@ export default function UserRequestForm({
                   <span className="text-sm font-black text-slate-700">
                     Sin reservas hoy
                   </span>
-                  <span className="text-xs text-slate-400 max-w-[180px]">
+                  <span className="text-xs text-slate-400 max-w-[200px]">
                     No se han registrado eventos programados para el día de hoy.
                   </span>
                 </div>
@@ -601,7 +611,7 @@ export default function UserRequestForm({
                     return (
                       <div
                         key={res.id}
-                        className={`p-3.5 rounded-xl border border-l-4 shadow-2xs flex flex-col gap-1 transition-all ${
+                        className={`p-3.5 rounded-2xl border border-l-4 shadow-2xs flex flex-col gap-1 transition-all ${
                           isCocina
                             ? "bg-amber-50/50 border-amber-100 border-l-sena-orange"
                             : is107
@@ -654,27 +664,23 @@ export default function UserRequestForm({
             </div>
           </div>
 
-          {/* COLUMNA 2 (6 COLS): RESERVAS & ESPACIOS (REORGANIZADO EN BENTO GRID 2 COLUMNAS COMPACTAS) */}
-          <div className="lg:col-span-6 flex flex-col bg-slate-50/80 rounded-3xl p-5 border border-slate-200/80 shadow-xs">
-            <div className="flex items-center justify-between mb-4 px-1">
+          {/* COLUMNA 2: RESERVAS & ESPACIOS (TARJETAS AMPLIAS VERTICALES RESTAURADAS) */}
+          <div className="flex flex-col gap-6 h-full bg-slate-50/70 rounded-[2.5rem] p-5 lg:p-7 border border-slate-200/70 shadow-xs">
+            <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-6 bg-sena-blue rounded-full" />
-                <div>
-                  <h4 className="text-xs font-black uppercase tracking-widest text-sena-blue">
-                    Reservas & Espacios Institucionales
-                  </h4>
-                </div>
+                <div className="w-2.5 h-7 bg-sena-blue rounded-full" />
+                <h4 className="text-xs font-black uppercase tracking-[0.18em] text-sena-blue">
+                  Reservas & Espacios
+                </h4>
               </div>
-              <span className="text-[11px] font-semibold text-slate-500">
-                Selecciona un espacio para agendar
+              <span className="text-[11px] font-semibold text-slate-400">
+                Selecciona un espacio
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 flex-1 content-start">
-              {spaceCards.map((sp, idx) => {
+            <div className="flex flex-col gap-4 flex-1 justify-between">
+              {spaceCards.map((sp) => {
                 const IconComponent = sp.icon;
-                // Si hay un número impar de espacios (ej. 5), el primero (Auditorio) ocupa las 2 columnas como tarjeta destacada compacta
-                const isFeaturedWide = spaceCards.length % 2 === 1 && idx === 0;
 
                 return (
                   <div
@@ -688,30 +694,27 @@ export default function UserRequestForm({
                         sp.onClick();
                       }
                     }}
-                    className={`group relative bg-white rounded-2xl p-4 sm:p-5 border-2 border-slate-100 ${sp.borderHover} shadow-2xs hover:shadow-md transition-all duration-200 text-left flex items-center gap-4 cursor-pointer overflow-hidden ${
-                      isFeaturedWide ? "sm:col-span-2" : ""
-                    } ${sp.disabled ? "opacity-60 bg-red-50/30 border-red-200" : ""}`}
+                    className={`group relative bg-white rounded-[1.75rem] p-5 border-2 border-slate-100 ${sp.borderHover} shadow-sm hover:shadow-xl transition-all duration-300 text-left flex items-center gap-4 cursor-pointer flex-1 ${
+                      sp.disabled
+                        ? "opacity-65 bg-red-50/30 border-red-200"
+                        : ""
+                    }`}
                   >
-                    {/* Barra lateral institucional */}
+                    {/* Icono amplio */}
                     <div
-                      className={`absolute left-0 top-0 bottom-0 w-1.5 ${sp.accentBar}`}
-                    />
-
-                    {/* Icono */}
-                    <div
-                      className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-colors duration-200 ${sp.iconBg}`}
+                      className={`p-4 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-110 ${sp.iconBg}`}
                     >
-                      <IconComponent className="w-6 h-6" />
+                      <IconComponent className="w-8 h-8" />
                     </div>
 
                     {/* Contenido */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-1">
-                        <h3 className="text-base font-black text-slate-800 group-hover:text-sena-blue transition-colors truncate">
+                        <h3 className="text-lg font-black text-slate-800 group-hover:text-sena-blue transition-colors truncate">
                           {sp.title}
                         </h3>
                         <span
-                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full shrink-0 ${
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap ${
                             sp.disabled
                               ? "bg-red-100 text-red-700"
                               : sp.badgeClass
@@ -720,12 +723,12 @@ export default function UserRequestForm({
                           {sp.disabled ? "Deshabilitado" : sp.badge}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 font-medium line-clamp-1">
+                      <p className="text-xs sm:text-sm text-slate-500 font-medium italic opacity-80 group-hover:opacity-100 leading-snug">
                         {sp.subtitle}
                       </p>
                     </div>
 
-                    {/* Toggle exclusivo de SuperAdmin directo en la card o flecha de acción */}
+                    {/* Toggle exclusivo de SuperAdmin directo en la card o flecha */}
                     {isSuperAdmin ? (
                       <button
                         type="button"
@@ -737,7 +740,7 @@ export default function UserRequestForm({
                             sp.disabled,
                           )
                         }
-                        className={`p-2 rounded-lg border text-xs font-bold flex items-center gap-1 shrink-0 transition ${
+                        className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1 shrink-0 transition cursor-pointer ${
                           sp.disabled
                             ? "bg-red-600 text-white border-red-600 hover:bg-emerald-600"
                             : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-red-50 hover:text-red-600"
@@ -748,7 +751,7 @@ export default function UserRequestForm({
                             : "SuperAdmin: Clic para Deshabilitar espacio"
                         }
                       >
-                        <Power className="w-3.5 h-3.5" />
+                        <Power className="w-4 h-4" />
                       </button>
                     ) : (
                       <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-sena-green group-hover:translate-x-1 transition-all shrink-0" />
@@ -759,12 +762,12 @@ export default function UserRequestForm({
             </div>
           </div>
 
-          {/* COLUMNA 3 (3 COLS): SERVICIOS & CONSULTA DE DISPONIBILIDAD (COLORES INSTITUCIONALES SENA) */}
-          <div className="lg:col-span-3 flex flex-col bg-slate-50/80 rounded-3xl p-5 border border-slate-200/80 shadow-xs">
-            <div className="flex items-center justify-between mb-4 px-1">
+          {/* COLUMNA 3: SERVICIOS & CONSULTA DE DISPONIBILIDAD (COLORES INSTITUCIONALES SENA) */}
+          <div className="flex flex-col gap-6 h-full bg-slate-50/70 rounded-[2.5rem] p-5 lg:p-7 border border-slate-200/70 shadow-xs">
+            <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-6 bg-sena-orange rounded-full" />
-                <h4 className="text-xs font-black uppercase tracking-widest text-sena-blue">
+                <div className="w-2.5 h-7 bg-sena-orange rounded-full" />
+                <h4 className="text-xs font-black uppercase tracking-[0.18em] text-sena-blue">
                   Servicios & Consulta
                 </h4>
               </div>
@@ -775,7 +778,7 @@ export default function UserRequestForm({
 
             <button
               onClick={() => handleViewChange("AVAILABILITY")}
-              className="group relative flex-1 bg-gradient-to-br from-sena-blue via-[#053b75] to-[#032244] p-7 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center text-center justify-between overflow-hidden border-b-4 border-sena-green cursor-pointer min-h-[300px]"
+              className="group relative flex-1 bg-gradient-to-br from-sena-blue via-[#053b75] to-[#032244] p-8 rounded-[2rem] shadow-lg hover:shadow-2xl transition-all duration-300 flex flex-col items-center text-center justify-between overflow-hidden border-b-8 border-sena-green hover:border-b-4 hover:translate-y-0.5 cursor-pointer min-h-[340px]"
             >
               <div className="w-full flex items-center justify-between text-[10px] font-black tracking-widest uppercase text-white/70">
                 <span>Calendario Maestro</span>
@@ -784,22 +787,22 @@ export default function UserRequestForm({
                 </span>
               </div>
 
-              <div className="my-4 flex flex-col items-center gap-4">
-                <div className="bg-white/10 p-6 rounded-2xl backdrop-blur-xs group-hover:bg-sena-green group-hover:scale-105 transition-all duration-300 border border-white/20 shadow-lg">
-                  <CalendarRange className="w-12 h-12 text-white" />
+              <div className="my-4 flex flex-col items-center gap-5">
+                <div className="bg-white/10 p-7 rounded-[2rem] backdrop-blur-xs group-hover:bg-sena-green group-hover:scale-105 transition-all duration-300 border border-white/20 shadow-lg">
+                  <CalendarRange className="w-14 h-14 text-white" />
                 </div>
-                <div className="space-y-1.5">
-                  <h3 className="text-2xl font-black text-white tracking-tight">
+                <div className="space-y-2">
+                  <h3 className="text-3xl font-black text-white tracking-tight">
                     Disponibilidad
                   </h3>
-                  <p className="text-xs sm:text-sm text-blue-100 leading-relaxed font-medium max-w-[220px]">
+                  <p className="text-sm text-blue-100 leading-relaxed font-medium max-w-[240px]">
                     Consulta programación de ambientes, horarios de formación y
                     reservas en tiempo real.
                   </p>
                 </div>
               </div>
 
-              <div className="w-full py-2.5 px-4 rounded-xl bg-white/10 group-hover:bg-sena-green text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors">
+              <div className="w-full py-3 px-4 rounded-xl bg-white/10 group-hover:bg-sena-green text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors">
                 <span>Abrir Calendario de Ambientes</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>

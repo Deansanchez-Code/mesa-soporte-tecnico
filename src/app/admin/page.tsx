@@ -173,6 +173,49 @@ export default function AdminDashboard() {
     Record<string, SpaceMaintenanceConfig>
   >({});
   const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
+  const [togglingSpaceKey, setTogglingSpaceKey] = useState<string | null>(null);
+
+  const handleToggleSpaceStatus = async (params: {
+    areaId?: number;
+    specialSpaceId?: string;
+    enabled: boolean;
+    label: string;
+  }) => {
+    const key =
+      typeof params.areaId === "number"
+        ? `area:${params.areaId}`
+        : `special:${params.specialSpaceId || ""}`;
+    setTogglingSpaceKey(key);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await toggleSpaceStatusBySuperAdminAction({
+        areaId: params.areaId,
+        specialSpaceId: params.specialSpaceId,
+        enabled: params.enabled,
+        accessToken: session?.access_token,
+      });
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      if (res.config) {
+        setEnvGlobalConfig(res.config);
+        toast.success(
+          params.enabled
+            ? `${params.label} HABILITADO para reservas.`
+            : `${params.label} DESHABILITADO.`,
+        );
+      }
+    } catch {
+      toast.error(
+        `No se pudo actualizar el estado de ${params.label}. Verifica tu sesión.`,
+      );
+    } finally {
+      setTogglingSpaceKey(null);
+    }
+  };
 
   const [envGlobalConfig, setEnvGlobalConfig] =
     useState<EnvironmentsGlobalConfig>({
@@ -448,9 +491,26 @@ export default function AdminDashboard() {
           const headers: Record<string, string> = {};
           if (token) headers.Authorization = `Bearer ${token}`;
 
-          const res = await fetch("/api/admin/users?limit=2000", { headers });
+          let res = await fetch("/api/admin/users?limit=2000", { headers });
+          if (res.status === 401) {
+            const { data: refreshed } = await supabase.auth.refreshSession();
+            if (refreshed.session?.access_token) {
+              res = await fetch("/api/admin/users?limit=2000", {
+                headers: {
+                  Authorization: `Bearer ${refreshed.session.access_token}`,
+                },
+              });
+            }
+          }
+          if (res.status === 401) {
+            toast.error(
+              "Tu sesión expiró. Por favor inicia sesión nuevamente.",
+            );
+            router.push("/login");
+            return { data: [] };
+          }
           if (!res.ok) {
-            console.warn("API User fetch failed, trying local DB fallback");
+            console.warn("API User fetch failed, status:", res.status);
             return { data: [] };
           }
           const json = await res.json();
@@ -517,7 +577,7 @@ export default function AdminDashboard() {
     });
 
     setLoading(false);
-  }, [currentUser, totalTicketsCount]);
+  }, [currentUser, router, totalTicketsCount]);
 
   useEffect(() => {
     if (currentUser) fetchData();
@@ -1437,26 +1497,15 @@ export default function AdminDashboard() {
                           {isSuperAdminRole && (
                             <button
                               type="button"
-                              onClick={async () => {
-                                const res =
-                                  await toggleSpaceStatusBySuperAdminAction({
-                                    areaId: area.id,
-                                    enabled: isAreaDisabled,
-                                  });
-                                if (res.error) {
-                                  toast.error(res.error);
-                                  return;
-                                }
-                                if (res.config) {
-                                  setEnvGlobalConfig(res.config);
-                                  toast.success(
-                                    isAreaDisabled
-                                      ? `Espacio "${area.name}" HABILITADO.`
-                                      : `Espacio "${area.name}" DESHABILITADO.`,
-                                  );
-                                }
-                              }}
-                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              disabled={togglingSpaceKey === `area:${area.id}`}
+                              onClick={() =>
+                                handleToggleSpaceStatus({
+                                  areaId: area.id,
+                                  enabled: isAreaDisabled,
+                                  label: `Espacio "${area.name}"`,
+                                })
+                              }
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
                                 !isAreaDisabled
                                   ? "bg-sena-green"
                                   : "bg-gray-300"
@@ -1549,7 +1598,7 @@ export default function AdminDashboard() {
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-bold text-sena-blue text-base">
-                          Control Maestro de Habilitación de Espacios yOrden de
+                          Control Maestro de Habilitación de Espacios y Orden de
                           Pestañas
                         </h3>
                         <span className="text-[10px] font-black uppercase bg-sena-blue/10 text-sena-blue px-2.5 py-0.5 rounded-full">
@@ -1786,32 +1835,17 @@ export default function AdminDashboard() {
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={async () => {
-                                    const {
-                                      data: { session },
-                                    } = await supabase.auth.getSession();
-                                    const res =
-                                      await toggleSpaceStatusBySuperAdminAction(
-                                        {
-                                          specialSpaceId: sp.id,
-                                          enabled: isDisabled,
-                                          accessToken: session?.access_token,
-                                        },
-                                      );
-                                    if (res.error) {
-                                      toast.error(res.error);
-                                      return;
-                                    }
-                                    if (res.config) {
-                                      setEnvGlobalConfig(res.config);
-                                      toast.success(
-                                        isDisabled
-                                          ? `${sp.name} HABILITADO para reservas.`
-                                          : `${sp.name} DESHABILITADO.`,
-                                      );
-                                    }
-                                  }}
-                                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                                  disabled={
+                                    togglingSpaceKey === `special:${sp.id}`
+                                  }
+                                  onClick={() =>
+                                    handleToggleSpaceStatus({
+                                      specialSpaceId: sp.id,
+                                      enabled: isDisabled,
+                                      label: sp.name,
+                                    })
+                                  }
+                                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out disabled:opacity-50 ${
                                     !isDisabled
                                       ? "bg-sena-green"
                                       : "bg-gray-300"
@@ -1900,20 +1934,30 @@ export default function AdminDashboard() {
                                     type="button"
                                     disabled={index === 0}
                                     onClick={async () => {
-                                      const {
-                                        data: { session },
-                                      } = await supabase.auth.getSession();
-                                      const ids = arr.map((x) => x.id);
-                                      const [moved] = ids.splice(index, 1);
-                                      ids.splice(index - 1, 0, moved);
-                                      const res =
-                                        await saveEnvironmentsTabOrderAction(
-                                          ids,
-                                          session?.access_token,
+                                      try {
+                                        const {
+                                          data: { session },
+                                        } = await supabase.auth.getSession();
+                                        const ids = arr.map((x) => x.id);
+                                        const [moved] = ids.splice(index, 1);
+                                        ids.splice(index - 1, 0, moved);
+                                        const res =
+                                          await saveEnvironmentsTabOrderAction(
+                                            ids,
+                                            session?.access_token,
+                                          );
+                                        if (res.error) {
+                                          toast.error(res.error);
+                                          return;
+                                        }
+                                        if (res.config) {
+                                          setEnvGlobalConfig(res.config);
+                                          toast.success("Orden actualizado.");
+                                        }
+                                      } catch {
+                                        toast.error(
+                                          "No se pudo guardar el orden.",
                                         );
-                                      if (res.config) {
-                                        setEnvGlobalConfig(res.config);
-                                        toast.success("Orden actualizado.");
                                       }
                                     }}
                                     className="px-1.5 py-0.5 bg-white border rounded hover:bg-sena-blue hover:text-white disabled:opacity-30 cursor-pointer"
@@ -1925,20 +1969,30 @@ export default function AdminDashboard() {
                                     type="button"
                                     disabled={index === arr.length - 1}
                                     onClick={async () => {
-                                      const {
-                                        data: { session },
-                                      } = await supabase.auth.getSession();
-                                      const ids = arr.map((x) => x.id);
-                                      const [moved] = ids.splice(index, 1);
-                                      ids.splice(index + 1, 0, moved);
-                                      const res =
-                                        await saveEnvironmentsTabOrderAction(
-                                          ids,
-                                          session?.access_token,
+                                      try {
+                                        const {
+                                          data: { session },
+                                        } = await supabase.auth.getSession();
+                                        const ids = arr.map((x) => x.id);
+                                        const [moved] = ids.splice(index, 1);
+                                        ids.splice(index + 1, 0, moved);
+                                        const res =
+                                          await saveEnvironmentsTabOrderAction(
+                                            ids,
+                                            session?.access_token,
+                                          );
+                                        if (res.error) {
+                                          toast.error(res.error);
+                                          return;
+                                        }
+                                        if (res.config) {
+                                          setEnvGlobalConfig(res.config);
+                                          toast.success("Orden actualizado.");
+                                        }
+                                      } catch {
+                                        toast.error(
+                                          "No se pudo guardar el orden.",
                                         );
-                                      if (res.config) {
-                                        setEnvGlobalConfig(res.config);
-                                        toast.success("Orden actualizado.");
                                       }
                                     }}
                                     className="px-1.5 py-0.5 bg-white border rounded hover:bg-sena-blue hover:text-white disabled:opacity-30 cursor-pointer"
@@ -2360,6 +2414,10 @@ export default function AdminDashboard() {
                                       `¡${displayName} habilitado de inmediato! Los usuarios han sido notificados.`,
                                       { duration: 6000 },
                                     );
+                                  } catch {
+                                    toast.error(
+                                      `No se pudo desactivar la pausa de ${displayName}. Verifica tu sesión.`,
+                                    );
                                   } finally {
                                     setIsSavingMaintenance(false);
                                   }
@@ -2373,6 +2431,96 @@ export default function AdminDashboard() {
                           </div>
                         );
                       })}
+                    </div>
+                  )}
+
+                  {(envGlobalConfig.disabled_special_spaces.length > 0 ||
+                    envGlobalConfig.disabled_area_ids.length > 0) && (
+                    <div className="mt-5 pt-4 border-t border-red-100 space-y-2.5">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-red-700 flex items-center gap-2">
+                        Espacios Deshabilitados desde Control Maestro
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-800">
+                          {envGlobalConfig.disabled_special_spaces.length +
+                            envGlobalConfig.disabled_area_ids.length}
+                        </span>
+                      </h4>
+                      <div className="space-y-2">
+                        {envGlobalConfig.disabled_special_spaces.map((spId) => {
+                          const spMeta = SPECIAL_SPACES_CATALOG.find(
+                            (s) => s.id === String(spId),
+                          );
+                          const label =
+                            spMeta?.name || `Espacio especial #${spId}`;
+                          return (
+                            <div
+                              key={`disabled-special-${spId}`}
+                              className="p-3.5 rounded-xl border border-red-200 bg-red-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-black text-slate-800">
+                                  {label}
+                                </span>
+                                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                                  Deshabilitado
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={
+                                  togglingSpaceKey === `special:${spId}`
+                                }
+                                onClick={() =>
+                                  handleToggleSpaceStatus({
+                                    specialSpaceId: String(spId),
+                                    enabled: true,
+                                    label,
+                                  })
+                                }
+                                className="px-3.5 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                              >
+                                <Power className="w-3.5 h-3.5" />
+                                Habilitar de Inmediato
+                              </button>
+                            </div>
+                          );
+                        })}
+                        {envGlobalConfig.disabled_area_ids.map((arId) => {
+                          const areaObj = configData.areas.find(
+                            (a) => a.id === arId,
+                          );
+                          const label = areaObj?.name || `Ambiente #${arId}`;
+                          return (
+                            <div
+                              key={`disabled-area-${arId}`}
+                              className="p-3.5 rounded-xl border border-red-200 bg-red-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-black text-slate-800">
+                                  {label}
+                                </span>
+                                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                                  Deshabilitado
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={togglingSpaceKey === `area:${arId}`}
+                                onClick={() =>
+                                  handleToggleSpaceStatus({
+                                    areaId: Number(arId),
+                                    enabled: true,
+                                    label: `Espacio "${label}"`,
+                                  })
+                                }
+                                className="px-3.5 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                              >
+                                <Power className="w-3.5 h-3.5" />
+                                Habilitar de Inmediato
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>

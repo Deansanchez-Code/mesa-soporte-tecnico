@@ -1942,7 +1942,15 @@ export async function getAllSpacesMaintenanceAction(): Promise<{
       }
     }
 
-    if (legacyAuditorium && !result["1"]) {
+    if (
+      legacyAuditorium &&
+      (!result["1"] ||
+        (legacyAuditorium.is_active &&
+          !result["1"].is_active &&
+          (!result["1"].updated_at ||
+            (legacyAuditorium.updated_at &&
+              legacyAuditorium.updated_at > result["1"].updated_at))))
+    ) {
       result["1"] = {
         ...legacyAuditorium,
         space_id: "1",
@@ -2665,24 +2673,28 @@ export async function syncReservationTicketAction(params: {
 
 export async function getEnvironmentsGlobalConfigAction() {
   try {
-    const supabase = await createClient();
-    const { data } = await supabase
+    const adminSupabase = getSupabaseAdmin();
+    const { data, error } = await adminSupabase
       .from("system_settings")
       .select("value")
       .eq("key", "environments_global_config")
       .maybeSingle();
+
+    if (error) throw error;
 
     const val = (data?.value || {}) as EnvironmentsGlobalConfig;
 
     return {
       success: true,
       config: {
-        tab_order: Array.isArray(val.tab_order) ? val.tab_order : [],
+        tab_order: Array.isArray(val.tab_order)
+          ? val.tab_order.map(Number)
+          : [],
         disabled_area_ids: Array.isArray(val.disabled_area_ids)
-          ? val.disabled_area_ids
+          ? val.disabled_area_ids.map(Number)
           : [],
         disabled_special_spaces: Array.isArray(val.disabled_special_spaces)
-          ? val.disabled_special_spaces
+          ? val.disabled_special_spaces.map(String)
           : [],
         coordinators: val.coordinators || {},
         updated_at: val.updated_at,

@@ -276,51 +276,64 @@ export default function AssignmentManager({
 
   const handleSaveOrder = async () => {
     setSavingOrder(true);
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const newIds = draftOrderEnvList.map((e) => e.id);
-    const res = await saveEnvironmentsTabOrderAction(
-      newIds,
-      session?.access_token,
-    );
-    setSavingOrder(false);
-    if (res.error) {
-      toast.error(res.error);
-      return;
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const newIds = draftOrderEnvList.map((e) => e.id);
+      const res = await saveEnvironmentsTabOrderAction(
+        newIds,
+        session?.access_token,
+      );
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      if (res.config) {
+        setGlobalConfig(res.config);
+      }
+      setEnvironments(draftOrderEnvList);
+      setIsOrderModalOpen(false);
+      toast.success(
+        "Orden de pestañas de ambientes fijado permanentemente para todos los usuarios.",
+      );
+    } catch {
+      toast.error(
+        "No se pudo guardar el orden de pestañas. Verifica tu sesión.",
+      );
+    } finally {
+      setSavingOrder(false);
     }
-    if (res.config) {
-      setGlobalConfig(res.config);
-    }
-    setEnvironments(draftOrderEnvList);
-    setIsOrderModalOpen(false);
-    toast.success(
-      "Orden de pestañas de ambientes fijado permanentemente para todos los usuarios.",
-    );
   };
 
   const handleSuperAdminToggleArea = async (
     areaId: number,
     currentlyDisabled: boolean,
   ) => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const res = await toggleSpaceStatusBySuperAdminAction({
-      areaId,
-      enabled: currentlyDisabled, // if currently disabled, enable it
-      accessToken: session?.access_token,
-    });
-    if (res.error) {
-      toast.error(res.error);
-      return;
-    }
-    if (res.config) {
-      setGlobalConfig(res.config);
-      toast.success(
-        currentlyDisabled
-          ? "Espacio HABILITADO exitosamente."
-          : "Espacio DESHABILITADO exitosamente.",
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await toggleSpaceStatusBySuperAdminAction({
+        areaId,
+        enabled: currentlyDisabled, // if currently disabled, enable it
+        accessToken: session?.access_token,
+      });
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      if (res.config) {
+        setGlobalConfig(res.config);
+        toast.success(
+          currentlyDisabled
+            ? "Espacio HABILITADO exitosamente."
+            : "Espacio DESHABILITADO exitosamente.",
+        );
+      }
+    } catch {
+      toast.error(
+        "Error al cambiar el estado del espacio. Verifica tu sesión.",
       );
     }
   };
