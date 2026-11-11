@@ -10,6 +10,7 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false, // ISO 27001 A.8.9: evitar fingerprinting X-Powered-By
   turbopack: {}, // Configuración vacía de Turbopack para Next.js 16
   images: {
     remotePatterns: [

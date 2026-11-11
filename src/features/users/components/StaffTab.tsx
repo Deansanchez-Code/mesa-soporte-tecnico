@@ -10,9 +10,10 @@ import {
   Power,
   ShieldCheck,
 } from "lucide-react";
-import * as XLSX from "xlsx";
+import { readSheet } from "read-excel-file/browser";
+import writeXlsxFile from "write-excel-file/browser";
 import { supabase } from "@/lib/supabase/client";
-import { User, ConfigItem, StaffUploadRow } from "@/app/admin/admin.types";
+import { User, ConfigItem } from "@/app/admin/admin.types";
 import { useUserManagement } from "../hooks/useUserManagement";
 import UserModal from "./UserModal";
 import { toast } from "sonner";
@@ -54,77 +55,122 @@ export default function StaffTab({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: "binary" });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws);
+    if (!file.name.toLowerCase().endsWith(".xlsx")) {
+      toast.error("Formato inválido", {
+        description: "Solo se admiten archivos .xlsx.",
+      });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Archivo demasiado grande", {
+        description: "El archivo Excel no debe superar 5MB.",
+      });
+      return;
+    }
 
-        let successCount = 0;
-        let errorCount = 0;
+    try {
+      const rows = await readSheet(file);
+      if (rows.length < 2) {
+        toast.warning("Archivo vacío", {
+          description: "El Excel no contiene filas de funcionarios.",
+        });
+        return;
+      }
 
-        for (const row of data as StaffUploadRow[]) {
-          // Mapeo de columnas
-          const fullName = row["Nombre Completo"];
-          const username = row["Usuario"];
-          const location = row["Ubicación"];
-          const isVip = row["VIP"]?.toString().toUpperCase() === "SI";
+      const headers = rows[0].map((cell) =>
+        String(cell ?? "")
+          .trim()
+          .toLowerCase(),
+      );
+      const colIdx = {
+        fullName: headers.findIndex((h) => h.includes("nombre")),
+        username: headers.findIndex((h) => h.includes("usuario")),
+        location: headers.findIndex(
+          (h) => h.includes("ubicaci") || h.includes("area"),
+        ),
+        vip: headers.findIndex((h) => h === "vip"),
+      };
 
-          if (!fullName || !username || !location) {
-            errorCount++;
-            continue;
-          }
+      if (
+        colIdx.fullName === -1 ||
+        colIdx.username === -1 ||
+        colIdx.location === -1
+      ) {
+        toast.error("Columnas faltantes", {
+          description:
+            "El archivo debe incluir columnas: Nombre Completo, Usuario, Ubicación y VIP.",
+        });
+        return;
+      }
 
-          const { error } = await supabase.from("users").insert({
-            full_name: fullName,
-            username: username.toLowerCase(),
-            role: "user",
-            area: location,
-            password: "Sena2024*",
-            is_vip: isVip,
-            is_active: true,
-            perm_create_assets: false,
-            perm_transfer_assets: false,
-            perm_decommission_assets: false,
-          });
+      let successCount = 0;
+      let errorCount = 0;
 
-          if (error) {
-            console.error("Error importando usuario:", username, error);
-            errorCount++;
-          } else {
-            successCount++;
-          }
+      for (const row of rows.slice(1)) {
+        const fullName = String(row[colIdx.fullName] ?? "").trim();
+        const username = String(row[colIdx.username] ?? "").trim();
+        const location = String(row[colIdx.location] ?? "").trim();
+        const isVip =
+          colIdx.vip !== -1 &&
+          String(row[colIdx.vip] ?? "")
+            .trim()
+            .toUpperCase() === "SI";
+
+        if (!fullName || !username || !location) {
+          errorCount++;
+          continue;
         }
 
-        toast.success("Carga Finalizada", {
-          description: `Exitosos: ${successCount} | Fallidos: ${errorCount}`,
+        const { error } = await supabase.from("users").insert({
+          full_name: fullName,
+          username: username.toLowerCase(),
+          role: "user",
+          area: location,
+          is_vip: isVip,
+          is_active: true,
+          perm_create_assets: false,
+          perm_transfer_assets: false,
+          perm_decommission_assets: false,
         });
-        onRefresh();
-      } catch (error) {
-        console.error("Error procesando archivo:", error);
-        toast.error("Error de Archivo", {
-          description: "No se pudo procesar el archivo Excel.",
-        });
+
+        if (error) {
+          console.error("Error importando usuario:", username, error);
+          errorCount++;
+        } else {
+          successCount++;
+        }
       }
-    };
-    reader.readAsBinaryString(file);
+
+      toast.success("Carga Finalizada", {
+        description: `Exitosos: ${successCount} | Fallidos: ${errorCount}`,
+      });
+      onRefresh();
+    } catch (error) {
+      console.error("Error procesando archivo:", error);
+      toast.error("Error de Archivo", {
+        description: "No se pudo procesar el archivo Excel (.xlsx).",
+      });
+    }
   };
 
-  const handleDownloadStaffTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
-      {
-        "Nombre Completo": "Juan Perez",
-        Usuario: "jperez",
-        Ubicación: "Coordinación Académica",
-        VIP: "NO",
-      },
-    ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
-    XLSX.writeFile(wb, "plantilla_funcionarios.xlsx");
+  const handleDownloadStaffTemplate = async () => {
+    await writeXlsxFile(
+      [
+        [
+          { value: "Nombre Completo", fontWeight: "bold" },
+          { value: "Usuario", fontWeight: "bold" },
+          { value: "Ubicación", fontWeight: "bold" },
+          { value: "VIP", fontWeight: "bold" },
+        ],
+        [
+          { value: "Juan Perez", type: String },
+          { value: "jperez", type: String },
+          { value: "Coordinación Académica", type: String },
+          { value: "NO", type: String },
+        ],
+      ],
+      { sheet: "Plantilla" },
+    ).toFile("plantilla_funcionarios.xlsx");
   };
 
   return (
@@ -148,7 +194,7 @@ export default function StaffTab({
                 Carga Masiva
                 <input
                   type="file"
-                  accept=".xlsx, .xls"
+                  accept=".xlsx"
                   className="hidden"
                   onChange={handleBulkStaffUpload}
                 />

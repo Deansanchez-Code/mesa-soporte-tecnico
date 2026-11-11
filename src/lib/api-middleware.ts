@@ -1,5 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
-import { SupabaseClient } from "@supabase/supabase-js";
+import {
+  createClient as createSupabaseClient,
+  SupabaseClient,
+} from "@supabase/supabase-js";
+import { env } from "@/env";
+import Logger from "@/lib/logger";
 
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
@@ -27,24 +32,56 @@ export function withAuth(handler: ApiHandler) {
   ) => {
     try {
       const params = await props.params;
-      const supabase = await createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const cookieSupabase = await createClient();
 
-      if (!session) {
+      // ISO 27001 A.8.5: Validar token contra Auth Server (getUser) en lugar de getSession()
+      const {
+        data: { user: cookieUser },
+      } = await cookieSupabase.auth.getUser();
+
+      let user = cookieUser;
+      let activeSupabase: SupabaseClient = cookieSupabase;
+
+      if (!user) {
+        const authHeader = req.headers.get("Authorization");
+        if (authHeader?.startsWith("Bearer ")) {
+          const token = authHeader.slice(7).trim();
+          if (token) {
+            const bearerClient = createSupabaseClient(
+              env.NEXT_PUBLIC_SUPABASE_URL,
+              env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+              {
+                global: {
+                  headers: { Authorization: `Bearer ${token}` },
+                },
+                auth: {
+                  autoRefreshToken: false,
+                  persistSession: false,
+                },
+              },
+            );
+            const {
+              data: { user: tokenUser },
+            } = await bearerClient.auth.getUser(token);
+            if (tokenUser) {
+              user = tokenUser;
+              activeSupabase = bearerClient;
+            }
+          }
+        }
+      }
+
+      if (!user) {
         return NextResponse.json(
-          { error: "Unauthorized: Missing session" },
+          { error: "Unauthorized: Invalid or missing session" },
           { status: 401 },
         );
       }
 
-      const user = session.user;
-
-      // Execute the handler with user context
-      return await handler(req, { user, supabase }, params);
+      // Execute the handler with verified user context
+      return await handler(req, { user, supabase: activeSupabase }, params);
     } catch (error: unknown) {
-      console.error("API Error:", error);
+      Logger.error("API Error", error);
 
       if (error instanceof ZodError) {
         return NextResponse.json(
@@ -54,10 +91,7 @@ export function withAuth(handler: ApiHandler) {
       }
 
       return NextResponse.json(
-        {
-          error:
-            error instanceof Error ? error.message : "Internal Server Error",
-        },
+        { error: "Internal Server Error" },
         { status: 500 },
       );
     }

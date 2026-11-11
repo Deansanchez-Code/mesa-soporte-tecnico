@@ -92,8 +92,8 @@ export default function Ambiente107ApprovalModal({
 
   useEffect(() => {
     if (userEmail) {
-      setDetectedEmail(userEmail);
-      return;
+      const t = setTimeout(() => setDetectedEmail(userEmail), 0);
+      return () => clearTimeout(t);
     }
     // Fallback: detectar usuario autenticado client-side si la prop llegó vacía
     supabase.auth.getUser().then(({ data }) => {

@@ -1,30 +1,20 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse, NextRequest } from "next/server";
 import { z, ZodError } from "zod";
 import { forbidden, verifyUserPermissions } from "@/lib/auth-check";
 import { withAuth, AuthenticatedContext } from "@/lib/api-middleware";
-
-// Initialize Supabase Admin Client
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  },
-);
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import Logger from "@/lib/logger";
 
 const AssignmentSchema = z.object({
   instructor_id: z.string().uuid(),
-  area_id: z.number().int(),
+  area_id: z.number().int().positive(),
   dates: z
     .array(
       z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format YYYY-MM-DD"),
     )
-    .min(1),
-  time_block: z.enum(["MANANA", "TARDE", "NOCHE"]).or(z.string()),
+    .min(1)
+    .max(90),
+  time_block: z.enum(["MANANA", "TARDE", "NOCHE"]),
 });
 
 async function createAssignmentsHandler(
@@ -40,6 +30,7 @@ async function createAssignmentsHandler(
     );
     if (!canManage) return forbidden("No permission to manage assignments");
 
+    const supabaseAdmin = getSupabaseAdmin();
     const body = await request.json();
     const validatedData = AssignmentSchema.parse(body);
 
@@ -56,7 +47,7 @@ async function createAssignmentsHandler(
     if (checkError) throw checkError;
 
     if (existing && existing.length > 0) {
-      console.warn("[API/Assignments] Conflict detected for dates:", existing);
+      Logger.warn("[API/Assignments] Conflict detected", { area_id });
       return NextResponse.json(
         {
           error: `Conflicto: Ya existen asignaciones en este horario para ${existing.length} de las fechas seleccionadas.`,
@@ -82,14 +73,12 @@ async function createAssignmentsHandler(
 
     return NextResponse.json({ success: true, count: payload.length });
   } catch (error: unknown) {
-    console.error("Server error:", error);
-    // withAuth handles ZodError automatically.
-    // For other errors, we throw or return 500.
+    Logger.error("Assignments create error", error);
     if (error instanceof ZodError) {
-      throw error; // Let withAuth handle ZodError
+      throw error;
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown Error" },
+      { error: "Error interno creando asignaciones" },
       { status: 500 },
     );
   }

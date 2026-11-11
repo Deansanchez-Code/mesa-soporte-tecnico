@@ -1,6 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/env";
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
+
+const ALLOWED_PERMISSION_COLUMNS = new Set([
+  "perm_manage_assignments",
+  "perm_create_assets",
+  "perm_transfer_assets",
+  "perm_decommission_assets",
+]);
 
 // Helper to create a response with a JSON error
 export function unauthorized(message = "Unauthorized") {
@@ -12,80 +21,107 @@ export function forbidden(message = "Forbidden") {
 }
 
 /**
- * Validates that the request has a valid Supabase session.
+ * Validates that the request has a valid Supabase session (Bearer token or SSR cookie).
  * Returns the user object if valid, or null if invalid.
- * NOTE: This relies on the Authorization header (Bearer token) passed from the client.
  */
 export async function getUserFromRequest(req: NextRequest) {
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return null;
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    if (token) {
+      const supabase = createClient(
+        env.NEXT_PUBLIC_SUPABASE_URL,
+        env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      );
 
-  const token = authHeader.replace("Bearer ", "");
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser(token);
 
-  // Verify token using a fresh client or just getUser which verifies the JWT signature
-  // We use a clean client to ensure we aren't using the Admin Service Role for verification
-  const supabase = createClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
+      if (!error && user) {
+        return user;
+      }
+    }
+  }
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(token);
-
-  if (error || !user) {
+  try {
+    const ssrClient = await createServerClient();
+    const {
+      data: { user },
+      error,
+    } = await ssrClient.auth.getUser();
+    if (!error && user) return user;
+  } catch {
     return null;
   }
 
-  return user;
+  return null;
 }
 
 /**
- * Checks if the user has one of the allowed roles OR specific permissions.
+ * Checks if the active user has one of the allowed roles OR specific permissions.
  */
 export async function verifyUserPermissions(
   userId: string,
   requiredRoles: string[] = [],
   requiredPermissionColumn?: string,
 ) {
-  // We need the admin client to check public.users permissions reliably
-  // (since RLS might restrict what a user can see about themselves if not careful, though usually they can see self)
+  if (!isValidUuid(userId) || !env.SUPABASE_SERVICE_ROLE_KEY) {
+    return false;
+  }
+
+  const safePermCol =
+    requiredPermissionColumn &&
+    ALLOWED_PERMISSION_COLUMNS.has(requiredPermissionColumn)
+      ? requiredPermissionColumn
+      : undefined;
+
   const supabaseAdmin = createClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY || "",
+    env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    },
   );
 
-  const query = supabaseAdmin
+  const selectColumns = safePermCol
+    ? `role, job_category, username, is_vip, is_active, ${safePermCol}`
+    : "role, job_category, username, is_vip, is_active";
+
+  const { data, error } = await supabaseAdmin
     .from("users")
-    .select(
-      `role, job_category, username, is_vip, ${requiredPermissionColumn || "id"}`,
-    )
-    .or(`auth_id.eq.${userId},id.eq.${userId}`)
+    .select(selectColumns)
+    .or(buildUserIdOrFilter(userId))
     .maybeSingle();
 
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const { data, error } = await query;
-  const userProfile = data as any;
+  const userProfile = data as Record<string, unknown> | null;
 
   if (error || !userProfile) return false;
+  // ISO 27001 A.5.18: Usuarios desactivados no conservan privilegios
+  if (userProfile.is_active === false) return false;
 
   // 1. Check Role
-  const roleLower = (userProfile.role || "").toLowerCase();
+  const roleLower = String(userProfile.role || "").toLowerCase();
   if (requiredRoles.some((r) => r.toLowerCase() === roleLower)) return true;
 
-  // 2. Check Permission Column (if provided)
-  // Dynamic access: userProfile['perm_manage_assignments']
-  if (requiredPermissionColumn) {
-    if ((userProfile as any)[requiredPermissionColumn] === true) return true;
+  // 2. Check Permission Column (allowlisted)
+  if (safePermCol) {
+    if (userProfile[safePermCol] === true) return true;
 
     // Coordinators also have assignment management privileges
-    if (requiredPermissionColumn === "perm_manage_assignments") {
-      const jobCat = (userProfile.job_category || "").toLowerCase();
-      const uname = (userProfile.username || "").toLowerCase().trim();
+    if (safePermCol === "perm_manage_assignments") {
+      const jobCat = String(userProfile.job_category || "").toLowerCase();
+      const uname = String(userProfile.username || "")
+        .toLowerCase()
+        .trim();
       if (
         jobCat === "coordinador" ||
         roleLower === "coordinator" ||
+        Boolean(userProfile.is_vip) ||
         ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].includes(
           uname,
         )

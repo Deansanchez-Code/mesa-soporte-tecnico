@@ -57,15 +57,32 @@ export default function AssetActionModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) return toast.error("Debes adjuntar el soporte de autorización.");
+    const allowedMimes = [
+      "application/pdf",
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+    ];
+    if (!allowedMimes.includes(file.type)) {
+      return toast.error("Solo se permiten archivos PDF, JPG o PNG.");
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return toast.error("El archivo supera el tamaño máximo de 10MB.");
+    }
     if (action === "TRANSFER" && !targetUserId)
       return toast.error("Debes seleccionar el nuevo responsable.");
 
     setLoading(true);
 
     try {
-      // 1. Subir archivo (Mantenemos esto en cliente por ahora)
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${asset.serial_number}_${Date.now()}.${fileExt}`;
+      // 1. Subir archivo con extensión validada y nombre aleatorio seguro
+      const safeExt =
+        file.type === "application/pdf"
+          ? "pdf"
+          : file.type === "image/png"
+            ? "png"
+            : "jpg";
+      const fileName = `${crypto.randomUUID()}_${Date.now()}.${safeExt}`;
       const filePath = `${action.toLowerCase()}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage

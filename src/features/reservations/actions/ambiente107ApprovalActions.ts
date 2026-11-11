@@ -64,14 +64,22 @@ async function verifyAmbiente107Coordinator(spaceId?: string | number) {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
 
-  const email = (user.email || "").toLowerCase();
-  const username = (
-    (user.user_metadata?.username as string) || ""
-  ).toLowerCase();
-  const role = (user.user_metadata?.role || "").toLowerCase();
-  const jobCategory = (
-    (user.user_metadata?.job_category as string) || ""
-  ).toLowerCase();
+  // ISO 27001 A.8.2: Autorización únicamente desde tabla autoritativa en DB (nunca user_metadata)
+  const supabaseAdmin = getSupabaseAdmin();
+  const { data: publicUser } = await supabaseAdmin
+    .from("users")
+    .select("username, email, role, job_category, is_active")
+    .eq("auth_id", user.id)
+    .maybeSingle();
+
+  if (!publicUser || publicUser.is_active === false) {
+    throw new Error("Usuario inactivo o no autorizado");
+  }
+
+  const email = (publicUser.email || user.email || "").toLowerCase();
+  const username = (publicUser.username || "").toLowerCase().trim();
+  const role = (publicUser.role || "").toLowerCase();
+  const jobCategory = (publicUser.job_category || "").toLowerCase();
 
   if (
     role === "admin" ||

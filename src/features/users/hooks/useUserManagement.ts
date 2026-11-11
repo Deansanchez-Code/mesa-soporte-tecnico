@@ -57,9 +57,13 @@ export function useUserManagement(onRefresh: () => void) {
   const handleCreateOrUpdateUser = async () => {
     let passwordToSave = newAgent.password;
 
-    // Si es usuario de planta y no puso clave, asignar por defecto
-    if (newAgent.role === "user" && !passwordToSave) {
-      passwordToSave = "Sena2024*";
+    // Para usuarios Kiosko sin contraseña ingresada, generar secreto aleatorio fuerte (el acceso se realiza vía OTP)
+    if (newAgent.role === "user" && !passwordToSave && !newAgent.isEditing) {
+      const bytes = new Uint8Array(18);
+      window.crypto.getRandomValues(bytes);
+      passwordToSave = Array.from(bytes, (b) => b.toString(36).padStart(2, "0"))
+        .join("")
+        .slice(0, 20);
     }
 
     if (

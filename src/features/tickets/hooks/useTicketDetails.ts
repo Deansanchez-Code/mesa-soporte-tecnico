@@ -84,7 +84,10 @@ export function useTicketDetails({
   }, [ticket.id]);
 
   useEffect(() => {
-    fetchDetails();
+    const t = setTimeout(() => {
+      void fetchDetails();
+    }, 0);
+    return () => clearTimeout(t);
   }, [ticket.id, fetchDetails]);
 
   // Handle Pause
@@ -239,9 +242,7 @@ export function useTicketDetails({
       })),
       {
         type: "creation" as const,
-        date: ticket.created_at
-          ? new Date(ticket.created_at).getTime()
-          : Date.now(),
+        date: ticket.created_at ? new Date(ticket.created_at).getTime() : 0,
         displayDate: ticket.created_at
           ? new Date(ticket.created_at).toLocaleString()
           : "Sin fecha",

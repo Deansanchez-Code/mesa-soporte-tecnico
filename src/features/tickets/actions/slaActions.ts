@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
 import {
   handleActionError,
   createActionResponse,
@@ -13,6 +14,12 @@ import { SlaService } from "../services/sla.service";
  */
 export async function checkAndActivateTicketsAction() {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("No autenticado");
+
     const activatedCount = await SlaService.activatePendingTickets();
 
     if (activatedCount > 0) {

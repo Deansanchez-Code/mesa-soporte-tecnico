@@ -73,7 +73,10 @@ export default function TicketHistory() {
   }, [startDate, endDate, statusFilter, searchQuery]);
 
   useEffect(() => {
-    fetchHistory();
+    const t = setTimeout(() => {
+      void fetchHistory();
+    }, 0);
+    return () => clearTimeout(t);
   }, [fetchHistory]);
 
   const downloadReport = () => {

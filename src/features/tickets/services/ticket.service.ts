@@ -4,6 +4,7 @@ import { AssignmentService } from "./assignment.service";
 import { SlaService } from "./sla.service";
 import Logger from "@/lib/logger";
 import { Database } from "@/app/admin/types";
+import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
 
 type TicketRow = Database["public"]["Tables"]["tickets"]["Row"];
 type UserRow = Database["public"]["Tables"]["users"]["Row"];
@@ -27,15 +28,35 @@ export class TicketService {
   static async createTicket(input: CreateTicketInput, authUserId: string) {
     const supabase = await createClient();
 
-    // 1. Obtener perfil de usuario (para verificar VIP)
-    // El ticket puede ser creado "a nombre de" otro usuario (input.user_id) si es admin
-    const targetUserId = input.user_id || authUserId;
+    // 1. Obtener perfil de creador y verificar si tiene privilegios para delegar tickets
+    const { data: creatorUser } = await supabase
+      .from("users")
+      .select("id, role, is_vip, job_category, username, is_active")
+      .or(buildUserIdOrFilter(authUserId))
+      .maybeSingle();
 
-    // Verificar existencia y perfil VIP del usuario objetivo (soportando tanto auth_id como id público)
+    if (creatorUser?.is_active === false) {
+      throw new Error("Usuario inactivo");
+    }
+
+    const creatorRole = String(creatorUser?.role || "").toLowerCase();
+    const canImpersonate =
+      ["admin", "superadmin", "agent", "vip", "coordinator"].includes(
+        creatorRole,
+      ) ||
+      !!creatorUser?.is_vip ||
+      creatorUser?.job_category?.toLowerCase() === "coordinador";
+
+    const targetUserId =
+      canImpersonate && input.user_id && isValidUuid(input.user_id)
+        ? input.user_id
+        : authUserId;
+
+    // Verificar existencia y perfil VIP del usuario objetivo
     const { data: publicUser, error: userError } = await supabase
       .from("users")
       .select("id, is_vip, auth_id, job_category, username")
-      .or(`auth_id.eq.${targetUserId},id.eq.${targetUserId}`)
+      .or(buildUserIdOrFilter(targetUserId))
       .maybeSingle();
 
     if (userError || !publicUser) {

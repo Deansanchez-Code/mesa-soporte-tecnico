@@ -60,7 +60,10 @@ export default function ArticleDetailPage({
   };
 
   useEffect(() => {
-    fetchArticle();
+    const t = setTimeout(() => {
+      void fetchArticle();
+    }, 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 

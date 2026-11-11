@@ -156,9 +156,11 @@ export default function UserRequestForm({
 
   // Sincronizar con la prop currentView
   useEffect(() => {
-    if (currentView && currentView !== view) {
+    if (!currentView || currentView === view) return;
+    const t = setTimeout(() => {
       setView(currentView);
-    }
+    }, 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentView]);
 

@@ -72,21 +72,30 @@ export default function AssignmentManager({
   const [savingAssignmentEdit, setSavingAssignmentEdit] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     if (editingRes && !editingRes.is_reservation) {
-      setEditInstructorId(editingRes.instructor_id || editingRes.user_id || "");
-      setEditAssignmentDate(editingRes.assignment_date);
-      setEditTimeBlock((editingRes.time_block as TimeBlock) || "MANANA");
-      setEditUserSearch("");
+      Promise.resolve().then(() => {
+        if (cancelled) return;
+        setEditInstructorId(
+          editingRes.instructor_id || editingRes.user_id || "",
+        );
+        setEditAssignmentDate(editingRes.assignment_date);
+        setEditTimeBlock((editingRes.time_block as TimeBlock) || "MANANA");
+        setEditUserSearch("");
+      });
       if (assignableUsers.length === 0) {
         supabase.auth.getSession().then(({ data }) => {
           getAssignableUsersAction(data.session?.access_token).then((res) => {
-            if (res.success && res.users) {
+            if (!cancelled && res.success && res.users) {
               setAssignableUsers(res.users);
             }
           });
         });
       }
     }
+    return () => {
+      cancelled = true;
+    };
   }, [editingRes, assignableUsers.length]);
 
   const [selectedDateForCreate, setSelectedDateForCreate] = useState<
@@ -230,7 +239,10 @@ export default function AssignmentManager({
   };
 
   useEffect(() => {
-    fetchEnvironments();
+    const t = setTimeout(() => {
+      void fetchEnvironments();
+    }, 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

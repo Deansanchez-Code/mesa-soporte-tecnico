@@ -12,7 +12,12 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function seedSuperAdmin() {
   const username = "deansan"; // Lowercase for consistency
-  const password = "80854269***"; // As requested
+  const password = process.env.SUPERADMIN_INITIAL_PASSWORD;
+  if (!password) {
+    throw new Error(
+      "Define SUPERADMIN_INITIAL_PASSWORD en el entorno antes de ejecutar este script.",
+    );
+  }
   const fullName = "Ing. Deivis Andres Sanchez H.";
   const role = "admin";
   const area = "Dirección TIC"; // Assuming an area

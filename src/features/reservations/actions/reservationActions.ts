@@ -21,6 +21,7 @@ import {
   SpaceMaintenanceConfig,
 } from "../types";
 import Logger from "@/lib/logger";
+import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
 
 function hasValidDescription(desc: string | null | undefined): boolean {
   if (!desc) return false;
@@ -832,11 +833,13 @@ export async function createReservationAction(
 
     // 5. Insert (use adminSupabase so assigned user_id is always respected and joined properly)
     const adminSupabase = getSupabaseAdmin();
-    const { data: targetOwner } = await adminSupabase
-      .from("users")
-      .select("id")
-      .or(`id.eq.${user_id},auth_id.eq.${user_id}`)
-      .maybeSingle();
+    const { data: targetOwner } = isValidUuid(user_id)
+      ? await adminSupabase
+          .from("users")
+          .select("id")
+          .or(buildUserIdOrFilter(user_id))
+          .maybeSingle()
+      : { data: null };
     const resolvedOwnerId = targetOwner?.id || user_id;
 
     const { data: result, error } = await adminSupabase
@@ -1163,11 +1166,15 @@ export async function updateReservationAction(
 
     // 5. Update (use adminSupabase so Coordinators/VIPs can edit & reassign any instructor's reservation without RLS blocking)
     const adminSupabase = getSupabaseAdmin();
-    const { data: targetOwner } = await adminSupabase
-      .from("users")
-      .select("id, full_name, email, employment_type, job_category, username")
-      .or(`id.eq.${user_id},auth_id.eq.${user_id}`)
-      .maybeSingle();
+    const { data: targetOwner } = isValidUuid(user_id)
+      ? await adminSupabase
+          .from("users")
+          .select(
+            "id, full_name, email, employment_type, job_category, username",
+          )
+          .or(buildUserIdOrFilter(user_id))
+          .maybeSingle()
+      : { data: null };
 
     const resolvedOwnerId = targetOwner?.id || user_id || existing.user_id;
 
@@ -1579,11 +1586,11 @@ export async function createReservationBatchAction(
     // Normalizar siempre el user_id al ID público en la tabla users del funcionario/instructor que queda con la reserva
     const firstTargetUserId = validReservations[0]?.user_id;
     let resolvedBatchUserId = firstTargetUserId;
-    if (firstTargetUserId) {
+    if (firstTargetUserId && isValidUuid(firstTargetUserId)) {
       const { data: resolvedOwner } = await adminSupabase
         .from("users")
         .select("id")
-        .or(`id.eq.${firstTargetUserId},auth_id.eq.${firstTargetUserId}`)
+        .or(buildUserIdOrFilter(firstTargetUserId))
         .maybeSingle();
       if (resolvedOwner?.id) {
         resolvedBatchUserId = resolvedOwner.id;
@@ -1617,13 +1624,15 @@ export async function createReservationBatchAction(
       if (result && result.length > 0) {
         const targetOwnerId =
           resolvedBatchUserId || validReservations[0].user_id;
-        const { data: userRaw } = await adminSupabase
-          .from("users")
-          .select(
-            "full_name, email, employment_type, job_category, username, id",
-          )
-          .or(`id.eq.${targetOwnerId},auth_id.eq.${targetOwnerId}`)
-          .maybeSingle();
+        const { data: userRaw } = isValidUuid(targetOwnerId)
+          ? await adminSupabase
+              .from("users")
+              .select(
+                "full_name, email, employment_type, job_category, username, id",
+              )
+              .or(buildUserIdOrFilter(targetOwnerId))
+              .maybeSingle()
+          : { data: null };
 
         if (!userRaw)
           throw new Error("Usuario no encontrado para notificación");

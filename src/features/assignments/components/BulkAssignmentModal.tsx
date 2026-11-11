@@ -53,15 +53,6 @@ export default function BulkAssignmentModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState<"FORM" | "CONFIRM">("FORM");
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchInstructors();
-      setStep("FORM");
-      setPreviewDates([]);
-      setHolidayConflict([]);
-    }
-  }, [isOpen]);
-
   const fetchInstructors = async () => {
     try {
       // Relaxed fetch: Try to get token, but proceed without it if necessary (API supports it)
@@ -102,6 +93,17 @@ export default function BulkAssignmentModal({
       toast.error("Error cargando instructores: " + msg);
     }
   };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const t = setTimeout(() => {
+      void fetchInstructors();
+      setStep("FORM");
+      setPreviewDates([]);
+      setHolidayConflict([]);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [isOpen]);
 
   const handleDayToggle = (dayIndex: number) => {
     setSelectedDays((prev) =>

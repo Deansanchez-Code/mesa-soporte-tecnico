@@ -150,29 +150,32 @@ export function useTicketRequest({
       currentAsset = suggestions.find((a) => a.serial_number === manualSerial);
     }
 
-    if (currentAsset) {
-      const type = currentAsset.type || "";
-      const normalizedType = type
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toUpperCase();
+    const t = setTimeout(() => {
+      if (currentAsset) {
+        const type = currentAsset.type || "";
+        const normalizedType = type
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toUpperCase();
 
-      if (
-        normalizedType.includes("PORTATIL") ||
-        normalizedType.includes("LAPTOP") ||
-        normalizedType.includes("TABLET") ||
-        normalizedType.includes("MOVIL")
-      ) {
-        setIsLocationLocked(false);
-      } else if (currentAsset.location) {
-        setLocation(currentAsset.location);
-        setIsLocationLocked(true);
+        if (
+          normalizedType.includes("PORTATIL") ||
+          normalizedType.includes("LAPTOP") ||
+          normalizedType.includes("TABLET") ||
+          normalizedType.includes("MOVIL")
+        ) {
+          setIsLocationLocked(false);
+        } else if (currentAsset.location) {
+          setLocation(currentAsset.location);
+          setIsLocationLocked(true);
+        } else {
+          setIsLocationLocked(false);
+        }
       } else {
         setIsLocationLocked(false);
       }
-    } else {
-      setIsLocationLocked(false);
-    }
+    }, 0);
+    return () => clearTimeout(t);
   }, [
     selectedAsset,
     isValidSerial,

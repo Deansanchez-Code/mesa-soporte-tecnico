@@ -1,27 +1,18 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse, NextRequest } from "next/server";
 import { forbidden, verifyUserPermissions } from "@/lib/auth-check";
 import { withAuth, AuthenticatedContext } from "@/lib/api-middleware";
 import { calculateBusinessMinutesBetween } from "@/lib/domain/sla-calculator";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import Logger from "@/lib/logger";
 
-// Admin client to bypass RLS for aggregate stats
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  },
-);
-
-async function metricsHandler(req: NextRequest, ctx: AuthenticatedContext) {
+async function metricsHandler(_req: NextRequest, ctx: AuthenticatedContext) {
   try {
     // 1. Authorization check
     if (!(await verifyUserPermissions(ctx.user.id, ["admin", "superadmin"]))) {
       return forbidden("Only admins can access metrics");
     }
+
+    const supabaseAdmin = getSupabaseAdmin();
 
     // 2. Fetch total count (Lightweight metadata query)
     const { count: totalTickets, error: countError } = await supabaseAdmin
@@ -88,7 +79,7 @@ async function metricsHandler(req: NextRequest, ctx: AuthenticatedContext) {
       ticketsProcessed: ticketsData.length,
     });
   } catch (error) {
-    console.error("Error generating metrics:", error);
+    Logger.error("Error generating metrics", error);
     return NextResponse.json(
       { error: "Error interno calculando métricas" },
       { status: 500 },

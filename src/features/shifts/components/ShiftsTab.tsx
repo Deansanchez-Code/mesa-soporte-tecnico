@@ -54,13 +54,15 @@ export default function ShiftsTab() {
 
   useEffect(() => {
     const saved = localStorage.getItem("admin_shift_presets");
-    if (saved) {
+    if (!saved) return;
+    const t = setTimeout(() => {
       try {
         setPresets(JSON.parse(saved));
       } catch (e) {
         console.error("Error loading presets", e);
       }
-    }
+    }, 0);
+    return () => clearTimeout(t);
   }, []);
 
   const handleSavePresets = (newPresets: typeof DEFAULT_PRESETS) => {
@@ -143,7 +145,10 @@ export default function ShiftsTab() {
 
   // --- Effects ---
   useEffect(() => {
-    fetchData();
+    const t = setTimeout(() => {
+      void fetchData();
+    }, 0);
+    return () => clearTimeout(t);
   }, [fetchData]);
 
   // --- Helpers ---

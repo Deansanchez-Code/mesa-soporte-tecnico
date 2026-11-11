@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { env } from "@/env";
 
 export async function proxy(request: NextRequest) {
   // Exclude public assets, api routes (handled internally), and static files
@@ -12,14 +13,19 @@ export async function proxy(request: NextRequest) {
   // PUBLIC API ROUTES WHITELIST
   const publicApiRoutes = [
     "/api/auth/register-contractor",
-    "/api/auth/check-user", // Added to allow login check
+    "/api/auth/kiosk-otp",
+    "/api/auth/check-user",
     "/api/auth/callback", // If you use OAuth
   ];
 
+  const isApiRoute = request.nextUrl.pathname.startsWith("/api");
   if (
     publicApiRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
   ) {
-    return NextResponse.next();
+    const publicApiRes = NextResponse.next();
+    publicApiRes.headers.set("Cache-Control", "no-store, max-age=0");
+    publicApiRes.headers.set("X-Content-Type-Options", "nosniff");
+    return publicApiRes;
   }
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
@@ -30,7 +36,12 @@ export async function proxy(request: NextRequest) {
 
   // Security Headers
   // Content Security Policy (CSP)
-  const supabaseUrl = "ukoqpikpqzffqieomaoo.supabase.co";
+  let supabaseHost = "";
+  try {
+    supabaseHost = new URL(env.NEXT_PUBLIC_SUPABASE_URL).hostname;
+  } catch {
+    supabaseHost = "*.supabase.co";
+  }
   const hashes = [
     "'sha256-OMTN3RiyGV48q7dfq7smzPajXInCCyET3nO2f/iyGm0='",
     "'sha256-IruqL+Rw2/gw9qcIEuVTtiQ6W/FT4P/h68AqpI1X5JA='",
@@ -40,15 +51,16 @@ export async function proxy(request: NextRequest) {
     "'sha256-dvlHb+QYNRGgwSS8TPAL4he8zk2xs7hu8T6IRVnmSTE='",
   ].join(" ");
 
+  const isDev = process.env.NODE_ENV === "development";
   const cspHeader = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${hashes} https: http: ${
-      process.env.NODE_ENV === "development" ? "'unsafe-eval'" : ""
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${hashes} https:${
+      isDev ? " http: 'unsafe-eval'" : ""
     }`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data: https://*.supabase.co https://*.supabase.in",
     "font-src 'self'",
-    `connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://${supabaseUrl} wss://${supabaseUrl} https://vitals.vercel-insights.com`,
+    `connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://${supabaseHost} wss://${supabaseHost} https://vitals.vercel-insights.com`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
@@ -78,6 +90,12 @@ export async function proxy(request: NextRequest) {
     contentSecurityPolicyHeaderValue,
   );
 
+  if (process.env.NODE_ENV === "production") {
+    finalResponse.headers.set(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains",
+    );
+  }
   finalResponse.headers.set("X-Content-Type-Options", "nosniff");
   finalResponse.headers.set("X-Frame-Options", "DENY");
   finalResponse.headers.set("X-XSS-Protection", "1; mode=block");
@@ -85,10 +103,14 @@ export async function proxy(request: NextRequest) {
     "Referrer-Policy",
     "strict-origin-when-cross-origin",
   );
+  finalResponse.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   finalResponse.headers.set(
     "Permissions-Policy",
     "camera=(), microphone=(), geolocation=()",
   );
+  if (isApiRoute) {
+    finalResponse.headers.set("Cache-Control", "no-store, max-age=0");
+  }
 
   return finalResponse;
 }

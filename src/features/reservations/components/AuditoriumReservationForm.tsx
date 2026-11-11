@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Calendar,
   AlertTriangle,
@@ -66,13 +66,19 @@ export default function AuditoriumReservationForm({
     initialDate && initialDate >= todayStr ? initialDate : todayStr,
   );
 
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
   // Helper para verificar si un horario en una fecha específica ya pasó
   const isPastSlot = (dateStr: string, timeStr: string) => {
     if (!dateStr || !timeStr) return false;
     const [h, m] = timeStr.split(":").map(Number);
     const [y, mon, d] = dateStr.split("-").map(Number);
     const slotDate = new Date(y, mon - 1, d, h, m, 0);
-    return slotDate.getTime() <= Date.now();
+    return slotDate.getTime() <= nowMs;
   };
 
   // Calcular hora de inicio por defecto futura si la fecha seleccionada es hoy
@@ -185,7 +191,6 @@ export default function AuditoriumReservationForm({
     finalDate: effectiveFinalDate,
   });
 
-  const [conflicts, setConflicts] = useState<Reservation[]>([]);
   const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
 
   const [spacesMaintenance, setSpacesMaintenance] = useState<
@@ -225,7 +230,8 @@ export default function AuditoriumReservationForm({
 
   useEffect(() => {
     if (user?.id && !reservationToEdit) {
-      setAssignedUserId(user.id);
+      const t = setTimeout(() => setAssignedUserId(user.id!), 0);
+      return () => clearTimeout(t);
     }
   }, [user?.id, reservationToEdit]);
 
@@ -254,14 +260,18 @@ export default function AuditoriumReservationForm({
   useEffect(() => {
     if (initialDate && !reservationToEdit) {
       const validDate = initialDate >= todayStr ? initialDate : todayStr;
-      setStartDate(validDate);
-      setFinalDate(validDate);
+      const t = setTimeout(() => {
+        setStartDate(validDate);
+        setFinalDate(validDate);
+      }, 0);
+      return () => clearTimeout(t);
     }
   }, [initialDate, reservationToEdit, todayStr]);
 
   useEffect(() => {
     if (initialSpace && !reservationToEdit) {
-      setSelectedSpace(initialSpace);
+      const t = setTimeout(() => setSelectedSpace(initialSpace), 0);
+      return () => clearTimeout(t);
     }
   }, [initialSpace, reservationToEdit]);
 
@@ -280,7 +290,8 @@ export default function AuditoriumReservationForm({
 
   // Initialize form if editing
   useEffect(() => {
-    if (reservationToEdit) {
+    if (!reservationToEdit) return;
+    const t = setTimeout(() => {
       try {
         if (!reservationToEdit.start_time || !reservationToEdit.end_time)
           return;
@@ -288,7 +299,6 @@ export default function AuditoriumReservationForm({
         const sDateObj = new Date(reservationToEdit.start_time);
         const eDateObj = new Date(reservationToEdit.end_time);
 
-        // Get local components
         const formatDate = (d: Date) => {
           const y = d.getFullYear();
           const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -324,19 +334,19 @@ export default function AuditoriumReservationForm({
       } catch (e) {
         console.error("Error parsing reservation dates:", e);
       }
-    }
+    }, 0);
+    return () => clearTimeout(t);
   }, [reservationToEdit, initialSpace]);
 
   // 2. Detectar conflictos visuales UI (Múltiples días o Semanales)
-  useEffect(() => {
-    if (isSuccess || isSubmitting) return;
+  const conflicts = useMemo<Reservation[]>(() => {
+    if (isSuccess || isSubmitting) return [];
     if (!startTime || !endTime || !startDate || targetDates.length === 0)
-      return;
+      return [];
 
     const targetDateSet = new Set(targetDates);
 
-    // Detectar conflictos en los días exactos a reservar para el ESPACIO SELECCIONADO
-    const foundConflicts = reservations.filter((r) => {
+    return reservations.filter((r) => {
       if (reservationToEdit && r.id === reservationToEdit.id) return false;
       if (String(r.auditorium_id) !== String(selectedSpace)) return false;
 
@@ -344,7 +354,6 @@ export default function AuditoriumReservationForm({
       const rEnd = new Date(r.end_time);
       const rDateStr = getLocalDateString(rStart);
 
-      // Solo si la reserva existente cae en uno de los días que estamos intentando reservar
       if (!targetDateSet.has(rDateStr)) return false;
 
       const [sH, sM] = startTime.split(":").map(Number);
@@ -355,21 +364,12 @@ export default function AuditoriumReservationForm({
       const selectedStartHours = sH + sM / 60;
       const selectedEndHours = eH + eM / 60;
 
-      const hoursOverlap =
-        selectedStartHours < rEndHours && selectedEndHours > rStartHours;
-
-      return hoursOverlap;
+      return selectedStartHours < rEndHours && selectedEndHours > rStartHours;
     });
-
-    setConflicts(foundConflicts);
   }, [
     startTime,
     endTime,
     startDate,
-    finalDate,
-    isMultiDay,
-    isWeeklyRepeat,
-    repeatWeeks,
     reservations,
     reservationToEdit,
     selectedSpace,

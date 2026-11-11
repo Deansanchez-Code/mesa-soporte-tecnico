@@ -32,7 +32,10 @@ export default function MetricsTab() {
   };
 
   useEffect(() => {
-    fetchMetrics();
+    const t = setTimeout(() => {
+      void fetchMetrics();
+    }, 0);
+    return () => clearTimeout(t);
   }, []);
 
   if (loading) {

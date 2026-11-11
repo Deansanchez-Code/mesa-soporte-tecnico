@@ -15,6 +15,7 @@ import {
 import { getSLAHours, calculateSLADueDate } from "@/lib/domain/sla-calculator";
 import { Ticket } from "@/app/admin/admin.types";
 import Logger from "@/lib/logger";
+import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
 
 export async function createTicketAction(data: CreateTicketInput) {
   try {
@@ -57,27 +58,52 @@ export async function createTicketsBatchAction(
     // 1.1 Get Creator Public User Profile
     const { data: creatorUser } = await supabase
       .from("users")
-      .select("id, is_vip, job_category, username")
-      .or(`auth_id.eq.${authUser.id},id.eq.${authUser.id}`)
+      .select(
+        "id, role, is_active, is_vip, job_category, username, perm_manage_assignments",
+      )
+      .or(buildUserIdOrFilter(authUser.id))
       .maybeSingle();
 
-    // Resolver usuario objetivo si el primer item especifica user_id distinto
+    if (creatorUser?.is_active === false) {
+      throw new Error("Usuario inactivo");
+    }
+
+    const creatorRole = String(creatorUser?.role || "").toLowerCase();
+    const creatorIsPrivileged =
+      ["admin", "superadmin", "agent", "vip", "coordinator"].includes(
+        creatorRole,
+      ) ||
+      !!creatorUser?.is_vip ||
+      !!creatorUser?.perm_manage_assignments ||
+      creatorUser?.job_category?.toLowerCase() === "coordinador" ||
+      ["nbarrerac", "egutierrezn", "emgutierrezn"].includes(
+        (creatorUser?.username || "").toLowerCase().trim(),
+      );
+
+    // ISO 27001 A.8.2: Solo personal autorizado/VIP puede generar tickets/SLA a nombre de terceros
     const requestedUserId = ticketsData[0]?.user_id;
     let targetPublicUser = creatorUser;
 
     if (
       requestedUserId &&
+      isValidUuid(requestedUserId) &&
       requestedUserId !== creatorUser?.id &&
-      requestedUserId !== authUser.id
+      requestedUserId !== authUser.id &&
+      creatorIsPrivileged
     ) {
       const { data: resolvedTarget } = await supabase
         .from("users")
         .select("id, is_vip, job_category, username")
-        .or(`id.eq.${requestedUserId},auth_id.eq.${requestedUserId}`)
+        .or(buildUserIdOrFilter(requestedUserId))
         .maybeSingle();
 
       if (resolvedTarget) {
-        targetPublicUser = resolvedTarget;
+        targetPublicUser = {
+          ...resolvedTarget,
+          role: creatorUser?.role ?? null,
+          is_active: true,
+          perm_manage_assignments: null,
+        };
       }
     }
 
@@ -94,9 +120,13 @@ export async function createTicketsBatchAction(
         (targetPublicUser?.username || "").toLowerCase().trim(),
       );
 
-    const isVip = creatorIsVip || targetIsVip;
+    const isVip = creatorIsPrivileged
+      ? creatorIsVip || targetIsVip
+      : creatorIsVip;
     const validPublicUserId =
-      targetPublicUser?.id || creatorUser?.id || authUser.id;
+      (creatorIsPrivileged ? targetPublicUser?.id : creatorUser?.id) ||
+      creatorUser?.id ||
+      authUser.id;
     const createdAt = new Date().toISOString();
 
     // 2. Prepare Batch
@@ -189,6 +219,23 @@ export async function resolveTicketAction(ticketId: number, solution: string) {
     } = await supabase.auth.getUser();
 
     if (!user) throw new Error("No autenticado");
+
+    const { data: actor } = await supabase
+      .from("users")
+      .select("role, is_active")
+      .or(buildUserIdOrFilter(user.id))
+      .maybeSingle();
+
+    const actorRole = String(actor?.role || "").toLowerCase();
+    if (
+      !actor ||
+      actor.is_active === false ||
+      !["agent", "admin", "superadmin"].includes(actorRole)
+    ) {
+      throw new Error(
+        "Acceso denegado: solo personal técnico puede resolver tickets",
+      );
+    }
 
     const result = await TicketService.resolveTicket(
       ticketId,

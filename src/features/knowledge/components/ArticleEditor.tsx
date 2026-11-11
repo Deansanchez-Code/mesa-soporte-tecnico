@@ -103,9 +103,12 @@ export default function ArticleEditor({
           toast.warning(`El archivo ${file.name} no es un PDF y será ignorado`);
           continue;
         }
+        if (file.size > 10 * 1024 * 1024) {
+          toast.warning(`El archivo ${file.name} supera el límite de 10MB`);
+          continue;
+        }
 
-        const fileExt = file.name.split(".").pop();
-        const fileName = `${Math.random()}.${fileExt}`;
+        const fileName = `${crypto.randomUUID()}.pdf`;
         const filePath = `kb/${Date.now()}_${fileName}`;
 
         const { error: uploadError } = await supabase.storage

@@ -86,9 +86,13 @@ CREATE TRIGGER on_auth_user_created
 DO $$
 DECLARE
     v_admin_email TEXT := 'deansan@sistema.local';
-    v_admin_pass TEXT := '80854269';
+    -- ISO 27001 A.5.17: Reemplazar con clave segura antes de ejecutar manualmente
+    v_admin_pass TEXT := '<REEMPLAZAR_CONTRASENA_FUERTE_ADMIN>';
     v_admin_id UUID;
 BEGIN
+    IF v_admin_pass LIKE '<REEMPLAZAR%' THEN
+        RAISE EXCEPTION 'Debes definir una contraseña segura temporal en v_admin_pass antes de ejecutar este bootstrap.';
+    END IF;
     -- Update Auth User
     UPDATE auth.users
     SET 

@@ -172,7 +172,10 @@ export function useAssignments({
   }, [areaId, areaName, startStr, endStr]);
 
   useEffect(() => {
-    fetchAssignments();
+    const t = setTimeout(() => {
+      void fetchAssignments();
+    }, 0);
+    return () => clearTimeout(t);
   }, [fetchAssignments]);
 
   const deleteAssignment = useCallback(

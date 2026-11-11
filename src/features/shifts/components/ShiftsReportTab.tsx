@@ -101,7 +101,10 @@ export default function ShiftsReportTab() {
   }, [selectedUser, startDate, endDate]);
 
   useEffect(() => {
-    fetchSessions();
+    const t = setTimeout(() => {
+      void fetchSessions();
+    }, 0);
+    return () => clearTimeout(t);
   }, [fetchSessions]);
 
   const formatDuration = (start: string, end?: string) => {

@@ -15,6 +15,7 @@ import UserRequestForm from "@/features/requests/components/UserRequestForm";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUserNotifications } from "@/hooks/useUserNotifications";
+import { buildUserIdOrFilter } from "@/lib/security";
 
 interface UserData {
   id: string;
@@ -30,13 +31,22 @@ function HomeContent() {
   const router = useRouter();
   // Estados de Vista
   const [viewState, setViewState] = useState<
-    "login" | "contractor" | "request"
+    "login" | "contractor" | "otp" | "request"
   >("login");
 
-  // Estados Login Corporativo
+  // Estados Login Corporativo y OTP
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState(false);
+  const [loginErrorMessage, setLoginErrorMessage] = useState("");
+  const [otpUsername, setOtpUsername] = useState("");
+  const [otpMaskedEmail, setOtpMaskedEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [otpReturnView, setOtpReturnView] = useState<"login" | "contractor">(
+    "login",
+  );
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // Estados Registro Contratista
   const [contractorName, setContractorName] = useState("");
@@ -68,42 +78,36 @@ function HomeContent() {
 
     const checkSession = async () => {
       const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.user) {
-        const role = session.user.user_metadata?.role;
-        if (role === "admin" || role === "superadmin") {
-          router.push("/dashboard");
-        } else if (session.user.user_metadata) {
-          // Consultar datos frescos de la base de datos para asegurar nombre y permisos correctos
-          const { data: dbUser } = await supabase
-            .from("users")
-            .select(
-              "id, username, full_name, role, area, employment_type, job_category, is_vip, perm_manage_assignments, email",
-            )
-            .or(`auth_id.eq.${session.user.id},id.eq.${session.user.id}`)
-            .maybeSingle();
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      if (authUser) {
+        const { data: dbUser } = await supabase
+          .from("users")
+          .select(
+            "id, username, full_name, role, area, employment_type, job_category, is_vip, perm_manage_assignments, email",
+          )
+          .or(buildUserIdOrFilter(authUser.id))
+          .maybeSingle();
 
-          const user = {
-            id: dbUser?.id || session.user.id, // Preferir ID de DB pública si existe (para FKs)
-            username: dbUser?.username || session.user.user_metadata.username,
-            full_name:
-              dbUser?.full_name || session.user.user_metadata.full_name, // Prioridad DB
-            role: dbUser?.role || session.user.user_metadata.role,
-            area: dbUser?.area || session.user.user_metadata.area,
-            employment_type:
-              dbUser?.employment_type ||
-              session.user.user_metadata.employment_type,
-            job_category:
-              dbUser?.job_category || session.user.user_metadata.job_category,
-            is_vip:
-              dbUser?.is_vip ?? Boolean(session.user.user_metadata.is_vip),
-            perm_manage_assignments:
-              dbUser?.perm_manage_assignments ??
-              Boolean(session.user.user_metadata.perm_manage_assignments),
-            email: dbUser?.email || session.user.email,
-          };
-          setUserData(user as UserData);
+        const authoritativeRole = dbUser?.role || "user";
+        if (
+          authoritativeRole === "admin" ||
+          authoritativeRole === "superadmin"
+        ) {
+          router.push("/dashboard");
+        } else if (dbUser) {
+          setUserData({
+            id: dbUser.id,
+            username: dbUser.username,
+            full_name: dbUser.full_name || dbUser.username,
+            role: authoritativeRole,
+            area: dbUser.area || "",
+            employment_type: dbUser.employment_type,
+            job_category: dbUser.job_category,
+            is_vip: !!dbUser.is_vip,
+            perm_manage_assignments: !!dbUser.perm_manage_assignments,
+            email: dbUser.email || authUser.email,
+          });
           setViewState("request");
         }
       }
@@ -112,6 +116,12 @@ function HomeContent() {
     fetchAreas();
     checkSession();
   }, [router]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((prev) => prev - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   // Estado para controlar el ancho del contenedor según la vista interna del formulario
   const [requestView, setRequestView] = useState<
@@ -168,69 +178,98 @@ function HomeContent() {
     }
   }, [viewState, requestView]);
 
-  // --- LOGIN CORPORATIVO ---
+  const requestOtpForUser = async (
+    targetUsername: string,
+    returnView: "login" | "contractor",
+  ) => {
+    const res = await fetch("/api/auth/kiosk-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "request", username: targetUsername }),
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+      return {
+        ok: false as const,
+        status: res.status,
+        error: payload.error || "No fue posible enviar código de acceso.",
+      };
+    }
+    setOtpUsername(targetUsername);
+    setOtpMaskedEmail(payload.maskedEmail || "correo registrado");
+    setOtpCode("");
+    setOtpError("");
+    setOtpReturnView(returnView);
+    setResendCooldown(30);
+    setViewState("otp");
+    return { ok: true as const };
+  };
+
+  // --- LOGIN CORPORATIVO (CON VERIFICACIÓN OTP AL CORREO) ---
   const handleCorporateLogin = async () => {
     if (!username) return;
     setLoading(true);
     setLoginError(false);
+    setLoginErrorMessage("");
 
     try {
       const cleanUsername = username.split("@")[0].toLowerCase().trim();
-      const res = await fetch("/api/auth/check-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: cleanUsername }),
-      });
-      const { user } = await res.json();
-
-      if (user && (user.role === "admin" || user.role === "superadmin")) {
-        setLoading(false);
-        alert(
-          "Los administradores deben usar su cuenta de funcionario o instructor para reportar casos.",
-        );
-        return;
-      }
-
-      setLoading(false);
-
-      if (user) {
-        // --- INICIO SILENT LOGIN ---
-        const cleanUsername = user.username.toLowerCase().trim();
-        const syntheticEmail = `${cleanUsername}@sistema.local`.toLowerCase();
-
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: syntheticEmail,
-          password: "Sena2024*",
-        });
-
-        if (authError) {
-          console.error("Silent Login Error:", authError.message);
-          // Si es un error de credenciales, avisar que se está sincronizando
-          if (authError.message.includes("Invalid login credentials")) {
-            alert(
-              "Sincronizando acceso... Por favor presiona CONTINUAR una vez más.",
-            );
-          } else {
-            alert(`Error de acceso: ${authError.message}`);
-          }
-          setLoading(false);
-          return;
-        }
-        // --- FIN SILENT LOGIN ---
-
-        const currentSyntheticEmail = syntheticEmail;
-        setUserData({
-          ...user,
-          email: user.email || currentSyntheticEmail,
-        });
-        setViewState("request");
-      } else {
+      const otpReq = await requestOtpForUser(cleanUsername, "login");
+      if (!otpReq.ok) {
         setLoginError(true);
+        setLoginErrorMessage(otpReq.error);
       }
     } catch (e) {
       console.error("Login check failed:", e);
-      setLoading(false);
       setLoginError(true);
+      setLoginErrorMessage("Error de conexión verificando el usuario.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- VERIFICACIÓN DE CÓDIGO OTP ---
+  const handleVerifyOtp = async () => {
+    if (!otpUsername || otpCode.trim().length !== 6) {
+      setOtpError("Ingresa el código de 6 dígitos enviado a tu correo.");
+      return;
+    }
+    setLoading(true);
+    setOtpError("");
+
+    try {
+      const res = await fetch("/api/auth/kiosk-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "verify",
+          username: otpUsername,
+          code: otpCode.trim(),
+        }),
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload.session || !payload.user) {
+        setOtpError(payload.error || "Código inválido o expirado.");
+        return;
+      }
+
+      const { error: setSessionErr } = await supabase.auth.setSession({
+        access_token: payload.session.access_token,
+        refresh_token: payload.session.refresh_token,
+      });
+
+      if (setSessionErr) {
+        setOtpError("Error estableciendo sesión segura.");
+        return;
+      }
+
+      setUserData(payload.user as UserData);
+      setViewState("request");
+    } catch (err) {
+      console.error("OTP verify failed:", err);
+      setOtpError("Error de conexión validando el código.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -262,105 +301,58 @@ function HomeContent() {
     }
 
     try {
-      // 1. Buscar si ya existe
-      const checkRes = await fetch("/api/auth/check-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: derivedUsername }),
-      });
-      const { user: existingUser } = await checkRes.json();
-
-      if (existingUser) {
-        // --- INICIO SILENT LOGIN ---
-        const cleanUsername = existingUser.username.toLowerCase().trim();
-        const syntheticEmail = `${cleanUsername}@sistema.local`;
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: syntheticEmail,
-          password: "Sena2024*",
-        });
-
-        if (authError) {
-          console.error("Silent Login Error (Existing Contractor):", authError);
-          alert("Error de autenticación como contratista. Intenta nuevamente.");
-          setLoading(false);
-          return;
-        }
-        // ---------------------------
-
-        const currentSynthetic = syntheticEmail;
-        setUserData({
-          ...existingUser,
-          email: existingUser.email || currentSynthetic,
-        });
-        setViewState("request");
-      } else {
-        // 2. Crear
-        // Mapping UI state to backend fields:
-        // contractorArea state: "Instructor" -> Instructor
-        // contractorArea state: "Contratista" -> Funcionario (per button label)
-
-        // Bloquear @sena.edu.co DE NUEVO por seguridad
-        if (contractorEmail.toLowerCase().endsWith("@sena.edu.co")) {
-          alert(
-            "Los correos @sena.edu.co deben ingresar por el 'Ingreso Corporativo'.",
-          );
-          setLoading(false);
-          return;
-        }
-
-        const isInstructor = contractorArea === "Instructor";
-        const jobCategory = isInstructor ? "instructor" : "funcionario";
-
-        const createRes = await fetch("/api/auth/register-contractor", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username: derivedUsername,
-            full_name: contractorName,
-            email: contractorEmail,
-            role: "contractor", // Role strictly enforced as contractor
-            job_category: jobCategory,
-            employment_type: "contratista", // ALWAYS contratista from portal
-            area: finalArea,
-            location: finalArea,
-          }),
-        });
-
-        const { user: newUser, error: createError } = await createRes.json();
-
-        if (createError) throw new Error(createError);
-
-        // --- INICIO SILENT LOGIN (NUEVO USUARIO) ---
-        if (newUser) {
-          const cleanUsername = newUser.username.toLowerCase().trim();
-          const newSyntheticEmail = `${cleanUsername}@sistema.local`;
-          const { error: authError } = await supabase.auth.signInWithPassword({
-            email: newSyntheticEmail,
-            password: "Sena2024*",
-          });
-
-          if (authError) {
-            console.error("Silent Login Error (New Contractor):", authError);
-            alert(
-              "Usuario creado pero no se pudo iniciar sesión automáticamente. Por favor recarga e intenta de nuevo.",
-            );
-            setLoading(false);
-            return;
-          }
-
-          setUserData({
-            ...newUser,
-            email: newUser.email || newSyntheticEmail,
-          });
-          setViewState("request");
-        }
+      // 1. Intentar enviar OTP si el usuario ya existe
+      const existingOtp = await requestOtpForUser(
+        derivedUsername,
+        "contractor",
+      );
+      if (existingOtp.ok) {
+        return;
       }
 
-      setViewState("request");
+      if (existingOtp.status !== 404) {
+        alert(existingOtp.error);
+        return;
+      }
+
+      // 2. Registrar nuevo contratista y enviar OTP al correo para confirmar titularidad
+      const isInstructor = contractorArea === "Instructor";
+      const jobCategory = isInstructor ? "instructor" : "funcionario";
+
+      const createRes = await fetch("/api/auth/register-contractor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: derivedUsername,
+          full_name: contractorName,
+          email: contractorEmail,
+          role: "contractor",
+          job_category: jobCategory,
+          employment_type: "contratista",
+          area: finalArea,
+        }),
+      });
+
+      const { user: newUser, error: createError } = await createRes.json();
+      if (!createRes.ok || createError) {
+        throw new Error(createError || "No se pudo completar el registro");
+      }
+
+      if (newUser) {
+        const otpReq = await requestOtpForUser(
+          newUser.username.toLowerCase().trim(),
+          "contractor",
+        );
+        if (!otpReq.ok) {
+          alert(otpReq.error);
+        }
+      }
     } catch (error) {
       console.error("Error en registro de contratista:", error);
       alert(
-        "Error al procesar el ingreso. Verifica tus datos o intenta nuevamente.",
+        error instanceof Error
+          ? error.message
+          : "Error al procesar el ingreso. Verifica tus datos o intenta nuevamente.",
       );
     } finally {
       setLoading(false);
@@ -450,7 +442,7 @@ function HomeContent() {
                 />
                 {loginError && (
                   <p className="text-xs text-red-500 font-medium ml-1">
-                    Usuario no encontrado.
+                    {loginErrorMessage || "Usuario no encontrado."}
                   </p>
                 )}
               </div>
@@ -594,6 +586,89 @@ function HomeContent() {
               >
                 Volver al inicio
               </button>
+            </div>
+          )}
+
+          {/* --- VISTA 2.5: VERIFICACIÓN CÓDIGO OTP --- */}
+          {viewState === "otp" && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
+              <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl text-xs text-emerald-900">
+                <p className="font-bold">Código de verificación enviado</p>
+                <p className="mt-1 text-emerald-800">
+                  Enviamos un código de 6 dígitos a{" "}
+                  <strong>{otpMaskedEmail}</strong> para confirmar tu identidad.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-600 ml-1">
+                  Código de 6 dígitos
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={otpCode}
+                  onChange={(e) =>
+                    setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-green outline-none text-center text-2xl font-mono tracking-[0.4em]"
+                />
+                {otpError && (
+                  <p className="text-xs text-red-600 font-medium ml-1">
+                    {otpError}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleVerifyOtp}
+                disabled={loading || otpCode.length !== 6}
+                className="w-full bg-sena-green hover:bg-[#2d8500] text-white py-3 rounded-lg font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Verificando...
+                  </>
+                ) : (
+                  <>
+                    VERIFICAR E INGRESAR
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center justify-between text-xs pt-1">
+                <button
+                  type="button"
+                  disabled={loading || resendCooldown > 0}
+                  onClick={async () => {
+                    setLoading(true);
+                    await requestOtpForUser(otpUsername, otpReturnView);
+                    setLoading(false);
+                  }}
+                  className="text-sena-blue font-semibold hover:underline disabled:text-gray-400"
+                >
+                  {resendCooldown > 0
+                    ? `Reenviar en ${resendCooldown}s`
+                    : "Reenviar código"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtpCode("");
+                    setOtpError("");
+                    setViewState(otpReturnView);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  Cambiar usuario
+                </button>
+              </div>
             </div>
           )}
 

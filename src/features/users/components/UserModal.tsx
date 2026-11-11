@@ -85,8 +85,9 @@ export default function UserModal({
                 Contraseña
               </label>
               {newAgent.role === "user" ? (
-                <div className="p-2 bg-gray-100 text-gray-500 rounded-lg text-sm italic border border-gray-200">
-                  No requiere (Default: Sena2024*)
+                <div className="p-2 bg-gray-100 text-gray-600 rounded-lg text-xs italic border border-gray-200">
+                  Acceso seguro mediante código OTP al correo institucional
+                  (clave interna aleatoria).
                 </div>
               ) : (
                 <div className="relative">

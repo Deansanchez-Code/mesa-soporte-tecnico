@@ -1,26 +1,92 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse, NextRequest } from "next/server";
+import { z } from "zod";
 import { forbidden, verifyUserPermissions } from "@/lib/auth-check";
 import { withAuth, AuthenticatedContext } from "@/lib/api-middleware";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { buildUserIdOrFilter, UUID_SCHEMA } from "@/lib/security";
+import Logger from "@/lib/logger";
 
-// Initialize Supabase Admin Client
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  },
-);
+const USER_PUBLIC_COLUMNS =
+  "id, auth_id, full_name, username, email, role, area, employment_type, job_category, is_active, is_vip, perm_create_assets, perm_transfer_assets, perm_decommission_assets, perm_manage_assignments, created_at, updated_at";
 
-// HELPER: Integrated Authorization Check
+const CreateUserSchema = z.object({
+  email: z.string().trim().email("Correo inválido"),
+  password: z
+    .string()
+    .min(8, "La contraseña debe tener mínimo 8 caracteres")
+    .max(128),
+  full_name: z.string().trim().min(2).max(120).optional(),
+  fullName: z.string().trim().min(2).max(120).optional(),
+  role: z
+    .enum([
+      "user",
+      "agent",
+      "admin",
+      "superadmin",
+      "vip",
+      "coordinator",
+      "instructor",
+      "contractor",
+      "staff",
+    ])
+    .optional(),
+  area: z.string().trim().max(120).nullable().optional(),
+  employment_type: z.string().trim().max(60).optional(),
+  job_category: z.string().trim().max(60).optional(),
+  username: z.string().trim().max(80).optional(),
+  is_vip: z.boolean().optional(),
+  perm_manage_assignments: z.boolean().optional(),
+  perm_create_assets: z.boolean().optional(),
+  perm_transfer_assets: z.boolean().optional(),
+  perm_decommission_assets: z.boolean().optional(),
+});
+
+const UpdateUserSchema = z.object({
+  id: UUID_SCHEMA,
+  email: z.string().trim().email().optional(),
+  password: z
+    .string()
+    .min(8, "La contraseña debe tener mínimo 8 caracteres")
+    .max(128)
+    .optional()
+    .or(z.literal("")),
+  full_name: z.string().trim().min(2).max(120).optional(),
+  username: z.string().trim().max(80).optional(),
+  role: z
+    .enum([
+      "user",
+      "agent",
+      "admin",
+      "superadmin",
+      "vip",
+      "coordinator",
+      "instructor",
+      "contractor",
+      "staff",
+    ])
+    .optional(),
+  area: z.string().trim().max(120).nullable().optional(),
+  employment_type: z.string().trim().max(60).nullable().optional(),
+  job_category: z.string().trim().max(60).nullable().optional(),
+  is_active: z.boolean().optional(),
+  is_vip: z.boolean().optional(),
+  perm_create_assets: z.boolean().nullable().optional(),
+  perm_transfer_assets: z.boolean().nullable().optional(),
+  perm_decommission_assets: z.boolean().nullable().optional(),
+  perm_manage_assignments: z.boolean().optional(),
+});
+
+const BulkUpdateSchema = z.object({
+  action: z.enum(["enable", "disable"]),
+  job_category: z.string().trim().min(1).max(60),
+  employment_type: z.literal("contratista"),
+});
+
 async function ensureAdmin(userId: string) {
   return await verifyUserPermissions(userId, ["admin", "superadmin"]);
 }
 
-// LIST USERS (Support pagination and filtering)
+// LIST USERS (Support pagination and filtering with explicit projection & bounded limits)
 async function listUsersHandler(
   request: NextRequest,
   ctx: AuthenticatedContext,
@@ -30,13 +96,18 @@ async function listUsersHandler(
   }
 
   const { searchParams } = new URL(request.url);
-  const limit = parseInt(searchParams.get("limit") || "100");
-  const offset = parseInt(searchParams.get("offset") || "0");
+  const rawLimit = Number.parseInt(searchParams.get("limit") || "100", 10);
+  const rawOffset = Number.parseInt(searchParams.get("offset") || "0", 10);
+  const limit = Number.isFinite(rawLimit)
+    ? Math.min(Math.max(rawLimit, 1), 2000)
+    : 100;
+  const offset = Number.isFinite(rawOffset) ? Math.max(rawOffset, 0) : 0;
   const role = searchParams.get("role");
 
+  const supabaseAdmin = getSupabaseAdmin();
   let query = supabaseAdmin
     .from("users")
-    .select("*", { count: "exact" })
+    .select(USER_PUBLIC_COLUMNS, { count: "exact" })
     .range(offset, offset + limit - 1)
     .order("created_at", { ascending: false });
 
@@ -61,15 +132,17 @@ async function createUserHandler(
   }
 
   const body = await request.json();
-  const { email, password, full_name, role, area, ...otherData } = body;
-  const finalFullName = full_name || body.fullName;
-
-  if (!email || !password) {
+  const parsed = CreateUserSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "Email y contraseña son obligatorios" },
+      { error: "Datos de usuario inválidos o contraseña menor a 8 caracteres" },
       { status: 400 },
     );
   }
+
+  const { email, password, full_name, fullName, role, area, ...otherData } =
+    parsed.data;
+  const finalFullName = full_name || fullName || otherData.username || email;
 
   const isCoordinator =
     (otherData.job_category || "").toLowerCase() === "coordinador";
@@ -77,6 +150,8 @@ async function createUserHandler(
   const effectiveManageAssignments = isCoordinator
     ? true
     : Boolean(otherData.perm_manage_assignments);
+
+  const supabaseAdmin = getSupabaseAdmin();
 
   // 1. Create User in Supabase Auth
   const { data: authUser, error: authError } =
@@ -87,7 +162,7 @@ async function createUserHandler(
       user_metadata: {
         full_name: finalFullName,
         role: role || "user",
-        area: area,
+        area,
         employment_type: otherData.employment_type || "planta",
         job_category: otherData.job_category || "funcionario",
         username: otherData.username || email.split("@")[0],
@@ -97,8 +172,11 @@ async function createUserHandler(
     });
 
   if (authError) {
-    console.error("Error creating auth user:", authError);
-    return NextResponse.json({ error: authError.message }, { status: 400 });
+    Logger.error("Error creating auth user", authError);
+    return NextResponse.json(
+      { error: "No fue posible crear el usuario en Auth" },
+      { status: 400 },
+    );
   }
 
   if (!authUser.user) {
@@ -108,7 +186,6 @@ async function createUserHandler(
     );
   }
 
-  // Garantizar sincronización de campos extendidos en tabla pública users
   await supabaseAdmin
     .from("users")
     .update({
@@ -120,7 +197,13 @@ async function createUserHandler(
       perm_transfer_assets: Boolean(otherData.perm_transfer_assets),
       perm_decommission_assets: Boolean(otherData.perm_decommission_assets),
     })
-    .or(`auth_id.eq.${authUser.user.id},id.eq.${authUser.user.id}`);
+    .or(buildUserIdOrFilter(authUser.user.id));
+
+  Logger.info("Admin created user", {
+    actorId: ctx.user.id,
+    createdUserId: authUser.user.id,
+    role: role || "user",
+  });
 
   return NextResponse.json({ success: true, user: authUser.user });
 }
@@ -135,38 +218,39 @@ async function updateUserHandler(
   }
 
   const body = await request.json();
-  const { id, password, email, ...updates } = body;
-
-  if (!id) {
+  const parsed = UpdateUserSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "ID de usuario requerido" },
+      {
+        error: "Datos de actualización inválidos o contraseña débil (<8 chars)",
+      },
       { status: 400 },
     );
   }
 
-  // 1. Try to Update Password/Auth in Supabase Auth
+  const { id, password, email, ...updates } = parsed.data;
+  const supabaseAdmin = getSupabaseAdmin();
+
   if (password && password.length > 0) {
     let targetAuthId = id;
 
-    // Attempt 1: Update by ID
     const { error: pwdError } = await supabaseAdmin.auth.admin.updateUserById(
       id,
       {
-        password: password,
-        email: email,
-        email_confirm: true,
+        password,
+        ...(email ? { email, email_confirm: true } : {}),
       },
     );
 
     if (pwdError) {
-      console.error("Error updating Auth User:", pwdError);
+      Logger.error("Error updating Auth User", pwdError);
 
       if (pwdError.message.includes("User not found") && email) {
         const { data: newAuth, error: createError } =
           await supabaseAdmin.auth.admin.createUser({
-            id: id,
-            email: email,
-            password: password || "TempPass123!",
+            id,
+            email,
+            password,
             email_confirm: true,
             user_metadata: {
               full_name: updates.full_name || "Usuario Recuperado",
@@ -190,34 +274,37 @@ async function updateUserHandler(
     }
   } else if (email) {
     await supabaseAdmin.auth.admin.updateUserById(id, {
-      email: email,
+      email,
       email_confirm: true,
     });
   }
 
   // Soft deactivate/reactivate logic
+  const dbUpdates: Record<string, unknown> = {};
   if (updates.is_active === true) {
     try {
       await supabaseAdmin.auth.admin.updateUserById(id, {
         ban_duration: "none",
       });
     } catch (e) {
-      console.error(e);
+      Logger.warn("Auth unban failed", e);
     }
-    updates.deleted_at = null;
   } else if (updates.is_active === false) {
+    if (id === ctx.user.id) {
+      return NextResponse.json(
+        { error: "No puedes desactivar tu propia cuenta administrativa" },
+        { status: 400 },
+      );
+    }
     try {
       await supabaseAdmin.auth.admin.updateUserById(id, {
         ban_duration: "876000h",
       });
     } catch (e) {
-      console.error(e);
+      Logger.warn("Auth ban failed", e);
     }
-    updates.deleted_at = new Date().toISOString();
   }
 
-  // Prepare DB Updates
-  const dbUpdates: Record<string, unknown> = {};
   const allowedFields = [
     "full_name",
     "username",
@@ -227,35 +314,36 @@ async function updateUserHandler(
     "job_category",
     "is_active",
     "is_vip",
-    "deleted_at",
     "perm_create_assets",
     "perm_transfer_assets",
     "perm_decommission_assets",
     "perm_manage_assignments",
-  ];
+  ] as const;
 
+  const updatesRecord = { ...updates } as Record<string, unknown>;
   if (
-    typeof updates.job_category === "string" &&
-    updates.job_category.toLowerCase() === "coordinador"
+    typeof updatesRecord.job_category === "string" &&
+    updatesRecord.job_category.toLowerCase() === "coordinador"
   ) {
-    updates.is_vip = true;
-    updates.perm_manage_assignments = true;
+    updatesRecord.is_vip = true;
+    updatesRecord.perm_manage_assignments = true;
   }
 
-  allowedFields.forEach((field) => {
-    if (updates[field] !== undefined) dbUpdates[field] = updates[field];
-  });
+  for (const field of allowedFields) {
+    if (updatesRecord[field] !== undefined) {
+      dbUpdates[field] = updatesRecord[field];
+    }
+  }
 
   dbUpdates.updated_at = new Date().toISOString();
 
   const { error: updateError } = await supabaseAdmin
     .from("users")
     .update(dbUpdates)
-    .or(`auth_id.eq.${id},id.eq.${id}`);
+    .or(buildUserIdOrFilter(id));
 
   if (updateError) throw updateError;
 
-  // Also update metadata in Auth
   const metadataUpdates: Record<string, unknown> = {};
   const metadataFields = [
     "full_name",
@@ -266,11 +354,13 @@ async function updateUserHandler(
     "job_category",
     "perm_manage_assignments",
     "is_vip",
-  ];
+  ] as const;
 
-  metadataFields.forEach((field) => {
-    if (updates[field] !== undefined) metadataUpdates[field] = updates[field];
-  });
+  for (const field of metadataFields) {
+    if (updatesRecord[field] !== undefined) {
+      metadataUpdates[field] = updatesRecord[field];
+    }
+  }
 
   if (Object.keys(metadataUpdates).length > 0) {
     try {
@@ -278,9 +368,15 @@ async function updateUserHandler(
         user_metadata: metadataUpdates,
       });
     } catch (e) {
-      console.error("Metadata update error:", e);
+      Logger.warn("Metadata update error", e);
     }
   }
+
+  Logger.info("Admin updated user", {
+    actorId: ctx.user.id,
+    targetId: id,
+    changedFields: Object.keys(dbUpdates),
+  });
 
   return NextResponse.json({ success: true });
 }
@@ -295,26 +391,37 @@ async function deleteUserHandler(
   }
 
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id");
-
-  if (!id) {
-    return NextResponse.json({ error: "ID Required" }, { status: 400 });
+  const parsedId = UUID_SCHEMA.safeParse(searchParams.get("id"));
+  if (!parsedId.success) {
+    return NextResponse.json({ error: "Valid UUID Required" }, { status: 400 });
   }
 
-  // 1. Mark as inactive in Database
+  const id = parsedId.data;
+  if (id === ctx.user.id) {
+    return NextResponse.json(
+      { error: "No puedes desactivar tu propia cuenta" },
+      { status: 400 },
+    );
+  }
+
+  const supabaseAdmin = getSupabaseAdmin();
   const { error: dbError } = await supabaseAdmin
     .from("users")
     .update({
       is_active: false,
-      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     })
-    .eq("auth_id", id);
+    .or(buildUserIdOrFilter(id));
 
   if (dbError) throw dbError;
 
-  // 2. Ban user in Supabase Auth
   await supabaseAdmin.auth.admin.updateUserById(id, {
     ban_duration: "876000h",
+  });
+
+  Logger.warn("Admin soft-deactivated user", {
+    actorId: ctx.user.id,
+    targetId: id,
   });
 
   return NextResponse.json({ success: true, message: "User soft deleted" });
@@ -330,47 +437,53 @@ async function bulkUpdateHandler(
   }
 
   const body = await request.json();
-  const { action, job_category, employment_type } = body;
-
-  if (action && job_category && employment_type === "contratista") {
-    const isActive = action === "enable";
-
-    // 1. Update DB
-    const { error: dbError } = await supabaseAdmin
-      .from("users")
-      .update({
-        is_active: isActive,
-        deleted_at: isActive ? null : new Date().toISOString(),
-      })
-      .eq("employment_type", "contratista")
-      .eq("job_category", job_category);
-
-    if (dbError) throw dbError;
-
-    // 2. Update Auth
-    const { data: targetUsers } = await supabaseAdmin
-      .from("users")
-      .select("auth_id")
-      .eq("employment_type", "contratista")
-      .eq("job_category", job_category);
-
-    if (targetUsers && targetUsers.length > 0) {
-      for (const user of targetUsers) {
-        if (user.auth_id) {
-          await supabaseAdmin.auth.admin.updateUserById(user.auth_id, {
-            ban_duration: isActive ? "none" : "876000h",
-          });
-        }
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: `Acción masiva '${action}' aplicada a ${targetUsers?.length || 0} contratistas`,
-    });
+  const parsed = BulkUpdateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid parameters" }, { status: 400 });
   }
 
-  return NextResponse.json({ error: "Invalid parameters" }, { status: 400 });
+  const { action, job_category } = parsed.data;
+  const isActive = action === "enable";
+  const supabaseAdmin = getSupabaseAdmin();
+
+  const { error: dbError } = await supabaseAdmin
+    .from("users")
+    .update({
+      is_active: isActive,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("employment_type", "contratista")
+    .eq("job_category", job_category);
+
+  if (dbError) throw dbError;
+
+  const { data: targetUsers } = await supabaseAdmin
+    .from("users")
+    .select("auth_id")
+    .eq("employment_type", "contratista")
+    .eq("job_category", job_category);
+
+  if (targetUsers && targetUsers.length > 0) {
+    for (const targetUser of targetUsers) {
+      if (targetUser.auth_id) {
+        await supabaseAdmin.auth.admin.updateUserById(targetUser.auth_id, {
+          ban_duration: isActive ? "none" : "876000h",
+        });
+      }
+    }
+  }
+
+  Logger.warn("Admin applied bulk contractor access change", {
+    actorId: ctx.user.id,
+    action,
+    job_category,
+    affected: targetUsers?.length || 0,
+  });
+
+  return NextResponse.json({
+    success: true,
+    message: `Acción masiva '${action}' aplicada a ${targetUsers?.length || 0} contratistas`,
+  });
 }
 
 export const GET = withAuth(listUsersHandler);

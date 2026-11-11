@@ -14,6 +14,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import ArticleEditor from "@/features/knowledge/components/ArticleEditor";
@@ -36,6 +37,7 @@ import { supabase } from "@/lib/supabase/client";
 // ... existing interfaces ...
 
 export default function KnowledgeBasePage() {
+  const router = useRouter();
   const [articles, setArticles] = useState<Article[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -83,7 +85,10 @@ export default function KnowledgeBasePage() {
   };
 
   useEffect(() => {
-    fetchArticles();
+    const t = setTimeout(() => {
+      void fetchArticles();
+    }, 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory]);
 
@@ -97,7 +102,7 @@ export default function KnowledgeBasePage() {
       {/* Navigation & Header */}
       <div className="space-y-6">
         <button
-          onClick={() => (window.location.href = "/dashboard")}
+          onClick={() => router.push("/dashboard")}
           className="flex items-center gap-2 text-gray-500 hover:text-sena-green font-bold transition-all group"
         >
           <div className="bg-white p-2 rounded-xl group-hover:bg-sena-green/10 shadow-sm border border-gray-100 transition-colors">
@@ -199,6 +204,7 @@ export default function KnowledgeBasePage() {
 }
 
 function ArticleCard({ article }: { article: Article }) {
+  const router = useRouter();
   return (
     <div className="group bg-white rounded-[2rem] border border-gray-100 p-6 shadow-sm hover:shadow-2xl hover:border-sena-green/20 transition-all duration-500 relative flex flex-col h-full hover:-translate-y-1">
       <div className="flex items-start justify-between mb-6">
@@ -258,9 +264,7 @@ function ArticleCard({ article }: { article: Article }) {
         </div>
 
         <button
-          onClick={() =>
-            (window.location.href = `/dashboard/knowledge/${article.id}`)
-          }
+          onClick={() => router.push(`/dashboard/knowledge/${article.id}`)}
           className="bg-gray-50 hover:bg-sena-green text-gray-400 hover:text-white p-2 rounded-xl transition-all shadow-sm border border-gray-100 hover:border-sena-green"
         >
           <ChevronRight className="w-5 h-5" />

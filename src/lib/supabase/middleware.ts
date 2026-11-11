@@ -38,15 +38,23 @@ export async function updateSession(
     },
   );
 
-  // PROTEGER CONTRA TIMEOUTS EN VERCEL EDGE (Timeout de 2.5s)
+  // PROTEGER CONTRA TIMEOUTS EN VERCEL EDGE (Timeout de 3.5s)
+  const pathname = request.nextUrl.pathname;
+  const isPublicRoute =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/public-portal") ||
+    pathname === "/";
+
   let user = null;
+  let authFailed = false;
   try {
     const userPromise = supabase.auth.getUser();
     const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>(
       (_, reject) =>
         setTimeout(
           () => reject(new Error("Supabase auth timeout in middleware")),
-          2500,
+          3500,
         ),
     );
 
@@ -54,21 +62,25 @@ export async function updateSession(
     user = result.data.user;
   } catch (err) {
     console.warn("⚠️ Middleware auth check warning / timeout:", err);
-    // Si hay timeout o error de red hacia Supabase, dejamos continuar la petición
-    // para que AuthGuard en cliente o los Server Components manejen la autenticación
-    return supabaseResponse;
+    authFailed = true;
   }
 
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth") &&
-    !request.nextUrl.pathname.startsWith("/test-email") &&
-    !request.nextUrl.pathname.startsWith("/public-portal") &&
-    request.nextUrl.pathname !== "/"
-  ) {
+  // ISO 27001 A.8.20 / Fail-closed en rutas protegidas ante fallo de verificación
+  if (authFailed && !isPublicRoute) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json(
+        { error: "Unauthorized: Session verification failed" },
+        { status: 401 },
+      );
+    }
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  if (!user && !isPublicRoute) {
     // SECURITY: Handle API calls differently (JSON 401 instead of Redirect)
-    if (request.nextUrl.pathname.startsWith("/api")) {
+    if (pathname.startsWith("/api")) {
       return NextResponse.json(
         { error: "Unauthorized: Session required" },
         { status: 401 },
@@ -81,9 +93,21 @@ export async function updateSession(
     return NextResponse.redirect(url);
   }
 
-  // If user is logged in and visits login page, redirect according to role
-  if (user && request.nextUrl.pathname.startsWith("/login")) {
-    const role = user.user_metadata?.role || "user";
+  // If user is logged in and visits login page, redirect using authoritative DB role (never user_metadata)
+  if (user && pathname.startsWith("/login")) {
+    let role = "user";
+    try {
+      const { data: publicUser } = await supabase
+        .from("users")
+        .select("role")
+        .eq("auth_id", user.id)
+        .maybeSingle();
+      if (publicUser?.role) {
+        role = String(publicUser.role).toLowerCase();
+      }
+    } catch {
+      role = "user";
+    }
     const url = request.nextUrl.clone();
 
     if (role === "admin" || role === "superadmin") {

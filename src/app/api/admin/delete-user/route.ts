@@ -1,23 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { forbidden, verifyUserPermissions } from "@/lib/auth-check";
 import { withAuth, AuthenticatedContext } from "@/lib/api-middleware";
+import Logger from "@/lib/logger";
+
+const DeleteUserSchema = z.object({
+  email: z.string().trim().email("Debe proporcionar un correo exacto válido"),
+});
 
 async function deleteUserUtility(req: NextRequest, ctx: AuthenticatedContext) {
   try {
-    // 1. SECURITY CHECK - Ensure Admin
-    if (!(await verifyUserPermissions(ctx.user.id, ["admin", "superadmin"]))) {
-      return forbidden("Only admins can access this utility");
+    // 1. SECURITY CHECK - Strict SuperAdmin only for hard deletes
+    if (!(await verifyUserPermissions(ctx.user.id, ["superadmin"]))) {
+      return forbidden("Only SuperAdmins can access this utility");
     }
 
-    const { email } = await req.json();
-    if (!email) {
-      return NextResponse.json({ error: "Email required" }, { status: 400 });
+    const body = await req.json();
+    const parsed = DeleteUserSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Valid exact email required" },
+        { status: 400 },
+      );
     }
 
+    const exactEmail = parsed.data.email.toLowerCase();
     const supabaseAdmin = getSupabaseAdmin();
 
-    // 1. Find User in Auth
+    // 2. Find exact matching user in Auth (never wildcard substring `.includes()`)
     const {
       data: { users },
       error: listError,
@@ -25,68 +36,60 @@ async function deleteUserUtility(req: NextRequest, ctx: AuthenticatedContext) {
 
     if (listError) throw listError;
 
-    // Search for targets matching the email pattern
-    const targets = users.filter((u) =>
-      u.email?.toLowerCase().includes(email.toLowerCase()),
-    );
-
-    if (targets.length === 0) {
+    const target = users.find((u) => u.email?.toLowerCase() === exactEmail);
+    if (!target) {
       return NextResponse.json(
         { message: "User not found in Auth" },
         { status: 404 },
       );
     }
 
-    const results = [];
-
-    for (const user of targets) {
-      // Safety: Don't delete SuperAdmin or protected accounts
-      if (user.email?.includes("deansan")) {
-        results.push({ email: user.email, status: "SKIPPED (Protected)" });
-        continue;
-      }
-
-      console.log(`Hard-deleting user: ${user.id} (${user.email})`);
-
-      // 2. FORCE CLEANUP Dependencies (Manual Cascade)
-      // A. Unassign Assets
-      await supabaseAdmin
-        .from("assets")
-        .update({ assigned_to_user_id: null })
-        .eq("assigned_to_user_id", user.id);
-
-      // B. Delete Tickets
-      await supabaseAdmin.from("tickets").delete().eq("user_id", user.id); // Updated to use 'user_id' consistent with current schema
-
-      // C. Delete Assignments
-      await supabaseAdmin
-        .from("instructor_assignments")
-        .delete()
-        .eq("instructor_id", user.id); // Updated to use instructor_id
-
-      // 3. Delete from Auth
-      const { error: delError } = await supabaseAdmin.auth.admin.deleteUser(
-        user.id,
+    if (target.id === ctx.user.id) {
+      return NextResponse.json(
+        { error: "No puedes eliminar tu propia cuenta activa" },
+        { status: 400 },
       );
-
-      if (delError) {
-        results.push({
-          email: user.email,
-          status: `ERROR: ${delError.message}`,
-        });
-      } else {
-        // 4. Delete from Public (Explicit cleanup)
-        await supabaseAdmin.from("users").delete().eq("auth_id", user.id);
-
-        results.push({ email: user.email, status: "DELETED" });
-      }
     }
 
-    return NextResponse.json({ results });
+    Logger.warn("Hard-deleting user by SuperAdmin", {
+      actorId: ctx.user.id,
+      targetId: target.id,
+    });
+
+    // 3. FORCE CLEANUP Dependencies
+    await supabaseAdmin
+      .from("assets")
+      .update({ assigned_to_user_id: null })
+      .eq("assigned_to_user_id", target.id);
+
+    await supabaseAdmin.from("tickets").delete().eq("user_id", target.id);
+
+    await supabaseAdmin
+      .from("instructor_assignments")
+      .delete()
+      .eq("instructor_id", target.id);
+
+    const { error: delError } = await supabaseAdmin.auth.admin.deleteUser(
+      target.id,
+    );
+
+    if (delError) {
+      Logger.error("Error hard-deleting auth user", delError);
+      return NextResponse.json(
+        { error: "No fue posible eliminar la cuenta" },
+        { status: 500 },
+      );
+    }
+
+    await supabaseAdmin.from("users").delete().eq("auth_id", target.id);
+
+    return NextResponse.json({
+      results: [{ email: target.email, status: "DELETED" }],
+    });
   } catch (error: unknown) {
-    console.error("Hard-delete utility error:", error);
+    Logger.error("Hard-delete utility error", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Error interno eliminando usuario" },
       { status: 500 },
     );
   }
