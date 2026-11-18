@@ -18,8 +18,7 @@ export default function InstitutionalFooter() {
                 GOV·SENA·2026
               </span>
               <span className="font-semibold text-slate-600">
-                Servicio Nacional de Aprendizaje SENA · Gestión de Ambientes
-                Especiales y Reservas
+                Gestión de Ambientes y Reservas CADPH - SENA
               </span>
             </div>
 

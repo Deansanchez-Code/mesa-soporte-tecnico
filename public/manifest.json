@@ -1,7 +1,7 @@
 {
   "id": "/?pwa=ambientes-sena-2026",
-  "name": "Gestión de Ambientes y Reservas SENA",
-  "short_name": "AmbientesSENA",
+  "name": "Gestión de Ambientes y Reservas CADPH - SENA",
+  "short_name": "Ambientes CADPH - SENA",
   "description": "Plataforma institucional para la gestión de ambientes especiales y programación de reservas en tiempo real",
   "start_url": "/",
   "scope": "/",

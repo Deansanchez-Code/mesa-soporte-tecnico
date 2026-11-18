@@ -514,8 +514,8 @@ function HomeContent() {
 
             <div className="space-y-1">
               <h1 className="text-2xl font-extrabold tracking-tight text-sena-blue">
-                Gestión de Ambientes{" "}
-                <span className="text-sena-green">&amp; Reservas</span>
+                Gestión de Ambientes y Reservas{" "}
+                <span className="text-sena-green">CADPH - SENA</span>
               </h1>
               <p className="text-sena-orange font-semibold text-xs uppercase tracking-wide">
                 Centro Agroempresarial y Desarrollo Pecuario del Huila
@@ -544,8 +544,8 @@ function HomeContent() {
             </div>
             <div>
               <h2 className="text-lg font-bold leading-none text-white">
-                Gestión de Ambientes{" "}
-                <span className="text-sena-blue">&amp; Reservas</span>
+                Gestión de Ambientes y Reservas{" "}
+                <span className="text-sena-blue">CADPH - SENA</span>
               </h2>
               <p className="text-xs text-gray-100 mt-0.5 font-medium uppercase tracking-wide">
                 {userData.full_name}

@@ -83,7 +83,8 @@ export default function DashboardHeader({
           <LayoutDashboard className="text-white w-6 h-6" />
         </div>
         <h1 className="font-bold text-sena-blue text-xl tracking-tight hidden sm:block">
-          Ambientes &amp; Reservas <span className="text-sena-green">SENA</span>
+          Gestión de Ambientes y Reservas{" "}
+          <span className="text-sena-green">CADPH - SENA</span>
           {currentUser && (
             <span className="ml-2 text-sm font-normal text-gray-500">
               |{" "}

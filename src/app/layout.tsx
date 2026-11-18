@@ -23,9 +23,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gestión de Ambientes y Reservas · SENA",
+  title: "Gestión de Ambientes y Reservas CADPH - SENA",
   description:
-    "Plataforma institucional para la gestión de ambientes especiales, auditorio, biblioteca y programación de reservas SENA.",
+    "Plataforma institucional para la gestión de ambientes especiales, auditorio, biblioteca y programación de reservas CADPH - SENA.",
   manifest: "/manifest.json",
   icons: {
     icon: [
