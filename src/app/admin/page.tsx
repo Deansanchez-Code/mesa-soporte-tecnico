@@ -1688,7 +1688,7 @@ export default function AdminDashboard() {
                                   {sp.desc}
                                 </p>
 
-                                {["3", "4", "5"].includes(sp.id) &&
+                                {["1", "2", "3", "4", "5"].includes(sp.id) &&
                                   (() => {
                                     const customCoord =
                                       envGlobalConfig.coordinators?.[sp.id];

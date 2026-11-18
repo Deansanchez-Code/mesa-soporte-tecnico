@@ -476,7 +476,11 @@ function HomeContent() {
   };
 
   return (
-    <div className="flex-1 w-full flex flex-col items-center justify-center p-4">
+    <div
+      className={`flex-1 w-full flex flex-col items-center justify-center ${
+        viewState === "request" ? "px-3 py-2" : "p-4"
+      }`}
+    >
       {/* CINTILLO SUPERIOR SWISS GOVTECH */}
       <div className="fixed top-0 left-0 w-full h-1.5 bg-[#39A900] z-40"></div>
 
@@ -487,7 +491,7 @@ function HomeContent() {
         }`}
       >
         {/* BARRA TÉCNICA SUPERIOR SWISS GOVTECH */}
-        <div className="bg-[#043263] text-white px-5 py-2.5 flex items-center justify-between border-b-2 border-[#39A900]">
+        <div className="bg-[#043263] text-white px-5 py-2 flex items-center justify-between border-b-2 border-[#39A900]">
           <div className="flex items-center gap-2">
             <span className="tabular-mono text-[10px] font-bold px-2 py-0.5 rounded bg-[#39A900] text-white">
               GOV·SENA·2026
@@ -524,26 +528,26 @@ function HomeContent() {
           </div>
         )}
 
-        {/* HEADER DINÁMICO (Visible en todos los formularios internos) */}
+        {/* HEADER DINÁMICO COMPACTO FULL HD 1080P (Visible en los formularios internos) */}
         {viewState === "request" && userData && (
-          <div className="bg-sena-green p-6 flex items-center gap-4 text-white animate-in slide-in-from-top duration-300">
-            <div className="bg-white/20 p-3 rounded-lg backdrop-blur-sm border border-white/30">
+          <div className="bg-sena-green px-5 py-3 flex items-center gap-3.5 text-white animate-in slide-in-from-top duration-300">
+            <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm border border-white/30">
               {requestView === "TICKET" ? (
-                <Monitor className="w-8 h-8 text-white" />
+                <Monitor className="w-6 h-6 text-white" />
               ) : requestView === "RESERVATION" ? (
-                <Calendar className="w-8 h-8 text-white" />
+                <Calendar className="w-6 h-6 text-white" />
               ) : requestView === "AVAILABILITY" ? (
-                <MapPin className="w-8 h-8 text-white" />
+                <MapPin className="w-6 h-6 text-white" />
               ) : (
-                <User className="w-8 h-8 text-white" />
+                <User className="w-6 h-6 text-white" />
               )}
             </div>
             <div>
-              <h2 className="text-xl font-bold leading-none text-white">
+              <h2 className="text-lg font-bold leading-none text-white">
                 Gestión de Ambientes{" "}
                 <span className="text-sena-blue">&amp; Reservas</span>
               </h2>
-              <p className="text-sm text-gray-100 mt-1 font-medium uppercase tracking-wide">
+              <p className="text-xs text-gray-100 mt-0.5 font-medium uppercase tracking-wide">
                 {userData.full_name}
               </p>
             </div>
@@ -1072,7 +1076,7 @@ function HomeContent() {
 
           {/* --- VISTA 3: FORMULARIO DE SOLICITUD (UserRequestForm) --- */}
           {viewState === "request" && userData && (
-            <div className="p-6">
+            <div className="px-4 py-2.5">
               <UserRequestForm
                 user={userData}
                 onCancel={async () => {

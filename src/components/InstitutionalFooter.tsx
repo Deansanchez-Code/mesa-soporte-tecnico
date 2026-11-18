@@ -9,8 +9,8 @@ export default function InstitutionalFooter() {
 
   return (
     <>
-      <footer className="py-3.5 px-4 sm:px-6 border-t border-[var(--border-hairline)] bg-white/95 text-[11px] text-slate-500">
-        <div className="max-w-[1640px] mx-auto flex flex-col gap-2">
+      <footer className="py-2 px-4 sm:px-6 border-t border-[var(--border-hairline)] bg-white/95 text-[11px] text-slate-500">
+        <div className="max-w-[1640px] mx-auto flex flex-col gap-1">
           {/* Fila principal: Identidad Institucional + Autoría Ing. Deivis Andrés Sánchez H. - Dashdev.dev */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">

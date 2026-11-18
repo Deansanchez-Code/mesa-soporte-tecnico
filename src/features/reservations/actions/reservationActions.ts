@@ -336,7 +336,7 @@ export async function cancelReservationAction(
       // B. Notify Coordinator IF it had Special Requirements (Always trigger on cancellation)
       const { data: resDetails } = await supabase
         .from("reservations")
-        .select("description, users(full_name)")
+        .select("description, auditorium_id, users(full_name)")
         .eq("id", reservationId)
         .single();
 
@@ -344,8 +344,12 @@ export async function cancelReservationAction(
         const userDetails = resDetails?.users as unknown as {
           full_name: string;
         } | null;
+        const targetCoord = await getSpaceCoordinator(
+          (resDetails as { auditorium_id?: string | number })?.auditorium_id ||
+            "1",
+        );
         await EmailService.send({
-          to: "jeavendano@sena.edu.co",
+          to: targetCoord.email || "jeavendano@sena.edu.co",
           subject: `🚫 Requerimiento Cancelado: ${reservation.title}`,
           react: SupportNotification({
             requesterName: userDetails?.full_name || "Usuario",
@@ -1008,9 +1012,12 @@ export async function createReservationAction(
           }),
         });
         if (hasValidDescription(reservation.description) && !isLibrary) {
+          const targetCoord = await getSpaceCoordinator(
+            reservation.auditorium_id || "1",
+          );
           await EmailService.send({
-            to: "jeavendano@sena.edu.co",
-            subject: `⚠️ Nuevo Requerimiento Especial: ${reservation.title}`,
+            to: targetCoord.email || "jeavendano@sena.edu.co",
+            subject: `⚠️ Nuevo Requerimiento Especial (${getSpaceDisplayName(reservation.auditorium_id)}): ${reservation.title}`,
             react: SupportNotification({
               requesterName: user.full_name,
               requesterEmail: recipientEmail,
@@ -1839,8 +1846,11 @@ export async function createReservationBatchAction(
             .filter((d) => hasValidDescription(d));
 
           if (allDescriptions.length > 0 && !isLibrary) {
+            const targetCoord = await getSpaceCoordinator(
+              first.auditorium_id || "1",
+            );
             await EmailService.send({
-              to: "jeavendano@sena.edu.co",
+              to: targetCoord.email || "jeavendano@sena.edu.co",
               subject: isEditingExisting
                 ? `🔄 Requerimiento Actualizado (${spaceLabel}): ${titles[0]}`
                 : `⚠️ Múltiples Requerimientos (${spaceLabel}): ${titles[0]}`,
@@ -2883,6 +2893,8 @@ export async function toggleSpaceStatusBySuperAdminAction(params: {
 export async function assignSpaceCoordinatorAction(params: {
   spaceId: string;
   userId: string | null;
+  customEmail?: string;
+  customName?: string;
   accessToken?: string;
 }) {
   try {
@@ -2890,16 +2902,35 @@ export async function assignSpaceCoordinatorAction(params: {
     if (!publicUser) throw new Error("No autenticado");
 
     const roleLower = (publicUser?.role || "").toLowerCase();
-    if (roleLower !== "superadmin") {
+    const canManageCoord =
+      ["superadmin", "admin", "coordinator", "vip"].includes(roleLower) ||
+      Boolean(
+        (
+          publicUser as {
+            is_vip?: boolean;
+            perm_manage_assignments?: boolean;
+          }
+        )?.is_vip,
+      ) ||
+      Boolean(
+        (
+          publicUser as {
+            is_vip?: boolean;
+            perm_manage_assignments?: boolean;
+          }
+        )?.perm_manage_assignments,
+      );
+
+    if (!canManageCoord) {
       throw new Error(
-        "Acceso denegado: Únicamente el SuperAdmin tiene autorización para asignar o cambiar coordinadores de ambientes.",
+        "Acceso denegado: No tienes permisos para actualizar el destinatario o coordinador de este ambiente.",
       );
     }
 
     const adminSupabase = getSupabaseAdmin();
     const sid = String(params.spaceId);
 
-    if (!["3", "4", "5"].includes(sid)) {
+    if (!["1", "2", "3", "4", "5"].includes(sid)) {
       throw new Error("Espacio no válido para asignación de coordinación");
     }
 
@@ -2951,20 +2982,44 @@ export async function assignSpaceCoordinatorAction(params: {
         }
       }
 
-      const userEmail = resolveReservationUserEmail(targetUser);
+      const finalEmail =
+        params.customEmail && params.customEmail.includes("@")
+          ? params.customEmail.trim().toLowerCase()
+          : resolveReservationUserEmail(targetUser);
 
       assignedCoordinator = {
         user_id: targetUser.id,
         username: targetUser.username || "",
-        email: userEmail,
-        full_name: targetUser.full_name || "Coordinador",
+        email: finalEmail,
+        full_name:
+          params.customName?.trim() || targetUser.full_name || "Coordinador",
         is_vip: true,
         assigned_at: new Date().toISOString(),
-        assigned_by: publicUser?.full_name || "SuperAdmin",
+        assigned_by: publicUser?.full_name || "Administración",
       };
 
       currentCoordinators[sid] = assignedCoordinator;
+    } else if (params.customEmail && params.customEmail.includes("@")) {
+      const cleanCustomEmail = params.customEmail.trim().toLowerCase();
+      const derivedUser = cleanCustomEmail.split("@")[0];
+      assignedCoordinator = {
+        user_id: "",
+        username: derivedUser,
+        email: cleanCustomEmail,
+        full_name:
+          params.customName?.trim() ||
+          `Responsable ${spaceName} (${derivedUser})`,
+        is_vip: true,
+        assigned_at: new Date().toISOString(),
+        assigned_by: publicUser?.full_name || "Administración",
+      };
+      currentCoordinators[sid] = assignedCoordinator;
+    } else {
+      // Restablecer a coordinador predeterminado
+      delete currentCoordinators[sid];
+    }
 
+    if (assignedCoordinator) {
       // Traslado de solicitudes pendientes del ambiente
       const nowIso = new Date().toISOString();
       const { data: pendingReservations } = await adminSupabase
@@ -2978,52 +3033,63 @@ export async function assignSpaceCoordinatorAction(params: {
 
       transferredCount = pendingReservations?.length || 0;
 
-      if (transferredCount > 0 && assignedCoordinator.user_id) {
-        // Alerta In-App para el nuevo coordinador
+      if (assignedCoordinator.user_id) {
         await adminSupabase.from("user_notifications").insert([
           {
             user_id: assignedCoordinator.user_id,
-            title: `Traslado de Gestión: Solicitudes pendientes (${spaceName})`,
-            message: `Has sido asignado como coordinador de ${spaceName}. Se te han transferido ${transferredCount} solicitud(es) pendiente(s) por autorizar.`,
+            title: `Nueva Designación Institucional: ${spaceName}`,
+            message:
+              transferredCount > 0
+                ? `Debido a tu rol institucional, a partir de ahora recibirás las solicitudes de prerreserva y requerimientos especiales de ${spaceName}. Se han trasladado ${transferredCount} solicitud(es) pendiente(s) a tu bandeja.`
+                : `Debido a tu rol institucional, a partir de ahora recibirás las notificaciones de solicitudes de prerreserva y requerimientos especiales asociadas a ${spaceName}.`,
             type: "INFO",
             read: false,
           },
         ]);
-
-        // Email institucional de traspaso de mando con listado de eventos pendientes
-        if (
-          assignedCoordinator.email &&
-          assignedCoordinator.email.includes("@")
-        ) {
-          const eventsList = (pendingReservations || [])
-            .map(
-              (r) =>
-                `• "${r.title}" - Fecha: ${new Date(r.start_time).toLocaleDateString("es-CO")} (${new Date(r.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })}) | Solicitante: ${(r.users as unknown as { full_name?: string })?.full_name || "Instructor"}`,
-            )
-            .join("\n");
-
-          await EmailService.send({
-            to: assignedCoordinator.email,
-            subject: `[Traslado de Gestión] ${transferredCount} solicitudes pendientes de ${spaceName} asignadas a tu cuenta`,
-            react: SpaceReservationEmail({
-              spaceName,
-              requesterName: "Administración del Sistema",
-              eventTitle: `Traslado de ${transferredCount} solicitudes pendientes`,
-              date: new Date().toLocaleDateString("es-CO", {
-                timeZone: "America/Bogota",
-              }),
-              timeRange: "Pendientes por revisar",
-              specialRequirements: `Actualmente existen ${transferredCount} solicitud(es) de reserva pendiente(s) de autorización para ${spaceName} transferidas a tu gestión:\n\n${eventsList}`,
-              coordinatorName: assignedCoordinator.full_name,
-              type: "NEW_REQUEST",
-            }),
-            text: `Estimado/a ${assignedCoordinator.full_name},\n\nHas sido asignado/a como Coordinador/a responsable de ${spaceName} por la administración.\n\nActualmente existen ${transferredCount} solicitud(es) de reserva pendiente(s) de autorización que han sido trasladadas a tu bandeja:\n\n${eventsList}\n\nPuedes ingresar al portal de Mesa de Ayuda TIC para autorizar o denegar estas solicitudes.\n\nCordialmente,\nAdministración del Sistema`,
-          });
-        }
       }
-    } else {
-      // Restablecer a coordinador predeterminado
-      delete currentCoordinators[sid];
+
+      // Enviar SIEMPRE correo institucional notificando su nuevo rol como destinatario de prerreservas y requerimientos especiales
+      if (
+        assignedCoordinator.email &&
+        assignedCoordinator.email.includes("@")
+      ) {
+        const eventsList =
+          transferredCount > 0
+            ? (pendingReservations || [])
+                .map(
+                  (r) =>
+                    `• "${r.title}" - Fecha: ${new Date(r.start_time).toLocaleDateString("es-CO")} (${new Date(r.start_time).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", timeZone: "America/Bogota" })}) | Solicitante: ${(r.users as unknown as { full_name?: string })?.full_name || "Instructor"}`,
+                )
+                .join("\n")
+            : "";
+
+        const roleExplanation =
+          `Debido a tu nuevo rol y responsabilidades dentro de la institución, te informamos que a partir de este momento tu correo electrónico (${assignedCoordinator.email}) ha sido configurado como destinatario oficial para recibir las notificaciones de:\n` +
+          `• Solicitudes de prerreserva (para autorización o programación).\n` +
+          `• Solicitudes de requerimientos especiales y logística para ${spaceName} y ambientes especiales asociados.\n` +
+          (transferredCount > 0
+            ? `\nAdicionalmente, se han trasladado a tu gestión ${transferredCount} solicitud(es) pendiente(s) de autorización:\n\n${eventsList}`
+            : `\nCualquier nueva solicitud o requerimiento especial registrado en la plataforma para ${spaceName} será remitido automáticamente a tu bandeja.`);
+
+        await EmailService.send({
+          to: assignedCoordinator.email,
+          subject: `[Designación Institucional SENA] Nuevo rol de recepción de prerreservas y requerimientos especiales — ${spaceName}`,
+          react: SpaceReservationEmail({
+            spaceName,
+            requesterName:
+              publicUser?.full_name || "Administración del Sistema",
+            eventTitle: `Asignación de Rol: Recepción de Prerreservas y Requerimientos Especiales (${spaceName})`,
+            date: new Date().toLocaleDateString("es-CO", {
+              timeZone: "America/Bogota",
+            }),
+            timeRange: "Vigencia Activa",
+            specialRequirements: roleExplanation,
+            coordinatorName: assignedCoordinator.full_name,
+            type: "NEW_REQUEST",
+          }),
+          text: `Estimado/a ${assignedCoordinator.full_name},\n\n${roleExplanation}\n\nPuedes ingresar al portal de Gestión de Ambientes y Reservas SENA para gestionar estas solicitudes.\n\nCordialmente,\nAdministración del Sistema — SENA`,
+        });
+      }
     }
 
     const newConfig: EnvironmentsGlobalConfig = {

@@ -29,12 +29,13 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   icons: {
     icon: [
-      { url: "/icon.svg?v=20261118", type: "image/svg+xml" },
-      { url: "/icon.png?v=20261118", sizes: "512x512", type: "image/png" },
-      { url: "/favicon.ico?v=20261118", sizes: "any" },
+      { url: "/sena-ambientes-icon.svg", type: "image/svg+xml" },
+      { url: "/sena-ambientes-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/sena-ambientes-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/sena-ambientes-favicon.ico", sizes: "any" },
     ],
-    shortcut: ["/icon.svg?v=20261118"],
-    apple: [{ url: "/apple-icon.png?v=20261118", sizes: "180x180" }],
+    shortcut: ["/sena-ambientes-icon.svg"],
+    apple: [{ url: "/sena-ambientes-apple.png", sizes: "180x180" }],
   },
 };
 

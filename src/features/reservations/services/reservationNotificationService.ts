@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { EmailService } from "@/lib/email/email-service";
 import ReservationReminder from "@/lib/email/templates/ReservationReminder";
+import { getSpaceCoordinator } from "@/features/reservations/actions/reservationActions";
 import { isColombianHoliday } from "@/lib/domain/holidays";
 import {
   isWeekend,
@@ -326,9 +327,10 @@ export class ReservationNotificationService {
     const description = (res as any).description;
     const hasSpecialRequirements = hasValidDescription(description);
 
-    // Si hay requerimientos especiales, enviar copia a soporte/logística
+    // Si hay requerimientos especiales, enviar copia al destinatario / coordinador configurado del espacio
     if (hasSpecialRequirements && String(res.auditorium_id) !== "3") {
-      recipients.push("jeavendano@sena.edu.co");
+      const targetCoord = await getSpaceCoordinator(res.auditorium_id || "1");
+      recipients.push(targetCoord.email || "jeavendano@sena.edu.co");
     }
 
     const spaceName = getSpaceDisplayName(res.auditorium_id);

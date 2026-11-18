@@ -7,6 +7,9 @@ import {
   CheckCircle,
   Clock,
   UserCheck,
+  Mail,
+  Settings2,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase/client";
@@ -18,7 +21,9 @@ import {
   getAssignableUsersAction,
   AssignableUser,
   deleteInstructorAssignmentAction,
+  assignSpaceCoordinatorAction,
 } from "../actions/reservationActions";
+import { DEFAULT_SPACE_COORDINATORS } from "../constants";
 
 import { UserProfile } from "@/features/auth/hooks/useUserProfile";
 import { Skeleton } from "@/components/Skeleton";
@@ -198,6 +203,21 @@ export default function AuditoriumReservationForm({
   >({});
   const [envGlobalConfig, setEnvGlobalConfig] =
     useState<EnvironmentsGlobalConfig>(DEFAULT_ENVIRONMENTS_CONFIG);
+
+  const [isEditingRecipient, setIsEditingRecipient] = useState(false);
+  const [recipientUserId, setRecipientUserId] = useState<string>("");
+  const [recipientEmailInput, setRecipientEmailInput] = useState<string>("");
+  const [recipientNameInput, setRecipientNameInput] = useState<string>("");
+  const [isSavingRecipient, setIsSavingRecipient] = useState(false);
+
+  const activeSpaceCoord = envGlobalConfig.coordinators?.[selectedSpace] ||
+    DEFAULT_SPACE_COORDINATORS[selectedSpace] || {
+      user_id: "",
+      username: "jeavendano",
+      email: "jeavendano@sena.edu.co",
+      full_name: "Jorge Eduardo Avendaño (Logística Auditorio)",
+      is_vip: true,
+    };
 
   const isSuperAdmin =
     ((user?.role as string) || "").toLowerCase() === "superadmin";
@@ -544,15 +564,16 @@ export default function AuditoriumReservationForm({
 
       if (isPending) {
         const coordName =
-          selectedSpace === "4"
+          activeSpaceCoord?.full_name ||
+          (selectedSpace === "4"
             ? "Nury Mildret Barrera (Ambiente 107)"
             : selectedSpace === "5"
               ? "Nury Mildret Barrera (Ambiente de Cocina)"
               : selectedSpace === "3"
                 ? "la Coordinación de Biblioteca"
-                : "la Coordinación de Formación";
+                : "la Coordinación de Formación");
         toast.info(
-          `Solicitud de prereserva recibida. Queda pendiente de autorización por ${coordName}.`,
+          `Solicitud de prereserva recibida. Queda pendiente de autorización por ${coordName} (${activeSpaceCoord?.email || ""}).`,
           { duration: 6000 },
         );
       } else {
@@ -1110,17 +1131,214 @@ export default function AuditoriumReservationForm({
           </div>
         </div>
 
-        {/* Requerimientos Adicionales */}
-        <div>
-          <label className="block text-sm font-bold text-gray-700 mb-2">
-            Requerimientos Especiales (Opcional)
-          </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition min-h-[100px] text-sm"
-            placeholder="Ej: Números de contacto, encargado, organización especial de mesas, etc..."
-          />
+        {/* Requerimientos Adicionales + Configuración de Correo de Destino */}
+        <div className="bento-grid-swiss shadow-2xs">
+          <div className="bg-white p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="block text-sm font-bold text-slate-800">
+                Requerimientos Especiales (Opcional)
+              </label>
+
+              {/* Correo de Destino actual + Botón para cambiarlo */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-600">
+                  <Mail className="w-3.5 h-3.5 text-[#39A900]" />
+                  <span>Destino notificación:</span>
+                  <strong className="text-[#043263]">
+                    {activeSpaceCoord.full_name}
+                  </strong>
+                  <span className="tabular-mono text-[11px] text-slate-500">
+                    ({activeSpaceCoord.email})
+                  </span>
+                </span>
+
+                {canAssignToOthers && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isEditingRecipient) {
+                        setRecipientUserId(activeSpaceCoord.user_id || "");
+                        setRecipientEmailInput(activeSpaceCoord.email || "");
+                        setRecipientNameInput(activeSpaceCoord.full_name || "");
+                      }
+                      setIsEditingRecipient((prev) => !prev);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#043263] hover:bg-[#053b75] text-white font-bold text-[11px] transition cursor-pointer"
+                  >
+                    <Settings2 className="w-3.5 h-3.5 text-emerald-300" />
+                    <span>
+                      {isEditingRecipient
+                        ? "Cerrar ajuste"
+                        : "Cambiar Correo Destino"}
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Panel Desplegable para actualizar Correo de Destino y Notificar Nuevo Rol */}
+            {isEditingRecipient && canAssignToOthers && (
+              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-3 animate-in fade-in">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold text-[#043263]">
+                      Actualizar Destinatario de Prerreservas y Requerimientos
+                      Especiales — {resolveSpaceDisplayName(selectedSpace)}
+                    </p>
+                    <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                      Al guardar el cambio, el sistema actualizará el correo de
+                      destino para{" "}
+                      <strong>{resolveSpaceDisplayName(selectedSpace)}</strong>{" "}
+                      y enviará automáticamente un correo al nuevo responsable
+                      notificándole que, debido a su rol institucional, a partir
+                      de ahora recibirá las solicitudes de prerreserva y
+                      requerimientos especiales.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 @sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                      1. Seleccionar del Directorio (Opcional)
+                    </label>
+                    <select
+                      value={recipientUserId}
+                      onChange={(e) => {
+                        const uid = e.target.value;
+                        setRecipientUserId(uid);
+                        const found = assignableUsers.find((u) => u.id === uid);
+                        if (found) {
+                          setRecipientNameInput(found.full_name || "");
+                          const cleanU = (found.username || "")
+                            .toLowerCase()
+                            .trim();
+                          const resolvedMail =
+                            found.email &&
+                            found.email.includes("@") &&
+                            !found.email.endsWith("@sistema.local")
+                              ? found.email.toLowerCase().trim()
+                              : `${cleanU}@sena.edu.co`;
+                          setRecipientEmailInput(resolvedMail);
+                        }
+                      }}
+                      className="w-full p-2 border border-emerald-300 rounded-lg text-xs bg-white font-medium text-slate-800 focus:ring-2 focus:ring-[#39A900] outline-none"
+                    >
+                      <option value="">
+                        -- Seleccionar funcionario o escribir manual --
+                      </option>
+                      {assignableUsers.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.full_name} (@{u.username})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                      2. Nombre del Responsable
+                    </label>
+                    <input
+                      type="text"
+                      value={recipientNameInput}
+                      onChange={(e) => setRecipientNameInput(e.target.value)}
+                      placeholder="Nombre del funcionario..."
+                      className="w-full p-2 border border-emerald-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-[#39A900] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                      3. Correo Institucional de Destino *
+                    </label>
+                    <input
+                      type="email"
+                      value={recipientEmailInput}
+                      onChange={(e) => setRecipientEmailInput(e.target.value)}
+                      placeholder="ejemplo@sena.edu.co"
+                      className="w-full p-2 border border-emerald-300 rounded-lg text-xs tabular-mono bg-white focus:ring-2 focus:ring-[#39A900] outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingRecipient(false)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-600 text-xs font-semibold hover:bg-slate-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      isSavingRecipient || !recipientEmailInput.includes("@")
+                    }
+                    onClick={async () => {
+                      if (!recipientEmailInput.includes("@")) {
+                        toast.warning(
+                          "Ingresa un correo electrónico de destino válido.",
+                        );
+                        return;
+                      }
+                      setIsSavingRecipient(true);
+                      try {
+                        const {
+                          data: { session },
+                        } = await supabase.auth.getSession();
+                        const res = await assignSpaceCoordinatorAction({
+                          spaceId: selectedSpace,
+                          userId: recipientUserId || null,
+                          customEmail: recipientEmailInput.trim(),
+                          customName: recipientNameInput.trim(),
+                          accessToken: session?.access_token,
+                        });
+                        if (res.error) {
+                          toast.error(res.error);
+                          return;
+                        }
+                        if (res.config) {
+                          setEnvGlobalConfig(res.config);
+                        }
+                        toast.success(
+                          `Destinatario de ${resolveSpaceDisplayName(selectedSpace)} actualizado a ${recipientEmailInput}. Se ha enviado correo notificándole su nuevo rol institucional.`,
+                          { duration: 6000 },
+                        );
+                        setIsEditingRecipient(false);
+                      } catch {
+                        toast.error(
+                          "No se pudo actualizar el correo de destino.",
+                        );
+                      } finally {
+                        setIsSavingRecipient(false);
+                      }
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg bg-[#39A900] hover:bg-[#2d8500] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingRecipient ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Actualizando y notificando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>Guardar Destino y Notificar Nuevo Rol</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition min-h-[90px] text-sm"
+              placeholder="Ej: Números de contacto, encargado, organización especial de mesas, sonido o logística requerida..."
+            />
+          </div>
         </div>
 
         {/* Disponibilidad */}

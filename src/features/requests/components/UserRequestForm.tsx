@@ -195,6 +195,14 @@ export default function UserRequestForm({
     TodayReservation[]
   >([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timerId = setInterval(() => {
+      setNowMs(Date.now());
+    }, 30000);
+    return () => clearInterval(timerId);
+  }, []);
 
   useEffect(() => {
     const fetchTodayReservations = async () => {
@@ -496,45 +504,47 @@ export default function UserRequestForm({
     ].filter((c) => c.visible);
 
     return (
-      <div className="w-full max-w-[1600px] mx-auto animate-in fade-in duration-500 px-2 sm:px-4 py-4">
-        {/* ENCABEZADO COMPACTO Y EDITORIAL */}
-        <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200/80 pb-5">
+      <div className="w-full max-w-[1600px] mx-auto animate-in fade-in duration-500 px-2 sm:px-3 py-1.5">
+        {/* ENCABEZADO COMPACTO CALIBRADO PARA FULL HD 1080P (CERO SCROLL INNECESARIO) */}
+        <div className="mb-3.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 border-b border-slate-200/80 pb-3">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sena-green/10 text-sena-green text-xs font-black uppercase tracking-wider mb-2">
-              <span className="w-2 h-2 rounded-full bg-sena-green animate-ping" />
-              Portal Institucional de Espacios y Ambientes
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sena-green/10 text-sena-green text-[11px] font-black uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-sena-green animate-ping" />
+                Portal Institucional de Espacios y Ambientes
+              </div>
+              <span className="text-xs text-slate-400 hidden sm:inline">•</span>
+              <span className="text-xs text-slate-500 font-medium">
+                Gestiona tus reservas y consulta disponibilidad en tiempo real
+              </span>
             </div>
-            <h2 className="text-3xl lg:text-4xl font-black text-sena-blue tracking-tight">
+            <h2 className="text-2xl lg:text-[26px] font-black text-sena-blue tracking-tight leading-tight mt-1">
               ¿En qué podemos{" "}
               <span className="text-sena-green">ayudarte hoy?</span>
             </h2>
-            <p className="text-slate-500 mt-1 font-medium text-sm sm:text-base">
-              Gestiona tus reservas de espacios estratégicos y consulta la
-              disponibilidad en tiempo real sin desplazamientos verticales.
-            </p>
           </div>
 
           <button
             onClick={onCancel}
-            className="group self-start md:self-auto px-5 py-2.5 bg-white border-2 border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 hover:border-sena-blue hover:text-sena-blue transition-all text-xs font-black flex items-center gap-2 shadow-2xs cursor-pointer"
+            className="group self-start md:self-auto px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 hover:border-sena-blue hover:text-sena-blue transition-all text-xs font-black flex items-center gap-2 shadow-2xs cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
             FINALIZAR SESIÓN
           </button>
         </div>
 
         {/* AVISO INMEDIATO DE AMBIENTES REHABILITADOS */}
         {!dismissedReopenedBanner && recentlyReopenedSpaces.length > 0 && (
-          <div className="mb-6 bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-xs animate-in fade-in">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                <CheckCircle2 className="w-5 h-5" />
+          <div className="mb-3.5 bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-black uppercase tracking-wider text-emerald-900">
+                <p className="text-[11px] font-black uppercase tracking-wider text-emerald-900">
                   ¡Ambiente(s) Habilitado(s) para Reservas!
                 </p>
-                <p className="text-sm text-emerald-800 font-medium mt-0.5">
+                <p className="text-xs text-emerald-800 font-medium mt-0.5">
                   Ya se encuentra habilitado{" "}
                   <strong>
                     {recentlyReopenedSpaces
@@ -548,129 +558,298 @@ export default function UserRequestForm({
             <button
               type="button"
               onClick={() => setDismissedReopenedBanner(true)}
-              className="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-white border border-emerald-200 hover:bg-emerald-100 rounded-lg shrink-0 cursor-pointer"
+              className="px-2.5 py-1 text-xs font-bold text-emerald-800 bg-white border border-emerald-200 hover:bg-emerald-100 rounded-lg shrink-0 cursor-pointer"
             >
               Entendido
             </button>
           </div>
         )}
 
-        {/* GRID DE 3 COLUMNAS EQUILIBRADAS */}
-        <div className="@container grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
-          {/* COLUMNA 1: AGENDA / EVENTOS DE HOY */}
-          <div className="flex flex-col gap-6 h-full bg-slate-50/70 rounded-[2.5rem] p-5 lg:p-7 border border-slate-200/70 shadow-xs">
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-7 bg-sena-green rounded-full" />
-                <h4 className="text-xs font-black uppercase tracking-[0.18em] text-sena-blue flex items-center gap-1.5">
-                  Eventos de Hoy
-                </h4>
-              </div>
-              <span className="tabular-mono text-[11px] font-bold bg-sena-green/15 text-sena-green px-2.5 py-0.5 rounded-full">
-                {todayReservations.length} activos
-              </span>
-            </div>
+        {/* GRID DE 3 COLUMNAS EQUILIBRADAS (CALIBRADO FULL HD 1080P) */}
+        <div className="@container grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+          {/* COLUMNA 1: AGENDA / EVENTOS DE HOY (DIFERENCIADO POR AMBIENTE, HORARIO Y TIEMPO TRANSCURRIDO) */}
+          <div className="flex flex-col gap-3.5 h-full bg-slate-50/70 rounded-3xl p-4 lg:p-5 border border-slate-200/70 shadow-xs">
+            {(() => {
+              const activeCount = todayReservations.filter(
+                (r) => new Date(r.end_time).getTime() > nowMs,
+              ).length;
+              const finishedCount = todayReservations.length - activeCount;
+              return (
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-6 bg-sena-green rounded-full" />
+                    <h4 className="text-xs font-black uppercase tracking-[0.16em] text-sena-blue flex items-center gap-1.5">
+                      Eventos de Hoy
+                    </h4>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="tabular-mono text-[10.5px] font-bold bg-sena-green/15 text-sena-green px-2 py-0.5 rounded-full">
+                      {activeCount} vigentes
+                    </span>
+                    {finishedCount > 0 && (
+                      <span className="tabular-mono text-[10px] font-semibold bg-slate-200/80 text-slate-600 px-2 py-0.5 rounded-full">
+                        {finishedCount} cumplidos
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
-            <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-2xs flex flex-col gap-3.5 flex-1 overflow-y-auto max-h-[540px] scrollbar-thin scrollbar-thumb-gray-200 min-h-[340px]">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-2xs flex flex-col gap-2.5 flex-1 overflow-y-auto max-h-[430px] scrollbar-thin scrollbar-thumb-gray-200 min-h-[290px]">
               {loadingReservations ? (
-                <div className="space-y-3 py-2">
-                  <div className="h-20 rounded-2xl skeleton-shimmer" />
-                  <div className="h-20 rounded-2xl skeleton-shimmer" />
-                  <div className="h-20 rounded-2xl skeleton-shimmer" />
+                <div className="space-y-2.5 py-1">
+                  <div className="h-16 rounded-xl skeleton-shimmer" />
+                  <div className="h-16 rounded-xl skeleton-shimmer" />
+                  <div className="h-16 rounded-xl skeleton-shimmer" />
                 </div>
               ) : todayReservations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400 text-center h-full">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center mb-1">
-                    <Clock className="w-6 h-6 text-slate-300" />
+                <div className="flex flex-col items-center justify-center py-8 gap-2 text-slate-400 text-center h-full">
+                  <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center mb-1">
+                    <Clock className="w-5 h-5 text-slate-300" />
                   </div>
-                  <span className="text-sm font-black text-slate-700">
+                  <span className="text-xs font-black text-slate-700">
                     Sin reservas hoy
                   </span>
-                  <span className="text-xs text-slate-400 max-w-[200px]">
+                  <span className="text-[11px] text-slate-400 max-w-[200px]">
                     No se han registrado eventos programados para el día de hoy.
                   </span>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {todayReservations.map((res) => {
-                    const start = new Date(res.start_time);
-                    const end = new Date(res.end_time);
-                    const formatTime = (d: Date) =>
-                      d.toLocaleTimeString("es-CO", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: true,
-                        timeZone: "America/Bogota",
-                      });
+                <div className="space-y-2.5">
+                  {[...todayReservations]
+                    .sort((a, b) => {
+                      const aStart = new Date(a.start_time).getTime();
+                      const aEnd = new Date(a.end_time).getTime();
+                      const bStart = new Date(b.start_time).getTime();
+                      const bEnd = new Date(b.end_time).getTime();
+                      const aRank =
+                        nowMs >= aStart && nowMs < aEnd
+                          ? 0
+                          : nowMs < aStart
+                            ? 1
+                            : 2;
+                      const bRank =
+                        nowMs >= bStart && nowMs < bEnd
+                          ? 0
+                          : nowMs < bStart
+                            ? 1
+                            : 2;
+                      if (aRank !== bRank) return aRank - bRank;
+                      return aStart - bStart;
+                    })
+                    .map((res) => {
+                      const start = new Date(res.start_time);
+                      const end = new Date(res.end_time);
+                      const startMs = start.getTime();
+                      const endMs = end.getTime();
 
-                    const isLib = String(res.auditorium_id) === "3";
-                    const isSub = String(res.auditorium_id) === "2";
-                    const is107 = String(res.auditorium_id) === "4";
-                    const isCocina = String(res.auditorium_id) === "5";
+                      const isFinished = nowMs >= endMs;
+                      const isInProgress = nowMs >= startMs && nowMs < endMs;
 
-                    return (
-                      <div
-                        key={res.id}
-                        className={`p-3.5 rounded-2xl border border-l-4 shadow-2xs flex flex-col gap-1 transition-all ${
-                          isCocina
-                            ? "bg-amber-50/50 border-amber-100 border-l-sena-orange"
-                            : is107
-                              ? "bg-emerald-50/50 border-emerald-100 border-l-sena-green"
-                              : isLib
-                                ? "bg-blue-50/40 border-blue-100 border-l-sena-blue"
-                                : isSub
-                                  ? "bg-orange-50/50 border-orange-100 border-l-sena-orange"
-                                  : "bg-blue-50/50 border-blue-100 border-l-sena-blue"
-                        }`}
-                      >
-                        <div className="flex justify-between items-start gap-2">
-                          <span className="font-bold text-xs text-slate-800 leading-snug line-clamp-2">
-                            {res.title}
-                          </span>
-                          <span
-                            className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full shrink-0 ${
-                              isCocina
-                                ? "bg-amber-100 text-amber-800"
-                                : is107
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : isSub
-                                    ? "bg-orange-100 text-sena-orange"
-                                    : "bg-blue-100 text-sena-blue"
-                            }`}
-                          >
-                            {isCocina
-                              ? "Cocina"
-                              : is107
-                                ? "Amb. 107"
-                                : isLib
-                                  ? "Biblioteca"
-                                  : isSub
-                                    ? "Subdirección"
-                                    : "Auditorio"}
-                          </span>
+                      const totalDurationMs = Math.max(1, endMs - startMs);
+                      const progressPct = isFinished
+                        ? 100
+                        : isInProgress
+                          ? Math.min(
+                              100,
+                              Math.max(
+                                6,
+                                Math.round(
+                                  ((nowMs - startMs) / totalDurationMs) * 100,
+                                ),
+                              ),
+                            )
+                          : 0;
+
+                      const formatDuration = (diffMs: number) => {
+                        const totalMins = Math.max(
+                          1,
+                          Math.ceil(diffMs / 60000),
+                        );
+                        const h = Math.floor(totalMins / 60);
+                        const m = totalMins % 60;
+                        if (h > 0 && m > 0) return `${h}h ${m}m`;
+                        if (h > 0) return `${h}h`;
+                        return `${m} min`;
+                      };
+
+                      const startHourBogota = Number(
+                        start.toLocaleTimeString("en-US", {
+                          hour: "2-digit",
+                          hour12: false,
+                          timeZone: "America/Bogota",
+                        }),
+                      );
+                      const shiftLabel =
+                        startHourBogota < 12
+                          ? "Jornada Mañana"
+                          : startHourBogota < 18
+                            ? "Jornada Tarde"
+                            : "Jornada Noche";
+
+                      const formatTime = (d: Date) =>
+                        d.toLocaleTimeString("es-CO", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                          timeZone: "America/Bogota",
+                        });
+
+                      const spaceIdStr = String(res.auditorium_id);
+                      const spaceTheme =
+                        spaceIdStr === "5"
+                          ? {
+                              label: "Cocina",
+                              cardActive:
+                                "bg-orange-50/70 border-orange-200 border-l-[#FC7323]",
+                              badge:
+                                "bg-[#FC7323] text-white border border-orange-600",
+                              barColor: "bg-[#FC7323]",
+                              Icon: CalendarRange,
+                            }
+                          : spaceIdStr === "4"
+                            ? {
+                                label: "Ambiente 107",
+                                cardActive:
+                                  "bg-emerald-50/70 border-emerald-200 border-l-[#39A900]",
+                                badge:
+                                  "bg-[#39A900] text-white border border-emerald-700",
+                                barColor: "bg-[#39A900]",
+                                Icon: Monitor,
+                              }
+                            : spaceIdStr === "3"
+                              ? {
+                                  label: "Biblioteca",
+                                  cardActive:
+                                    "bg-teal-50/70 border-teal-200 border-l-teal-700",
+                                  badge:
+                                    "bg-teal-700 text-white border border-teal-800",
+                                  barColor: "bg-teal-600",
+                                  Icon: Book,
+                                }
+                              : spaceIdStr === "2"
+                                ? {
+                                    label: "Subdirección",
+                                    cardActive:
+                                      "bg-indigo-50/70 border-indigo-200 border-l-indigo-800",
+                                    badge:
+                                      "bg-indigo-800 text-white border border-indigo-900",
+                                    barColor: "bg-indigo-700",
+                                    Icon: Monitor,
+                                  }
+                                : {
+                                    label: "Auditorio 103",
+                                    cardActive:
+                                      "bg-blue-50/70 border-blue-200 border-l-[#043263]",
+                                    badge:
+                                      "bg-[#043263] text-white border border-blue-950",
+                                    barColor: "bg-[#043263]",
+                                    Icon: Calendar,
+                                  };
+
+                      const SpaceIcon = spaceTheme.Icon;
+
+                      return (
+                        <div
+                          key={res.id}
+                          className={`p-3 rounded-xl border border-l-4 transition-all flex flex-col gap-1.5 ${
+                            isFinished
+                              ? "bg-slate-50/90 border-slate-200 border-l-slate-400 opacity-65"
+                              : isInProgress
+                                ? `${spaceTheme.cardActive} shadow-sm ring-1 ring-[#39A900]/25`
+                                : spaceTheme.cardActive
+                          }`}
+                        >
+                          {/* Fila 1: Ambiente + Estado temporal dinámico */}
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span
+                              className={`inline-flex items-center gap-1 text-[9.5px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 ${
+                                isFinished
+                                  ? "bg-slate-200 text-slate-600"
+                                  : spaceTheme.badge
+                              }`}
+                            >
+                              <SpaceIcon className="w-3 h-3" />
+                              {spaceTheme.label}
+                            </span>
+
+                            {isFinished ? (
+                              <span className="tabular-mono text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-600 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-slate-500" />
+                                FINALIZADO
+                              </span>
+                            ) : isInProgress ? (
+                              <span className="tabular-mono text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#39A900] animate-ping" />
+                                EN CURSO · Resta {formatDuration(endMs - nowMs)}
+                              </span>
+                            ) : (
+                              <span className="tabular-mono text-[9.5px] font-semibold px-2 py-0.5 rounded-full bg-white/90 text-slate-700 border border-slate-200">
+                                {shiftLabel} · En{" "}
+                                {formatDuration(startMs - nowMs)}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Fila 2: Título de la actividad */}
+                          <div className="flex justify-between items-start gap-2">
+                            <span
+                              className={`font-bold text-xs leading-snug line-clamp-1 ${
+                                isFinished
+                                  ? "line-through decoration-slate-400 text-slate-500"
+                                  : "text-slate-800"
+                              }`}
+                            >
+                              {res.title}
+                            </span>
+                          </div>
+
+                          {/* Fila 3: Horario + Responsable */}
+                          <div className="flex items-center justify-between gap-2 text-[10.5px]">
+                            <div className="tabular-mono flex items-center gap-1 font-semibold text-slate-600">
+                              <Clock
+                                className={`w-3 h-3 ${
+                                  isFinished
+                                    ? "text-slate-400"
+                                    : "text-sena-green"
+                                }`}
+                              />
+                              <span>{`${formatTime(start)} - ${formatTime(end)}`}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-medium truncate max-w-[140px]">
+                              {res.users?.full_name || "Funcionario"}
+                            </span>
+                          </div>
+
+                          {/* Barra de progreso temporal (visible cuando está en curso o finalizado) */}
+                          {(isInProgress || isFinished) && (
+                            <div className="w-full h-1 bg-slate-200/80 rounded-full overflow-hidden mt-0.5">
+                              <div
+                                className={`h-full transition-all duration-500 ${
+                                  isFinished
+                                    ? "bg-slate-400"
+                                    : spaceTheme.barColor
+                                }`}
+                                style={{ width: `${progressPct}%` }}
+                              />
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 mt-0.5">
-                          <Clock className="w-3 h-3 text-sena-green" />
-                          <span>{`${formatTime(start)} - ${formatTime(end)}`}</span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-medium truncate">
-                          Responsable: {res.users?.full_name || "Funcionario"}
-                        </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               )}
             </div>
           </div>
 
-          {/* COLUMNA 2: RESERVAS & ESPACIOS (TARJETAS AMPLIAS VERTICALES RESTAURADAS) */}
-          <div className="flex flex-col gap-6 h-full bg-slate-50/70 rounded-[2.5rem] p-5 lg:p-7 border border-slate-200/70 shadow-xs">
+          {/* COLUMNA 2: RESERVAS & ESPACIOS (TARJETAS VERTICALES CALIBRADAS PARA FULL HD 1080P) */}
+          <div className="flex flex-col gap-3.5 h-full bg-slate-50/70 rounded-3xl p-4 lg:p-5 border border-slate-200/70 shadow-xs">
             <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-7 bg-sena-blue rounded-full" />
-                <h4 className="text-xs font-black uppercase tracking-[0.18em] text-sena-blue">
-                  Reservas & Espacios
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-6 bg-sena-blue rounded-full" />
+                <h4 className="text-xs font-black uppercase tracking-[0.16em] text-sena-blue">
+                  Reservas &amp; Espacios
                 </h4>
               </div>
               <span className="text-[11px] font-semibold text-slate-400">
@@ -678,7 +857,7 @@ export default function UserRequestForm({
               </span>
             </div>
 
-            <div className="flex flex-col gap-4 flex-1 justify-between">
+            <div className="flex flex-col gap-2.5 flex-1 justify-between">
               {spaceCards.map((sp) => {
                 const IconComponent = sp.icon;
 
@@ -694,27 +873,27 @@ export default function UserRequestForm({
                         sp.onClick();
                       }
                     }}
-                    className={`group relative bg-white rounded-[1.75rem] p-5 border-2 border-slate-100 ${sp.borderHover} shadow-sm hover:shadow-xl transition-all duration-300 text-left flex items-center gap-4 cursor-pointer flex-1 ${
+                    className={`group relative bg-white rounded-2xl p-3.5 border-2 border-slate-100 ${sp.borderHover} shadow-2xs hover:shadow-md transition-all duration-300 text-left flex items-center gap-3.5 cursor-pointer flex-1 ${
                       sp.disabled
                         ? "opacity-65 bg-red-50/30 border-red-200"
                         : ""
                     }`}
                   >
-                    {/* Icono amplio */}
+                    {/* Icono proporcional Full HD */}
                     <div
-                      className={`p-4 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-110 ${sp.iconBg}`}
+                      className={`p-3 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-105 ${sp.iconBg}`}
                     >
-                      <IconComponent className="w-8 h-8" />
+                      <IconComponent className="w-6 h-6" />
                     </div>
 
                     {/* Contenido */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <h3 className="text-lg font-black text-slate-800 group-hover:text-sena-blue transition-colors truncate">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <h3 className="text-base font-black text-slate-800 group-hover:text-sena-blue transition-colors truncate">
                           {sp.title}
                         </h3>
                         <span
-                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full shrink-0 whitespace-nowrap ${
+                          className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap ${
                             sp.disabled
                               ? "bg-red-100 text-red-700"
                               : sp.badgeClass
@@ -723,7 +902,7 @@ export default function UserRequestForm({
                           {sp.disabled ? "Deshabilitado" : sp.badge}
                         </span>
                       </div>
-                      <p className="text-xs sm:text-sm text-slate-500 font-medium italic opacity-80 group-hover:opacity-100 leading-snug">
+                      <p className="text-xs text-slate-500 font-medium italic opacity-85 group-hover:opacity-100 leading-snug line-clamp-1">
                         {sp.subtitle}
                       </p>
                     </div>
@@ -762,13 +941,13 @@ export default function UserRequestForm({
             </div>
           </div>
 
-          {/* COLUMNA 3: SERVICIOS & CONSULTA DE DISPONIBILIDAD (COLORES INSTITUCIONALES SENA) */}
-          <div className="flex flex-col gap-6 h-full bg-slate-50/70 rounded-[2.5rem] p-5 lg:p-7 border border-slate-200/70 shadow-xs">
+          {/* COLUMNA 3: SERVICIOS & CONSULTA DE DISPONIBILIDAD (CALIBRADA FULL HD 1080P) */}
+          <div className="flex flex-col gap-3.5 h-full bg-slate-50/70 rounded-3xl p-4 lg:p-5 border border-slate-200/70 shadow-xs">
             <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-7 bg-sena-orange rounded-full" />
-                <h4 className="text-xs font-black uppercase tracking-[0.18em] text-sena-blue">
-                  Servicios & Consulta
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-6 bg-sena-orange rounded-full" />
+                <h4 className="text-xs font-black uppercase tracking-[0.16em] text-sena-blue">
+                  Servicios &amp; Consulta
                 </h4>
               </div>
               <span className="text-[10px] font-black uppercase text-sena-green bg-sena-green/10 px-2 py-0.5 rounded-full">
@@ -778,31 +957,31 @@ export default function UserRequestForm({
 
             <button
               onClick={() => handleViewChange("AVAILABILITY")}
-              className="group relative flex-1 bg-gradient-to-br from-sena-blue via-[#053b75] to-[#032244] p-8 rounded-[2rem] shadow-lg hover:shadow-2xl transition-all duration-300 flex flex-col items-center text-center justify-between overflow-hidden border-b-8 border-sena-green hover:border-b-4 hover:translate-y-0.5 cursor-pointer min-h-[340px]"
+              className="group relative flex-1 bg-gradient-to-br from-sena-blue via-[#053b75] to-[#032244] p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center text-center justify-between overflow-hidden border-b-6 border-sena-green hover:border-b-4 hover:translate-y-0.5 cursor-pointer min-h-[290px]"
             >
               <div className="w-full flex items-center justify-between text-[10px] font-black tracking-widest uppercase text-white/70">
                 <span>Calendario Maestro</span>
                 <span className="px-2 py-0.5 rounded bg-sena-green text-white">
-                  SENA TIC
+                  SENA
                 </span>
               </div>
 
-              <div className="my-4 flex flex-col items-center gap-5">
-                <div className="bg-white/10 p-7 rounded-[2rem] backdrop-blur-xs group-hover:bg-sena-green group-hover:scale-105 transition-all duration-300 border border-white/20 shadow-lg">
-                  <CalendarRange className="w-14 h-14 text-white" />
+              <div className="my-2 flex flex-col items-center gap-3.5">
+                <div className="bg-white/10 p-5 rounded-2xl backdrop-blur-xs group-hover:bg-sena-green group-hover:scale-105 transition-all duration-300 border border-white/20 shadow-md">
+                  <CalendarRange className="w-11 h-11 text-white" />
                 </div>
-                <div className="space-y-2">
-                  <h3 className="text-3xl font-black text-white tracking-tight">
+                <div className="space-y-1.5">
+                  <h3 className="text-2xl font-black text-white tracking-tight">
                     Disponibilidad
                   </h3>
-                  <p className="text-sm text-blue-100 leading-relaxed font-medium max-w-[240px]">
+                  <p className="text-xs text-blue-100 leading-relaxed font-medium max-w-[230px]">
                     Consulta programación de ambientes, horarios de formación y
                     reservas en tiempo real.
                   </p>
                 </div>
               </div>
 
-              <div className="w-full py-3 px-4 rounded-xl bg-white/10 group-hover:bg-sena-green text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors">
+              <div className="w-full py-2.5 px-4 rounded-xl bg-white/10 group-hover:bg-sena-green text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors">
                 <span>Abrir Calendario de Ambientes</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </div>
