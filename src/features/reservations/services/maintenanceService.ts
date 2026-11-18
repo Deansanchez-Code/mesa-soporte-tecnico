@@ -37,6 +37,7 @@ export const DEFAULT_ENVIRONMENTS_CONFIG: EnvironmentsGlobalConfig = {
   tab_order: [],
   disabled_area_ids: [],
   disabled_special_spaces: [],
+  coordinators: {},
 };
 
 export async function getAllSpacesMaintenanceConfig(): Promise<
@@ -149,6 +150,10 @@ export async function getEnvironmentsGlobalConfig(): Promise<EnvironmentsGlobalC
       disabled_special_spaces: Array.isArray(val.disabled_special_spaces)
         ? val.disabled_special_spaces
         : [],
+      coordinators:
+        val.coordinators && typeof val.coordinators === "object"
+          ? val.coordinators
+          : {},
       updated_at: val.updated_at,
       updated_by: val.updated_by,
     };

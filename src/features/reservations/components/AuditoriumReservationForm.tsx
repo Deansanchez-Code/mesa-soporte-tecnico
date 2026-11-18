@@ -1144,7 +1144,7 @@ export default function AuditoriumReservationForm({
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-600">
                   <Mail className="w-3.5 h-3.5 text-[#39A900]" />
-                  <span>Destino notificación:</span>
+                  <span>Notifica solo si agregas texto:</span>
                   <strong className="text-[#043263]">
                     {activeSpaceCoord.full_name}
                   </strong>
