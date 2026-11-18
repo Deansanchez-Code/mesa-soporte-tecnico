@@ -493,7 +493,7 @@ function HomeContent() {
               GOV·SENA·2026
             </span>
             <span className="text-[11px] font-bold tracking-wider uppercase text-slate-200">
-              KIOSKO TIC · ACCESO SEGURO
+              PORTAL SENA · AMBIENTES &amp; RESERVAS
             </span>
           </div>
           <span className="tabular-mono text-[11px] text-emerald-300 font-semibold">
@@ -505,12 +505,13 @@ function HomeContent() {
         {viewState !== "request" && (
           <div className="p-7 text-center space-y-3 border-b border-slate-100 bg-[#F8FAFC]">
             <div className="mx-auto w-20 h-20 rounded-2xl flex items-center justify-center shadow-md mb-2 bg-[#39A900] border-2 border-white transition-colors">
-              <User className="text-white w-10 h-10" />
+              <Calendar className="text-white w-10 h-10" />
             </div>
 
             <div className="space-y-1">
               <h1 className="text-2xl font-extrabold tracking-tight text-sena-blue">
-                Mesa de Ayuda <span className="text-sena-green">TIC</span>
+                Gestión de Ambientes{" "}
+                <span className="text-sena-green">&amp; Reservas</span>
               </h1>
               <p className="text-sena-orange font-semibold text-xs uppercase tracking-wide">
                 Centro Agroempresarial y Desarrollo Pecuario del Huila
@@ -518,7 +519,7 @@ function HomeContent() {
             </div>
 
             <p className="text-slate-500 text-xs font-medium">
-              Gestión de Incidentes, Ambientes Especiales y Reservas
+              Programación de Ambientes Especiales, Auditorio y Biblioteca
             </p>
           </div>
         )}
@@ -539,7 +540,8 @@ function HomeContent() {
             </div>
             <div>
               <h2 className="text-xl font-bold leading-none text-white">
-                Mesa de Ayuda <span className="text-sena-blue">TIC</span>
+                Gestión de Ambientes{" "}
+                <span className="text-sena-blue">&amp; Reservas</span>
               </h2>
               <p className="text-sm text-gray-100 mt-1 font-medium uppercase tracking-wide">
                 {userData.full_name}
@@ -615,7 +617,8 @@ function HomeContent() {
           {viewState === "contractor" && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
               <div className="bg-orange-50 border border-orange-100 p-3 rounded-lg text-xs text-orange-800 mb-4">
-                Ingresa tus datos para generar la solicitud de soporte.
+                Ingresa tus datos institucionales para gestionar reservas y
+                consultar disponibilidad de ambientes.
               </div>
 
               <div className="space-y-1">
@@ -705,7 +708,7 @@ function HomeContent() {
                   </>
                 ) : (
                   <>
-                    INGRESAR SOLICITUD
+                    CONTINUAR A RESERVAS
                     <ArrowRight className="w-5 h-5" />
                   </>
                 )}
@@ -1052,7 +1055,7 @@ function HomeContent() {
                 <p className="text-xs text-slate-600 leading-relaxed">
                   A partir de ahora puedes acceder directamente con tu usuario
                   corporativo para gestionar tus reservas, prerreservas y
-                  solicitudes de soporte técnico con total agilidad.
+                  consulta de ambientes especiales con total agilidad.
                 </p>
               </div>
 
@@ -1061,7 +1064,7 @@ function HomeContent() {
                 onClick={() => setViewState("request")}
                 className="w-full bg-sena-green hover:bg-[#2d8500] text-white py-3 rounded-lg font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
               >
-                CONTINUAR AL PORTAL TIC
+                CONTINUAR AL PORTAL DE RESERVAS
                 <ArrowRight className="w-5 h-5" />
               </button>
             </div>
@@ -1088,20 +1091,37 @@ function HomeContent() {
           )}
         </div>
 
-        {/* FOOTER */}
+        {/* FOOTER DE TARJETA DE ACCESO */}
         {viewState !== "request" && (
-          <div className="bg-gray-100 p-4 text-center border-t border-gray-200">
-            <p className="text-gray-400 text-xs mb-2">
-              Servicio Nacional de Aprendizaje - SENA
+          <div className="bg-[#F8FAFC] px-6 py-4 text-center border-t border-slate-200 space-y-2">
+            <p className="text-slate-500 text-xs font-medium">
+              Servicio Nacional de Aprendizaje — SENA
+            </p>
+            <p className="text-[11px] text-slate-400">
+              Desarrollado por{" "}
+              <strong className="text-sena-blue font-semibold">
+                Ing. Deivis Andrés Sánchez H.
+              </strong>{" "}
+              —{" "}
+              <a
+                href="https://dashdev.dev"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tabular-mono font-bold text-sena-green hover:underline"
+              >
+                Dashdev.dev
+              </a>
             </p>
 
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-1 text-[10px] font-bold text-sena-blue hover:underline opacity-60 hover:opacity-100 transition"
-            >
-              <Lock className="w-3 h-3" />
-              ACCESO FUNCIONARIOS TIC
-            </Link>
+            <div className="pt-1">
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-sena-blue hover:underline opacity-75 hover:opacity-100 transition"
+              >
+                <Lock className="w-3 h-3" />
+                ACCESO ADMINISTRACIÓN &amp; COORDINACIÓN
+              </Link>
+            </div>
           </div>
         )}
       </div>

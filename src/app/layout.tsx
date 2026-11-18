@@ -5,6 +5,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { Toaster } from "sonner";
 import SessionMonitor from "@/features/shifts/components/SessionMonitor";
 import QueryProvider from "@/components/providers/QueryProvider";
+import InstitutionalFooter from "@/components/InstitutionalFooter";
 import { headers } from "next/headers";
 
 const jakartaSans = Plus_Jakarta_Sans({
@@ -22,16 +23,18 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Soporte TIC SENA · Swiss GovTech",
-  description: "Sistema de gestión de tickets y ambientes en sitio",
+  title: "Gestión de Ambientes y Reservas · SENA",
+  description:
+    "Plataforma institucional para la gestión de ambientes especiales, auditorio, biblioteca y programación de reservas SENA.",
   manifest: "/manifest.json",
   icons: {
     icon: [
-      { url: "/favicon.ico" },
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/icon.png", sizes: "512x512", type: "image/png" },
+      { url: "/icon.svg?v=20261118", type: "image/svg+xml" },
+      { url: "/icon.png?v=20261118", sizes: "512x512", type: "image/png" },
+      { url: "/favicon.ico?v=20261118", sizes: "any" },
     ],
-    apple: "/apple-icon.png",
+    shortcut: ["/icon.svg?v=20261118"],
+    apple: [{ url: "/apple-icon.png?v=20261118", sizes: "180x180" }],
   },
 };
 
@@ -67,16 +70,7 @@ export default async function RootLayout({
             </QueryProvider>
           </NotificationProvider>
         </main>
-        <footer className="py-4 px-6 border-t border-[var(--border-hairline)] bg-white/80 text-center text-xs text-slate-500 font-medium flex flex-wrap items-center justify-center gap-3">
-          <span className="tabular-mono text-[11px] font-bold px-2 py-0.5 rounded bg-[#043263] text-white">
-            GOV·SENA·2026
-          </span>
-          <p>
-            Desarrollado por{" "}
-            <span className="font-bold text-slate-700">DashDev.co</span> — Todos
-            los derechos reservados
-          </p>
-        </footer>
+        <InstitutionalFooter />
       </body>
     </html>
   );

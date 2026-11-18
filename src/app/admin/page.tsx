@@ -918,7 +918,7 @@ export default function AdminDashboard() {
               href="/dashboard"
               className="hidden md:flex items-center gap-2 text-sm font-bold text-white/80 hover:text-white transition"
             >
-              <LayoutDashboard className="w-4 h-4" /> Ir a Mesa de Ayuda
+              <LayoutDashboard className="w-4 h-4" /> Ir a Gestión de Ambientes
             </Link>
 
             <button

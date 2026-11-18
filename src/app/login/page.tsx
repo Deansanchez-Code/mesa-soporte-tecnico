@@ -102,12 +102,14 @@ export default function LoginPage() {
 
       <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden p-8 animate-in zoom-in-95 duration-300">
         <div className="text-center mb-8">
-          <div className="bg-sena-green w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+          <div className="bg-sena-green w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <ShieldCheck className="text-white w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">Acceso TIC</h1>
+          <h1 className="text-2xl font-bold text-gray-800">
+            Acceso Institucional
+          </h1>
           <p className="text-sm text-gray-500">
-            Mesa de Ayuda y Administración
+            Gestión de Ambientes Especiales y Reservas
           </p>
         </div>
 
@@ -165,8 +167,20 @@ export default function LoginPage() {
         </form>
       </div>
 
-      <p className="text-white/40 text-xs mt-8">
-        Sistema de Gestión de Soporte V1.0
+      <p className="text-white/70 text-xs mt-8 text-center">
+        Gestión de Ambientes y Reservas SENA · Desarrollado por{" "}
+        <strong className="text-white font-semibold">
+          Ing. Deivis Andrés Sánchez H.
+        </strong>{" "}
+        —{" "}
+        <a
+          href="https://dashdev.dev"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="tabular-mono font-bold text-emerald-300 hover:underline"
+        >
+          Dashdev.dev
+        </a>
       </p>
     </div>
   );
