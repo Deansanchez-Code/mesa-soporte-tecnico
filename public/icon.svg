@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <!-- Base Squircle Institucional SENA Navy #043263 -->
+  <rect width="128" height="128" rx="28" fill="#043263"/>
+  <!-- Borde de precisión SENA Green #39A900 -->
+  <rect x="2" y="2" width="124" height="124" rx="26" stroke="#39A900" stroke-width="3.5" stroke-opacity="0.95"/>
+  <!-- Indicador TIC Live Status en SENA Orange #FC7323 -->
+  <circle cx="104" cy="24" r="6.5" fill="#FC7323" stroke="#FFFFFF" stroke-width="1.5"/>
+  <!-- Símbolo Institucional SENA en Blanco Puro de Alto Contraste -->
+  <circle cx="64" cy="36" r="11" fill="#FFFFFF"/>
+  <path d="M42 54 H86 L78 66 H50 Z" fill="#FFFFFF"/>
+  <path d="M38 70 L48 70 L58 102 L48 102 Z" fill="#FFFFFF"/>
+  <path d="M90 70 L80 70 L70 102 L80 102 Z" fill="#FFFFFF"/>
+</svg>

@@ -13,7 +13,6 @@ import {
   ExternalLink,
   CheckCircle2,
   Clock,
-  Loader2,
   Power,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -557,7 +556,7 @@ export default function UserRequestForm({
         )}
 
         {/* GRID DE 3 COLUMNAS EQUILIBRADAS */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
+        <div className="@container grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
           {/* COLUMNA 1: AGENDA / EVENTOS DE HOY */}
           <div className="flex flex-col gap-6 h-full bg-slate-50/70 rounded-[2.5rem] p-5 lg:p-7 border border-slate-200/70 shadow-xs">
             <div className="flex items-center justify-between px-1">
@@ -567,16 +566,17 @@ export default function UserRequestForm({
                   Eventos de Hoy
                 </h4>
               </div>
-              <span className="text-[11px] font-bold bg-sena-green/15 text-sena-green px-2.5 py-0.5 rounded-full">
+              <span className="tabular-mono text-[11px] font-bold bg-sena-green/15 text-sena-green px-2.5 py-0.5 rounded-full">
                 {todayReservations.length} activos
               </span>
             </div>
 
             <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-2xs flex flex-col gap-3.5 flex-1 overflow-y-auto max-h-[540px] scrollbar-thin scrollbar-thumb-gray-200 min-h-[340px]">
               {loadingReservations ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400 h-full">
-                  <Loader2 className="w-7 h-7 animate-spin text-sena-green" />
-                  <span className="text-xs font-bold">Cargando agenda...</span>
+                <div className="space-y-3 py-2">
+                  <div className="h-20 rounded-2xl skeleton-shimmer" />
+                  <div className="h-20 rounded-2xl skeleton-shimmer" />
+                  <div className="h-20 rounded-2xl skeleton-shimmer" />
                 </div>
               ) : todayReservations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400 text-center h-full">

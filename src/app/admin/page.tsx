@@ -27,7 +27,6 @@ import {
   ShieldAlert,
   Loader2,
   Clock, // Nuevo para Turnos
-  X,
   CheckCircle2,
   Pencil,
   Power,
@@ -41,6 +40,7 @@ import ContractorsTab from "@/features/contractors/components/ContractorsTab";
 import MetricsTab from "@/features/monitoring/components/MetricsTab";
 import ShiftsTab from "@/features/shifts/components/ShiftsTab";
 import AuditTab from "@/features/audit/components/AuditTab";
+import { NativeDialog } from "@/components/ui/NativeDialog";
 import {
   getAllSpacesMaintenanceAction,
   saveSpaceMaintenanceAction,
@@ -2532,130 +2532,125 @@ export default function AdminDashboard() {
         {/* --- MODAL 1: CREAR/EDITAR USUARIO --- */}
 
         {/* --- MODAL 2: CREAR ACTIVO (INVENTARIO) --- */}
-        {showAssetModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-in fade-in">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-              <div className="bg-sena-green p-4 flex justify-between items-center text-white">
-                <h3 className="font-bold flex gap-2">
-                  <Monitor className="w-5 h-5" /> Nuevo Equipo
-                </h3>
-                <button
-                  onClick={() => setShowAssetModal(false)}
-                  className="hover:text-gray-200 font-bold text-xl"
+        <NativeDialog
+          isOpen={showAssetModal}
+          onClose={() => setShowAssetModal(false)}
+          title="Nuevo Equipo"
+          subtitle="Registro de Inventario Tecnológico"
+          badgeText="GOV·SENA·ASSETS"
+          headerIcon={<Monitor className="w-5 h-5 text-emerald-300" />}
+          maxWidthClass="max-w-md"
+        >
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="swiss-section-tag block mb-2">
+                01 / DATOS DEL EQUIPO
+              </label>
+              <div className="grid grid-cols-2 gap-3 mt-1">
+                <select
+                  className="border border-slate-300 p-3 rounded-lg w-full text-sm bg-white"
+                  value={newAsset.type}
+                  onChange={(e) =>
+                    setNewAsset({ ...newAsset, type: e.target.value })
+                  }
                 >
-                  &times;
-                </button>
+                  <option>Portátil</option>
+                  <option>Escritorio</option>
+                  <option>Monitor</option>
+                  <option>Periférico</option>
+                </select>
+                <input
+                  type="text"
+                  className="border border-slate-300 p-3 rounded-lg w-full text-sm"
+                  placeholder="Marca (HP, Dell)"
+                  value={newAsset.brand}
+                  onChange={(e) =>
+                    setNewAsset({ ...newAsset, brand: e.target.value })
+                  }
+                />
               </div>
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase">
-                    Datos del Equipo
-                  </label>
-                  <div className="grid grid-cols-2 gap-3 mt-1">
-                    <select
-                      className="border p-3 rounded-lg w-full"
-                      value={newAsset.type}
-                      onChange={(e) =>
-                        setNewAsset({ ...newAsset, type: e.target.value })
-                      }
-                    >
-                      <option>Portátil</option>
-                      <option>Escritorio</option>
-                      <option>Monitor</option>
-                      <option>Periférico</option>
-                    </select>
-                    <input
-                      type="text"
-                      className="border p-3 rounded-lg w-full"
-                      placeholder="Marca (HP, Dell)"
-                      value={newAsset.brand}
-                      onChange={(e) =>
-                        setNewAsset({ ...newAsset, brand: e.target.value })
-                      }
-                    />
-                  </div>
-                  <input
-                    type="text"
-                    className="border p-3 rounded-lg w-full mt-3"
-                    placeholder="Modelo (Ej: ProBook 450 G9)"
-                    value={newAsset.model}
-                    onChange={(e) =>
-                      setNewAsset({ ...newAsset, model: e.target.value })
-                    }
-                  />
-                  <input
-                    type="text"
-                    className="border p-3 rounded-lg w-full mt-3 font-mono"
-                    placeholder="SERIAL (S/N)"
-                    value={newAsset.serial}
-                    onChange={(e) =>
-                      setNewAsset({ ...newAsset, serial: e.target.value })
-                    }
-                  />
-                  <input
-                    type="text"
-                    className="border p-3 rounded-lg w-full mt-3"
-                    placeholder="Ubicación (Ej: Sede Central)"
-                    value={newAsset.location}
-                    onChange={(e) =>
-                      setNewAsset({ ...newAsset, location: e.target.value })
-                    }
-                    list="locations-list"
-                  />
-                  <datalist id="locations-list">
-                    {Array.from(
-                      new Set([
-                        ...assets
-                          .map((a) => a.location)
-                          .filter((l) => l && l !== "Sin ubicación"),
-                        ...configData.areas.map((area) => area.name),
-                      ]),
-                    )
-                      .sort()
-                      .map((loc, index) => (
-                        <option key={index} value={loc || ""} />
-                      ))}
-                  </datalist>
-                </div>
+              <input
+                type="text"
+                className="border border-slate-300 p-3 rounded-lg w-full mt-3 text-sm"
+                placeholder="Modelo (Ej: ProBook 450 G9)"
+                value={newAsset.model}
+                onChange={(e) =>
+                  setNewAsset({ ...newAsset, model: e.target.value })
+                }
+              />
+              <input
+                type="text"
+                className="border border-slate-300 p-3 rounded-lg w-full mt-3 tabular-mono text-sm"
+                placeholder="SERIAL (S/N)"
+                value={newAsset.serial}
+                onChange={(e) =>
+                  setNewAsset({ ...newAsset, serial: e.target.value })
+                }
+              />
+              <input
+                type="text"
+                className="border border-slate-300 p-3 rounded-lg w-full mt-3 text-sm"
+                placeholder="Ubicación (Ej: Sede Central)"
+                value={newAsset.location}
+                onChange={(e) =>
+                  setNewAsset({ ...newAsset, location: e.target.value })
+                }
+                list="locations-list"
+              />
+              <datalist id="locations-list">
+                {Array.from(
+                  new Set([
+                    ...assets
+                      .map((a) => a.location)
+                      .filter((l) => l && l !== "Sin ubicación"),
+                    ...configData.areas.map((area) => area.name),
+                  ]),
+                )
+                  .sort()
+                  .map((loc, index) => (
+                    <option key={index} value={loc || ""} />
+                  ))}
+              </datalist>
+            </div>
 
-                <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase">
-                    Asignar A:
-                  </label>
-                  <select
-                    className="border p-3 rounded-lg w-full mt-1"
-                    value={newAsset.userId}
-                    onChange={(e) =>
-                      setNewAsset({ ...newAsset, userId: e.target.value })
-                    }
-                  >
-                    <option value="">-- Seleccionar Funcionario --</option>
-                    {usersList.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            <div>
+              <label className="swiss-section-tag block mb-1.5">
+                02 / ASIGNAR CUSTODIO
+              </label>
+              <select
+                className="border border-slate-300 p-3 rounded-lg w-full text-sm bg-white"
+                value={newAsset.userId}
+                onChange={(e) =>
+                  setNewAsset({ ...newAsset, userId: e.target.value })
+                }
+              >
+                <option value="">-- Seleccionar Funcionario --</option>
+                {usersList.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={() => setShowAssetModal(false)}
-                    className="flex-1 py-3 text-gray-600 font-bold bg-gray-100 rounded-lg"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleCreateAsset}
-                    className="flex-1 py-3 bg-sena-green hover:bg-green-700 text-white font-bold rounded-lg"
-                  >
-                    Registrar Equipo
-                  </button>
-                </div>
-              </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAssetModal(false)}
+                className="flex-1 min-h-[44px] py-2.5 text-slate-700 font-bold bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateAsset}
+                className="flex-1 min-h-[44px] py-2.5 bg-sena-green hover:bg-[#2d8500] active:translate-y-[1px] text-white font-bold rounded-lg transition"
+              >
+                Registrar Equipo
+              </button>
             </div>
           </div>
-        )}
+        </NativeDialog>
 
         {showTicketModal && selectedTicket && (
           <React.Suspense
@@ -2721,225 +2716,207 @@ export default function AdminDashboard() {
         )}
 
         {/* --- MODAL 5: ASIGNAR COORDINADOR DE AMBIENTE (SUPERADMIN) --- */}
-        {selectedSpaceForCoord && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
-              {/* Header */}
-              <div className="bg-sena-green px-6 py-4 flex items-center justify-between text-white">
-                <div className="flex items-center gap-2">
-                  <Shield className="w-5 h-5" />
-                  <div>
-                    <h3 className="font-black text-base leading-tight">
-                      Asignar Coordinador
-                    </h3>
-                    <p className="text-xs text-white/90">
-                      {selectedSpaceForCoord.name}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedSpaceForCoord(null)}
-                  className="text-white/80 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+        <NativeDialog
+          isOpen={Boolean(selectedSpaceForCoord)}
+          onClose={() => setSelectedSpaceForCoord(null)}
+          title="Asignar Coordinador"
+          subtitle={selectedSpaceForCoord?.name || ""}
+          badgeText="GOV·SENA·COORD"
+          headerIcon={<Shield className="w-5 h-5 text-emerald-300" />}
+          maxWidthClass="max-w-lg"
+        >
+          {/* Body */}
+          <div className="p-6 overflow-y-auto space-y-4 max-h-[65dvh]">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-900 flex items-start gap-2.5">
+              <ShieldAlert className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Privilegios y Requisitos:</p>
+                <p className="mt-0.5 text-blue-800">
+                  Solo funcionarios VIP o de planta pueden ser designados. Al
+                  asignar al usuario, el sistema garantizará automáticamente sus
+                  credenciales VIP y reasignará las solicitudes pendientes de
+                  autorización de este espacio.
+                </p>
               </div>
+            </div>
 
-              {/* Body */}
-              <div className="p-6 overflow-y-auto space-y-4 flex-1">
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-900 flex items-start gap-2.5">
-                  <ShieldAlert className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold">Privilegios y Requisitos:</p>
-                    <p className="mt-0.5 text-blue-800">
-                      Solo funcionarios VIP o de planta pueden ser designados.
-                      Al asignar al usuario, el sistema garantizará
-                      automáticamente sus credenciales VIP y reasignará las
-                      solicitudes pendientes de autorización de este espacio.
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1.5">
-                    Buscar Funcionario / Coordinador
-                  </label>
-                  <div className="relative">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      placeholder="Filtrar por nombre, usuario o correo..."
-                      value={coordSearchQuery}
-                      onChange={(e) => setCoordSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1.5">
-                    Seleccionar Funcionario
-                  </label>
-                  <div className="border border-slate-200 rounded-xl max-h-60 overflow-y-auto divide-y divide-slate-100">
-                    {(() => {
-                      const q = coordSearchQuery.toLowerCase().trim();
-                      const filtered = coordinatorCandidateUsers.filter((u) => {
-                        if (!q) return true;
-                        return (
-                          (u.full_name || "").toLowerCase().includes(q) ||
-                          (u.username || "").toLowerCase().includes(q) ||
-                          (u.email || "").toLowerCase().includes(q) ||
-                          (u.area || "").toLowerCase().includes(q) ||
-                          (u.job_category || "").toLowerCase().includes(q)
-                        );
-                      });
-
-                      if (isLoadingAssignableUsers && filtered.length === 0) {
-                        return (
-                          <div className="p-6 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin text-sena-green" />
-                            Cargando directorio de funcionarios...
-                          </div>
-                        );
-                      }
-
-                      if (filtered.length === 0) {
-                        return (
-                          <div className="p-6 text-center text-xs text-slate-500">
-                            {coordSearchQuery.trim()
-                              ? `No se encontraron funcionarios que coincidan con "${coordSearchQuery}".`
-                              : "No hay funcionarios disponibles en el directorio."}
-                          </div>
-                        );
-                      }
-
-                      return filtered.map((u) => {
-                        const isVipUser =
-                          !!u.is_vip ||
-                          u.role === "coordinator" ||
-                          (u.job_category || "")
-                            .toLowerCase()
-                            .includes("coordinador");
-                        const isPlanta = (u.employment_type || "")
-                          .toLowerCase()
-                          .includes("planta");
-                        const isSelected = selectedCoordUserId === u.id;
-                        return (
-                          <div
-                            key={u.id}
-                            onClick={() => setSelectedCoordUserId(u.id)}
-                            className={`p-3 cursor-pointer flex items-center justify-between transition-colors ${
-                              isSelected
-                                ? "bg-emerald-50 border-l-4 border-sena-green"
-                                : "hover:bg-slate-50"
-                            }`}
-                          >
-                            <div className="min-w-0 pr-2">
-                              <p className="text-xs font-bold text-slate-800 truncate">
-                                {u.full_name}
-                              </p>
-                              <p className="text-[11px] text-slate-500 truncate">
-                                @{u.username} ·{" "}
-                                {u.email || `${u.username}@sena.edu.co`}
-                              </p>
-                            </div>
-                            <div className="shrink-0 flex items-center gap-1.5">
-                              {isVipUser ? (
-                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
-                                  VIP
-                                </span>
-                              ) : isPlanta ? (
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                                  Planta
-                                </span>
-                              ) : (
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                                  {u.role || "Funcionario"}
-                                </span>
-                              )}
-                              <input
-                                type="radio"
-                                name="coordUser"
-                                checked={isSelected}
-                                onChange={() => setSelectedCoordUserId(u.id)}
-                                className="text-sena-green focus:ring-sena-green h-4 w-4"
-                              />
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
+            <div>
+              <label className="swiss-section-tag block mb-1.5">
+                01 / BUSCAR FUNCIONARIO O COORDINADOR
+              </label>
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Filtrar por nombre, usuario o correo..."
+                  value={coordSearchQuery}
+                  onChange={(e) => setCoordSearchQuery(e.target.value)}
+                  className="w-full min-h-[42px] pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sena-green"
+                />
               </div>
+            </div>
 
-              {/* Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedSpaceForCoord(null)}
-                  disabled={isAssigningCoord}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200/70 rounded-lg transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  disabled={!selectedCoordUserId || isAssigningCoord}
-                  onClick={async () => {
-                    if (!selectedCoordUserId) return;
-                    setIsAssigningCoord(true);
-                    try {
-                      const {
-                        data: { session },
-                      } = await supabase.auth.getSession();
-                      const res = await assignSpaceCoordinatorAction({
-                        spaceId: selectedSpaceForCoord.id,
-                        userId: selectedCoordUserId,
-                        accessToken: session?.access_token,
-                      });
-                      if (res.error) {
-                        toast.error(res.error);
-                        return;
-                      }
-                      if (res.config) {
-                        setEnvGlobalConfig(res.config);
-                        if (
-                          typeof res.transferredCount === "number" &&
-                          res.transferredCount > 0
-                        ) {
-                          toast.success(
-                            `Coordinador asignado con éxito. Se trasladaron ${res.transferredCount} solicitud(es) pendiente(s) a su bandeja.`,
-                          );
-                        } else {
-                          toast.success(
-                            `Coordinador de ${selectedSpaceForCoord.name} asignado correctamente.`,
-                          );
-                        }
-                        setSelectedSpaceForCoord(null);
-                      }
-                    } catch {
-                      toast.error("Error al asignar coordinador");
-                    } finally {
-                      setIsAssigningCoord(false);
-                    }
-                  }}
-                  className="px-5 py-2 text-xs font-bold text-white bg-sena-green hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors flex items-center gap-2"
-                >
-                  {isAssigningCoord ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Asignando...
-                    </>
-                  ) : (
-                    "Confirmar Asignación"
-                  )}
-                </button>
+            <div>
+              <label className="swiss-section-tag block mb-1.5">
+                02 / SELECCIONAR FUNCIONARIO
+              </label>
+              <div className="border border-slate-200 rounded-xl max-h-60 overflow-y-auto divide-y divide-slate-100">
+                {(() => {
+                  const q = coordSearchQuery.toLowerCase().trim();
+                  const filtered = coordinatorCandidateUsers.filter((u) => {
+                    if (!q) return true;
+                    return (
+                      (u.full_name || "").toLowerCase().includes(q) ||
+                      (u.username || "").toLowerCase().includes(q) ||
+                      (u.email || "").toLowerCase().includes(q) ||
+                      (u.area || "").toLowerCase().includes(q) ||
+                      (u.job_category || "").toLowerCase().includes(q)
+                    );
+                  });
+
+                  if (isLoadingAssignableUsers && filtered.length === 0) {
+                    return (
+                      <div className="p-6 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-sena-green" />
+                        Cargando directorio de funcionarios...
+                      </div>
+                    );
+                  }
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="p-6 text-center text-xs text-slate-500">
+                        {coordSearchQuery.trim()
+                          ? `No se encontraron funcionarios que coincidan con "${coordSearchQuery}".`
+                          : "No hay funcionarios disponibles en el directorio."}
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((u) => {
+                    const isVipUser =
+                      !!u.is_vip ||
+                      u.role === "coordinator" ||
+                      (u.job_category || "")
+                        .toLowerCase()
+                        .includes("coordinador");
+                    const isPlanta = (u.employment_type || "")
+                      .toLowerCase()
+                      .includes("planta");
+                    const isSelected = selectedCoordUserId === u.id;
+                    return (
+                      <div
+                        key={u.id}
+                        onClick={() => setSelectedCoordUserId(u.id)}
+                        className={`p-3 cursor-pointer flex items-center justify-between transition-colors ${
+                          isSelected
+                            ? "bg-emerald-50 border-l-4 border-sena-green"
+                            : "hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <p className="text-xs font-bold text-slate-800 truncate">
+                            {u.full_name}
+                          </p>
+                          <p className="tabular-mono text-[11px] text-slate-500 truncate">
+                            @{u.username} ·{" "}
+                            {u.email || `${u.username}@sena.edu.co`}
+                          </p>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          {isVipUser ? (
+                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                              VIP
+                            </span>
+                          ) : isPlanta ? (
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                              Planta
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                              {u.role || "Funcionario"}
+                            </span>
+                          )}
+                          <input
+                            type="radio"
+                            name="coordUser"
+                            checked={isSelected}
+                            onChange={() => setSelectedCoordUserId(u.id)}
+                            className="text-sena-green focus:ring-sena-green h-4 w-4"
+                          />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </div>
           </div>
-        )}
+
+          {/* Footer */}
+          <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedSpaceForCoord(null)}
+              disabled={isAssigningCoord}
+              className="min-h-[44px] px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200/70 rounded-lg transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={!selectedCoordUserId || isAssigningCoord}
+              onClick={async () => {
+                if (!selectedCoordUserId || !selectedSpaceForCoord) return;
+                setIsAssigningCoord(true);
+                try {
+                  const {
+                    data: { session },
+                  } = await supabase.auth.getSession();
+                  const res = await assignSpaceCoordinatorAction({
+                    spaceId: selectedSpaceForCoord.id,
+                    userId: selectedCoordUserId,
+                    accessToken: session?.access_token,
+                  });
+                  if (res.error) {
+                    toast.error(res.error);
+                    return;
+                  }
+                  if (res.config) {
+                    setEnvGlobalConfig(res.config);
+                    if (
+                      typeof res.transferredCount === "number" &&
+                      res.transferredCount > 0
+                    ) {
+                      toast.success(
+                        `Coordinador asignado con éxito. Se trasladaron ${res.transferredCount} solicitud(es) pendiente(s) a su bandeja.`,
+                      );
+                    } else {
+                      toast.success(
+                        `Coordinador de ${selectedSpaceForCoord.name} asignado correctamente.`,
+                      );
+                    }
+                    setSelectedSpaceForCoord(null);
+                  }
+                } catch {
+                  toast.error("Error al asignar coordinador");
+                } finally {
+                  setIsAssigningCoord(false);
+                }
+              }}
+              className="min-h-[44px] px-5 py-2 text-xs font-bold text-white bg-sena-green hover:bg-emerald-700 active:translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors flex items-center gap-2"
+            >
+              {isAssigningCoord ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Asignando...
+                </>
+              ) : (
+                "Confirmar Asignación"
+              )}
+            </button>
+          </div>
+        </NativeDialog>
       </div>
     </AuthGuard>
   );

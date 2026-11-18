@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase/client";
 import {
   User,
@@ -394,7 +395,7 @@ function HomeContent() {
 
     // Validación de ubicación para Funcionarios
     if (contractorArea === "Contratista" && !contractorLocation) {
-      alert("Por favor selecciona dónde te encuentras ubicado.");
+      toast.warning("Por favor selecciona dónde te encuentras ubicado.");
       return;
     }
 
@@ -408,7 +409,7 @@ function HomeContent() {
 
     // Validación de correo institucional
     if (contractorEmail.toLowerCase().endsWith("@sena.edu.co")) {
-      alert(
+      toast.info(
         "Los correos @sena.edu.co deben ingresar por el 'Ingreso Corporativo'.",
       );
       setLoading(false);
@@ -426,7 +427,7 @@ function HomeContent() {
       }
 
       if (existingOtp.status !== 404) {
-        alert(existingOtp.error);
+        toast.error(existingOtp.error);
         return;
       }
 
@@ -459,12 +460,12 @@ function HomeContent() {
           "contractor",
         );
         if (!otpReq.ok) {
-          alert(otpReq.error);
+          toast.error(otpReq.error);
         }
       }
     } catch (error) {
       console.error("Error en registro de contratista:", error);
-      alert(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Error al procesar el ingreso. Verifica tus datos o intenta nuevamente.",
@@ -476,33 +477,48 @@ function HomeContent() {
 
   return (
     <div className="flex-1 w-full flex flex-col items-center justify-center p-4">
-      {/* CINTILLO SUPERIOR */}
-      <div className="fixed top-0 left-0 w-full h-2 bg-sena-green"></div>
+      {/* CINTILLO SUPERIOR SWISS GOVTECH */}
+      <div className="fixed top-0 left-0 w-full h-1.5 bg-[#39A900] z-40"></div>
 
-      {/* TARJETA PRINCIPAL */}
+      {/* TARJETA PRINCIPAL BENTO MODULAR */}
       <div
-        className={`bg-white w-full rounded-2xl shadow-2xl overflow-hidden border-t-4 border-sena-green transition-all duration-500 ${
+        className={`bg-white w-full rounded-2xl shadow-[0_20px_50px_-12px_rgba(4,50,99,0.12)] overflow-hidden border border-[var(--border-hairline)] transition-all duration-500 ${
           viewState === "request" ? "max-w-[1640px]" : "max-w-md"
         }`}
       >
+        {/* BARRA TÉCNICA SUPERIOR SWISS GOVTECH */}
+        <div className="bg-[#043263] text-white px-5 py-2.5 flex items-center justify-between border-b-2 border-[#39A900]">
+          <div className="flex items-center gap-2">
+            <span className="tabular-mono text-[10px] font-bold px-2 py-0.5 rounded bg-[#39A900] text-white">
+              GOV·SENA·2026
+            </span>
+            <span className="text-[11px] font-bold tracking-wider uppercase text-slate-200">
+              KIOSKO TIC · ACCESO SEGURO
+            </span>
+          </div>
+          <span className="tabular-mono text-[11px] text-emerald-300 font-semibold">
+            BOG · UTC-5
+          </span>
+        </div>
+
         {/* HEADER (Solo visible si no estamos en el formulario de solicitud) */}
         {viewState !== "request" && (
-          <div className="p-8 text-center space-y-4">
-            <div className="mx-auto w-24 h-24 rounded-full flex items-center justify-center shadow-lg mb-4 bg-sena-green transition-colors">
-              <User className="text-white w-12 h-12" />
+          <div className="p-7 text-center space-y-3 border-b border-slate-100 bg-[#F8FAFC]">
+            <div className="mx-auto w-20 h-20 rounded-2xl flex items-center justify-center shadow-md mb-2 bg-[#39A900] border-2 border-white transition-colors">
+              <User className="text-white w-10 h-10" />
             </div>
 
             <div className="space-y-1">
-              <h1 className="text-2xl font-bold text-sena-blue">
+              <h1 className="text-2xl font-extrabold tracking-tight text-sena-blue">
                 Mesa de Ayuda <span className="text-sena-green">TIC</span>
               </h1>
-              <p className="text-sena-orange font-semibold text-sm">
+              <p className="text-sena-orange font-semibold text-xs uppercase tracking-wide">
                 Centro Agroempresarial y Desarrollo Pecuario del Huila
               </p>
             </div>
 
-            <p className="text-gray-500 text-sm">
-              Gestión de Incidentes y Requerimientos
+            <p className="text-slate-500 text-xs font-medium">
+              Gestión de Incidentes, Ambientes Especiales y Reservas
             </p>
           </div>
         )}
@@ -814,10 +830,22 @@ function HomeContent() {
                 </p>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-sena-blue ml-1">
-                  PIN de Seguridad (6 dígitos)
-                </label>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-sena-blue ml-1">
+                    PIN de Seguridad (6 dígitos)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPinValue("");
+                      setPinError("");
+                    }}
+                    className="text-xs font-semibold text-slate-500 hover:text-sena-blue px-2 py-0.5 rounded"
+                  >
+                    Limpiar
+                  </button>
+                </div>
                 <input
                   type="password"
                   inputMode="numeric"
@@ -829,8 +857,51 @@ function HomeContent() {
                     setPinValue(e.target.value.replace(/\D/g, "").slice(0, 6))
                   }
                   onKeyDown={(e) => e.key === "Enter" && handleVerifyPin()}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-green outline-none text-center text-2xl font-mono tracking-[0.45em]"
+                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-sena-green outline-none text-center text-2xl tabular-mono tracking-[0.45em] bg-[#F8FAFC]"
                 />
+                {/* Teclado Táctil Kiosko (>=48px por tecla, tabular-mono) */}
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() =>
+                        setPinValue((prev) =>
+                          prev.length < 6 ? prev + d : prev,
+                        )
+                      }
+                      className="min-h-[48px] rounded-xl bg-slate-50 hover:bg-slate-100 active:translate-y-[1px] border border-slate-200 tabular-mono font-bold text-base text-slate-800 transition cursor-pointer"
+                    >
+                      {d}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPinValue("")}
+                    className="min-h-[48px] rounded-xl bg-slate-100 hover:bg-slate-200 active:translate-y-[1px] border border-slate-200 text-xs font-bold text-slate-600 transition cursor-pointer"
+                  >
+                    Borrar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPinValue((prev) =>
+                        prev.length < 6 ? prev + "0" : prev,
+                      )
+                    }
+                    className="min-h-[48px] rounded-xl bg-slate-50 hover:bg-slate-100 active:translate-y-[1px] border border-slate-200 tabular-mono font-bold text-base text-slate-800 transition cursor-pointer"
+                  >
+                    0
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPinValue((prev) => prev.slice(0, -1))}
+                    aria-label="Borrar último dígito"
+                    className="min-h-[48px] rounded-xl bg-slate-100 hover:bg-slate-200 active:translate-y-[1px] border border-slate-200 tabular-mono text-sm font-bold text-slate-700 transition cursor-pointer"
+                  >
+                    ⌫
+                  </button>
+                </div>
                 {pinError && (
                   <p className="text-xs text-red-600 font-medium ml-1">
                     {pinError}
@@ -842,7 +913,7 @@ function HomeContent() {
                 type="button"
                 onClick={handleVerifyPin}
                 disabled={loading || pinValue.length !== 6}
-                className="w-full bg-sena-green hover:bg-[#2d8500] text-white py-3 rounded-lg font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full min-h-[48px] bg-sena-green hover:bg-[#2d8500] active:translate-y-[1px] text-white py-3 rounded-xl font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {loading ? (
                   <>

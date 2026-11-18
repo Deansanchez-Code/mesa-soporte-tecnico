@@ -589,204 +589,227 @@ export default function AuditoriumReservationForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="max-h-[85vh] overflow-y-auto px-8 py-8 scrollbar-thin scrollbar-thumb-gray-200"
+      className="@container max-h-[85dvh] overflow-y-auto px-6 sm:px-8 py-6 sm:py-8 scrollbar-thin scrollbar-thumb-gray-200"
     >
-      <div className="space-y-8 pb-4">
-        {/* Encabezado de Modo */}
-        <div
-          className={`px-5 py-4 rounded-xl border flex items-center gap-3 ${reservationToEdit ? "bg-amber-50 border-amber-200 text-amber-900" : "bg-sena-green/10 border-sena-green/20 text-sena-green"}`}
-        >
-          {reservationToEdit ? (
-            <>
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
-              <div className="flex flex-col">
-                <span className="font-bold text-sm">Modo Edición</span>
-                <span className="text-xs text-amber-700/80">
-                  Estás modificando una reserva existente
-                </span>
-              </div>
-            </>
-          ) : (
-            <>
-              <CheckCircle className="w-5 h-5" />
-              <span className="font-bold text-sm">
-                Nueva Reserva — {resolveSpaceDisplayName(selectedSpace)}
+      <div className="space-y-6 pb-4">
+        {/* Encabezado Técnico Swiss GovTech */}
+        <div className="bento-grid-swiss shadow-sm">
+          <div className="bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200">
+            <div className="flex items-center gap-2.5">
+              <span className="tabular-mono text-xs font-bold px-2 py-0.5 bg-[#043263] text-white rounded">
+                GOV·SENA·2026
               </span>
-            </>
-          )}
-        </div>
-
-        {/* Selección de Espacio */}
-        <div className="space-y-3">
-          <label className="block text-sm font-bold text-gray-700">
-            Seleccionar Espacio
-          </label>
-          <div className="flex flex-wrap gap-3">
-            {(isSuperAdmin ||
-              !envGlobalConfig.disabled_special_spaces.includes("1")) && (
-              <button
-                type="button"
-                onClick={() => setSelectedSpace("1")}
-                className={`flex-1 min-w-[140px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                  selectedSpace === "1"
-                    ? "border-sena-green bg-sena-green/5 text-sena-green"
-                    : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-                }`}
-              >
-                <div className="w-10 h-10 rounded-full bg-sena-green/10 flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-sena-green" />
-                </div>
-                <span className="font-bold text-sm">Auditorio 103</span>
-                <span className="text-[10px] opacity-70">Uso General</span>
-              </button>
-            )}
-
+              <span className="text-xs font-bold text-[#0F172A] tracking-tight uppercase">
+                {reservationToEdit
+                  ? "MODO EDICIÓN · MATRIZ DE ESPACIOS"
+                  : `MATRIZ DE RESERVA · ${resolveSpaceDisplayName(selectedSpace)}`}
+              </span>
+            </div>
             {(() => {
-              const u = user as { employment_type?: string; role?: string };
-              const empType = (u?.employment_type || "").toLowerCase();
-              const isOfficial =
-                empType.includes("planta") ||
-                empType.includes("funcionario") ||
-                empType.includes("oficial");
-              const isAdmin = ["admin", "superadmin"].includes(
-                (u?.role || "").toLowerCase(),
-              );
+              const allIds = ["1", "2", "3", "4", "5"];
+              const pausedCount = allIds.filter(
+                (id) =>
+                  envGlobalConfig.disabled_special_spaces.includes(id) ||
+                  Boolean(spacesMaintenance[id]?.is_active),
+              ).length;
+              const enabledCount = allIds.length - pausedCount;
               return (
-                (isOfficial || isAdmin) &&
-                (isSuperAdmin ||
-                  !envGlobalConfig.disabled_special_spaces.includes("2"))
+                <div className="flex items-center gap-3 text-xs tabular-mono text-slate-600">
+                  <span>
+                    Habilitados:{" "}
+                    <strong className="text-[#39A900]">{enabledCount}</strong>
+                  </span>
+                  <span>
+                    En Pausa:{" "}
+                    <strong className="text-[#FC7323]">{pausedCount}</strong>
+                  </span>
+                </div>
               );
-            })() && (
-              <button
-                type="button"
-                onClick={() => setSelectedSpace("2")}
-                className={`flex-1 min-w-[140px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                  selectedSpace === "2"
-                    ? "border-sena-orange bg-sena-orange/5 text-sena-orange"
-                    : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-                }`}
-              >
-                <div className="w-10 h-10 rounded-full bg-sena-orange/10 flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-sena-orange" />
-                </div>
-                <span className="font-bold text-sm">Subdirección</span>
-                <span className="text-[10px] opacity-70">Privado</span>
-              </button>
-            )}
+            })()}
+          </div>
 
-            {(isSuperAdmin ||
-              !envGlobalConfig.disabled_special_spaces.includes("3")) && (
-              <button
-                type="button"
-                onClick={() => setSelectedSpace("3")}
-                className={`flex-1 min-w-[140px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                  selectedSpace === "3"
-                    ? "border-sena-blue bg-blue-50 text-sena-blue shadow-sm"
-                    : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-                }`}
-              >
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-sena-blue" />
-                </div>
-                <span className="font-bold text-sm">Biblioteca</span>
-                <span className="text-[10px] opacity-70">Exclusivo</span>
-              </button>
-            )}
+          {/* Retícula Bento 1px de Selección de Espacio */}
+          <div className="bg-white p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="swiss-section-tag">
+                01 / SELECCIÓN DE AMBIENTE ESPECIAL
+              </label>
+              <span className="tabular-mono text-[11px] font-bold text-[#39A900]">
+                ● {resolveSpaceDisplayName(selectedSpace)}
+              </span>
+            </div>
 
-            {(isSuperAdmin ||
-              !envGlobalConfig.disabled_special_spaces.includes("4")) && (
-              <button
-                type="button"
-                onClick={() => setSelectedSpace("4")}
-                className={`flex-1 min-w-[140px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                  selectedSpace === "4"
-                    ? "border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm ring-2 ring-emerald-500/20"
-                    : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-                }`}
-              >
-                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-emerald-600" />
-                </div>
-                <span className="font-bold text-sm">Ambiente 107</span>
-                <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                  Prerreserva
-                </span>
-              </button>
-            )}
+            <div className="grid grid-cols-1 @sm:grid-cols-2 @xl:grid-cols-5 gap-2.5">
+              {(() => {
+                const u = user as { employment_type?: string; role?: string };
+                const empType = (u?.employment_type || "").toLowerCase();
+                const isOfficial =
+                  empType.includes("planta") ||
+                  empType.includes("funcionario") ||
+                  empType.includes("oficial");
+                const isAdmin = ["admin", "superadmin"].includes(
+                  (u?.role || "").toLowerCase(),
+                );
+                const canSeeSubdireccion = isOfficial || isAdmin;
 
-            {(isSuperAdmin ||
-              !envGlobalConfig.disabled_special_spaces.includes("5")) && (
-              <button
-                type="button"
-                onClick={() => setSelectedSpace("5")}
-                className={`flex-1 min-w-[140px] p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                  selectedSpace === "5"
-                    ? "border-amber-500 bg-amber-50 text-amber-800 shadow-sm ring-2 ring-amber-500/20"
-                    : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-                }`}
-              >
-                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-amber-600" />
-                </div>
-                <span className="font-bold text-sm">Ambiente de Cocina</span>
-                <span className="text-[10px] text-amber-700 font-semibold bg-amber-100/70 px-2 py-0.5 rounded-full">
-                  Prerreserva
-                </span>
-              </button>
-            )}
+                const spaceItems = [
+                  {
+                    id: "1",
+                    name: "Auditorio 103",
+                    subtitle: "Uso General",
+                    visible: true,
+                  },
+                  {
+                    id: "2",
+                    name: "Subdirección",
+                    subtitle: "Privado · Planta",
+                    visible: canSeeSubdireccion,
+                  },
+                  {
+                    id: "3",
+                    name: "Biblioteca",
+                    subtitle: "Coord. Biblioteca",
+                    visible: true,
+                  },
+                  {
+                    id: "4",
+                    name: "Ambiente 107",
+                    subtitle: "Prerreserva VIP",
+                    visible: true,
+                  },
+                  {
+                    id: "5",
+                    name: "Ambiente de Cocina",
+                    subtitle: "Prerreserva VIP",
+                    visible: true,
+                  },
+                ];
+
+                return spaceItems
+                  .filter((sp) => sp.visible)
+                  .map((sp) => {
+                    const isDisabledGlobal =
+                      envGlobalConfig.disabled_special_spaces.includes(sp.id);
+                    const isMaintActive = Boolean(
+                      spacesMaintenance[sp.id]?.is_active,
+                    );
+                    const isPaused = isDisabledGlobal || isMaintActive;
+                    const isSelected = selectedSpace === sp.id;
+
+                    return (
+                      <button
+                        key={sp.id}
+                        type="button"
+                        onClick={() => {
+                          if (isDisabledGlobal && !isSuperAdmin) {
+                            toast.warning(
+                              `${sp.name} se encuentra temporalmente en pausa o remodelación.`,
+                            );
+                            return;
+                          }
+                          setSelectedSpace(sp.id);
+                        }}
+                        className={`min-h-[76px] p-3 rounded-xl border text-left transition-all active:translate-y-[1px] flex flex-col justify-between ${
+                          isSelected
+                            ? "border-2 border-[#39A900] bg-emerald-50/50 text-[#0F172A] shadow-sm"
+                            : isPaused
+                              ? "border-orange-300 bg-orange-50/60 text-amber-950 hover:border-orange-400"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-[#043263]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full gap-1.5">
+                          <span className="font-bold text-xs leading-tight flex items-center gap-1.5">
+                            <Calendar
+                              className={`w-4 h-4 shrink-0 ${
+                                isSelected
+                                  ? "text-[#39A900]"
+                                  : isPaused
+                                    ? "text-[#FC7323]"
+                                    : "text-[#043263]"
+                              }`}
+                            />
+                            {sp.name}
+                          </span>
+                          {isPaused ? (
+                            <span className="tabular-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FC7323] text-white shrink-0">
+                              PAUSA
+                            </span>
+                          ) : (
+                            <span
+                              className={`w-2 h-2 rounded-full shrink-0 ${
+                                isSelected ? "bg-[#39A900]" : "bg-emerald-400"
+                              }`}
+                            />
+                          )}
+                        </div>
+                        <div className="tabular-mono text-[11px] text-slate-500 mt-1.5 flex items-center justify-between">
+                          <span>
+                            {isPaused ? "Obras / Mantenimiento" : sp.subtitle}
+                          </span>
+                          <span className="text-[10px] font-bold opacity-70">
+                            0{sp.id}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  });
+              })()}
+            </div>
           </div>
         </div>
 
-        {/* Selector de Asignación para Coordinadores / Administradores */}
+        {/* Selector de Asignación para Coordinadores / Administradores (Bento Cell 02) */}
         {canAssignToOthers && assignableUsers.length > 0 && (
-          <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-sm font-bold text-emerald-950 flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-emerald-700" />
-                {reservationToEdit
-                  ? "Responsable de la Reserva (Asignar o Reasignar a Instructor / Funcionario)"
-                  : "Asignar Reserva a Instructor o Funcionario"}
-              </label>
-              <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
-                Privilegio Coordinación
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input
-                type="text"
-                value={userSearchTerm}
-                onChange={(e) => setUserSearchTerm(e.target.value)}
-                placeholder="Buscar por nombre o usuario..."
-                className="w-full p-2.5 border border-emerald-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
-              />
-              <select
-                value={assignedUserId}
-                onChange={(e) => setAssignedUserId(e.target.value)}
-                className="w-full p-2.5 border border-emerald-200 rounded-xl text-sm bg-white font-semibold text-gray-800 focus:ring-2 focus:ring-emerald-500 outline-none"
-              >
-                <option value={user?.id || ""}>
-                  A mi nombre ({user?.full_name || "Titular actual"})
-                </option>
-                {assignableUsers
-                  .filter((u) => {
-                    if (u.id === user?.id) return false;
-                    if (!userSearchTerm.trim()) return true;
-                    const q = userSearchTerm.toLowerCase();
-                    return (
-                      (u.full_name || "").toLowerCase().includes(q) ||
-                      (u.username || "").toLowerCase().includes(q) ||
-                      (u.job_category || "").toLowerCase().includes(q)
-                    );
-                  })
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name} —{" "}
-                      {u.job_category
-                        ? u.job_category.toUpperCase()
-                        : u.employment_type || "Funcionario"}
-                    </option>
-                  ))}
-              </select>
+          <div className="bento-grid-swiss shadow-sm">
+            <div className="bg-[#F8FAFC] p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="swiss-section-tag flex items-center gap-2 text-[#043263]">
+                  <UserCheck className="w-4 h-4 text-[#39A900]" />
+                  {reservationToEdit
+                    ? "02 / RESPONSABLE DE LA RESERVA (REASIGNAR A TERCERO)"
+                    : "02 / DELEGAR RESERVA A INSTRUCTOR O FUNCIONARIO"}
+                </label>
+                <span className="tabular-mono text-[11px] font-bold bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded border border-emerald-200">
+                  PRIVILEGIO COORDINACIÓN
+                </span>
+              </div>
+              <div className="grid grid-cols-1 @sm:grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  value={userSearchTerm}
+                  onChange={(e) => setUserSearchTerm(e.target.value)}
+                  placeholder="Buscar por nombre o usuario..."
+                  className="w-full min-h-[44px] p-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-[#39A900] outline-none"
+                />
+                <select
+                  value={assignedUserId}
+                  onChange={(e) => setAssignedUserId(e.target.value)}
+                  className="w-full min-h-[44px] p-2.5 border border-slate-300 rounded-lg text-sm bg-white font-semibold text-slate-800 focus:ring-2 focus:ring-[#39A900] outline-none"
+                >
+                  <option value={user?.id || ""}>
+                    A mi nombre ({user?.full_name || "Titular actual"})
+                  </option>
+                  {assignableUsers
+                    .filter((u) => {
+                      if (u.id === user?.id) return false;
+                      if (!userSearchTerm.trim()) return true;
+                      const q = userSearchTerm.toLowerCase();
+                      return (
+                        (u.full_name || "").toLowerCase().includes(q) ||
+                        (u.username || "").toLowerCase().includes(q) ||
+                        (u.job_category || "").toLowerCase().includes(q)
+                      );
+                    })
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name} —{" "}
+                        {u.job_category
+                          ? u.job_category.toUpperCase()
+                          : u.employment_type || "Funcionario"}
+                      </option>
+                    ))}
+                </select>
+              </div>
             </div>
           </div>
         )}

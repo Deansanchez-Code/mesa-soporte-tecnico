@@ -12,7 +12,6 @@ import {
   KeyRound,
   RefreshCw,
   Copy,
-  X,
   Loader2,
 } from "lucide-react";
 import { readSheet } from "read-excel-file/browser";
@@ -21,6 +20,7 @@ import { supabase } from "@/lib/supabase/client";
 import { User, ConfigItem } from "@/app/admin/admin.types";
 import { useUserManagement } from "../hooks/useUserManagement";
 import UserModal from "./UserModal";
+import { NativeDialog } from "@/components/ui/NativeDialog";
 import { toast } from "sonner";
 import { formatName } from "@/lib/utils";
 
@@ -388,28 +388,31 @@ export default function StaffTab({
                     </td>
                     {currentUserRole !== "admin" && (
                       <td className="px-6 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => {
                               setPinTargetUser(user);
                               generateSixDigitPin();
                             }}
-                            className={`p-1.5 rounded transition ${
+                            aria-label={`Asignar o rotar PIN VIP para ${user.full_name}`}
+                            className={`w-10 h-10 rounded-lg border flex items-center justify-center transition active:translate-y-[1px] ${
                               user.has_kiosk_pin
-                                ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                                : "text-amber-600 hover:bg-amber-50"
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                                : "bg-white border-slate-200 text-amber-600 hover:bg-amber-50 hover:border-amber-200"
                             }`}
                             title="Asignar / Rotar PIN numérico (6 dígitos) para acceso VIP"
                           >
                             <KeyRound className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleToggleCoordinator(user)}
-                            className={`p-1.5 rounded transition ${
+                            aria-label={`Alternar rol Coordinador para ${user.full_name}`}
+                            className={`w-10 h-10 rounded-lg border flex items-center justify-center transition active:translate-y-[1px] ${
                               user.job_category?.toLowerCase() === "coordinador"
-                                ? "bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                : "text-gray-400 hover:bg-purple-50 hover:text-purple-600"
+                                ? "bg-purple-100 border-purple-200 text-purple-700 hover:bg-purple-200"
+                                : "bg-white border-slate-200 text-slate-500 hover:bg-purple-50 hover:text-purple-600"
                             }`}
                             title={
                               user.job_category?.toLowerCase() === "coordinador"
@@ -420,8 +423,14 @@ export default function StaffTab({
                             <ShieldCheck className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleToggleUserActive(user)}
-                            className={`p-1.5 rounded transition ${
+                            aria-label={
+                              user.is_active !== false
+                                ? `Desactivar cuenta de ${user.full_name}`
+                                : `Habilitar cuenta de ${user.full_name}`
+                            }
+                            className={`w-10 h-10 rounded-lg border border-slate-200 bg-white flex items-center justify-center transition active:translate-y-[1px] ${
                               user.is_active !== false
                                 ? "text-amber-600 hover:bg-amber-50"
                                 : "text-emerald-600 hover:bg-emerald-50"
@@ -435,15 +444,19 @@ export default function StaffTab({
                             <Power className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleEditUser(user)}
-                            className="p-1 hover:bg-gray-100 rounded text-blue-600 transition"
+                            aria-label={`Editar usuario ${user.full_name}`}
+                            className="w-10 h-10 rounded-lg border border-slate-200 bg-white hover:bg-blue-50 flex items-center justify-center text-blue-600 transition active:translate-y-[1px]"
                             title="Editar"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleDeleteUser(user.id)}
-                            className="p-1 hover:bg-gray-100 rounded text-red-600 transition"
+                            aria-label={`Eliminar usuario ${user.full_name}`}
+                            className="w-10 h-10 rounded-lg border border-slate-200 bg-white hover:bg-red-50 flex items-center justify-center text-red-600 transition active:translate-y-[1px]"
                             title="Eliminar permanentemente/Baja"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -467,114 +480,103 @@ export default function StaffTab({
         areas={configData.areas}
       />
 
-      {pinTargetUser && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95">
-            <div className="bg-sena-green p-4 flex items-center justify-between text-white">
-              <div className="flex items-center gap-2.5">
-                <KeyRound className="w-5 h-5" />
-                <div>
-                  <h3 className="font-bold text-base leading-tight">
-                    Asignar PIN de Acceso VIP
-                  </h3>
-                  <p className="text-xs text-emerald-100">
-                    {formatName(pinTargetUser.full_name)} (@
-                    {pinTargetUser.username})
-                  </p>
-                </div>
-              </div>
+      <NativeDialog
+        isOpen={Boolean(pinTargetUser)}
+        onClose={() => {
+          setPinTargetUser(null);
+          setPinInput("");
+        }}
+        title="Asignar PIN de Acceso VIP"
+        subtitle={
+          pinTargetUser
+            ? `${formatName(pinTargetUser.full_name)} (@${pinTargetUser.username})`
+            : ""
+        }
+        badgeText="GOV·SENA·PIN"
+        headerIcon={<KeyRound className="w-5 h-5 text-emerald-300" />}
+        maxWidthClass="max-w-md"
+      >
+        <div className="p-5 space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 leading-relaxed">
+            El PIN se almacena cifrado (
+            <code className="tabular-mono">scrypt</code>) y nunca se muestra de
+            nuevo después de guardarlo. Valida la identidad del funcionario VIP
+            o coordinador antes de entregarle este código.
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="swiss-section-tag block">
+              01 / PIN NUMÉRICO DE 6 DÍGITOS
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={pinInput}
+                onChange={(e) =>
+                  setPinInput(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-center tabular-mono text-2xl font-bold tracking-[0.35em] focus:ring-2 focus:ring-sena-green outline-none bg-[#F8FAFC]"
+                placeholder="000000"
+              />
               <button
                 type="button"
-                onClick={() => {
-                  setPinTargetUser(null);
-                  setPinInput("");
-                }}
-                className="p-1 rounded hover:bg-white/20 transition"
+                onClick={generateSixDigitPin}
+                aria-label="Generar nuevo PIN aleatorio"
+                className="w-11 h-11 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-700 transition active:translate-y-[1px]"
+                title="Generar nuevo PIN aleatorio"
               >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
-                El PIN se almacena cifrado (`scrypt`) y nunca se muestra de
-                nuevo después de guardarlo. Valida la identidad del funcionario
-                VIP o coordinador antes de entregarle este código.
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-600 uppercase">
-                  PIN Numérico (6 dígitos)
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={pinInput}
-                    onChange={(e) =>
-                      setPinInput(e.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
-                    className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-center font-mono text-2xl font-bold tracking-[0.35em] focus:ring-2 focus:ring-sena-green outline-none"
-                    placeholder="000000"
-                  />
-                  <button
-                    type="button"
-                    onClick={generateSixDigitPin}
-                    className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition"
-                    title="Generar nuevo PIN aleatorio"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!pinInput) return;
-                      navigator.clipboard
-                        .writeText(pinInput)
-                        .then(() => toast.info("PIN copiado al portapapeles."))
-                        .catch(() => {});
-                    }}
-                    className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition"
-                    title="Copiar PIN"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                disabled={isSavingPin}
-                onClick={() => {
-                  setPinTargetUser(null);
-                  setPinInput("");
-                }}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
-              >
-                Cancelar
+                <RefreshCw className="w-4 h-4" />
               </button>
               <button
                 type="button"
-                disabled={isSavingPin || pinInput.length !== 6}
-                onClick={handleSaveVipPin}
-                className="px-5 py-2 text-xs font-bold text-white bg-sena-green hover:bg-emerald-700 rounded-lg transition flex items-center gap-2 disabled:opacity-50"
+                onClick={() => {
+                  if (!pinInput) return;
+                  navigator.clipboard
+                    .writeText(pinInput)
+                    .then(() => toast.info("PIN copiado al portapapeles."))
+                    .catch(() => {});
+                }}
+                aria-label="Copiar PIN al portapapeles"
+                className="w-11 h-11 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-700 transition active:translate-y-[1px]"
+                title="Copiar PIN"
               >
-                {isSavingPin ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  "Guardar PIN"
-                )}
+                <Copy className="w-4 h-4" />
               </button>
             </div>
           </div>
         </div>
-      )}
+
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            disabled={isSavingPin}
+            onClick={() => {
+              setPinTargetUser(null);
+              setPinInput("");
+            }}
+            className="min-h-[44px] px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={isSavingPin || pinInput.length !== 6}
+            onClick={handleSaveVipPin}
+            className="min-h-[44px] px-5 py-2 text-xs font-bold text-white bg-sena-green hover:bg-emerald-700 active:translate-y-[1px] rounded-lg transition flex items-center gap-2 disabled:opacity-50"
+          >
+            {isSavingPin ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              "Guardar PIN"
+            )}
+          </button>
+        </div>
+      </NativeDialog>
     </div>
   );
 }
