@@ -477,8 +477,10 @@ function HomeContent() {
 
   return (
     <div
-      className={`flex-1 w-full flex flex-col items-center justify-center ${
-        viewState === "request" ? "px-3 py-2" : "p-4"
+      className={`flex-1 w-full flex flex-col items-center ${
+        viewState === "request"
+          ? "justify-start px-2 sm:px-3 py-1.5"
+          : "justify-center p-4"
       }`}
     >
       {/* CINTILLO SUPERIOR SWISS GOVTECH */}
@@ -486,8 +488,11 @@ function HomeContent() {
 
       {/* TARJETA PRINCIPAL BENTO MODULAR */}
       <div
-        className={`bg-white w-full rounded-2xl shadow-[0_20px_50px_-12px_rgba(4,50,99,0.12)] overflow-hidden border border-[var(--border-hairline)] transition-all duration-500 ${
-          viewState === "request" ? "max-w-[1640px]" : "max-w-md"
+        key={viewState}
+        className={`swiss-view-enter bg-white w-full rounded-2xl shadow-[0_20px_50px_-12px_rgba(4,50,99,0.12)] overflow-hidden border border-[var(--border-hairline)] transition-all duration-300 ${
+          viewState === "request"
+            ? "max-w-[1640px] flex-1 flex flex-col"
+            : "max-w-md"
         }`}
       >
         {/* BARRA TÉCNICA SUPERIOR SWISS GOVTECH */}
@@ -556,7 +561,11 @@ function HomeContent() {
 
         {/* BODY */}
         <div
-          className={viewState === "request" ? "p-0" : "px-8 pb-8 space-y-6"}
+          className={
+            viewState === "request"
+              ? "p-0 flex-1 flex flex-col"
+              : "px-8 pb-8 space-y-6"
+          }
         >
           {/* --- VISTA 1: LOGIN CORPORATIVO --- */}
           {viewState === "login" && (
@@ -1076,7 +1085,7 @@ function HomeContent() {
 
           {/* --- VISTA 3: FORMULARIO DE SOLICITUD (UserRequestForm) --- */}
           {viewState === "request" && userData && (
-            <div className="px-4 py-2.5">
+            <div className="px-3 sm:px-4 py-2 flex-1 flex flex-col">
               <UserRequestForm
                 user={userData}
                 onCancel={async () => {

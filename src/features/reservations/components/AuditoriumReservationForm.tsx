@@ -295,18 +295,12 @@ export default function AuditoriumReservationForm({
     }
   }, [initialSpace, reservationToEdit]);
 
-  // Verificar si las fechas seleccionadas caen en remodelación/pausa del espacio seleccionado
+  // Verificar si el espacio seleccionado se encuentra en pausa/remodelación o deshabilitado (bloqueo absoluto hasta habilitar)
   const maintenanceConfig =
     spacesMaintenance[selectedSpace] || DEFAULT_AUDITORIUM_MAINTENANCE;
   const isAuditoriumMaintenanceActive =
-    Boolean(spacesMaintenance[selectedSpace]?.is_active) &&
-    targetDates.some((d) => {
-      const cfg = spacesMaintenance[selectedSpace];
-      if (!cfg) return false;
-      const start = cfg.start_date;
-      const end = cfg.end_date || "2026-12-31";
-      return d >= start && d <= end;
-    });
+    Boolean(spacesMaintenance[selectedSpace]?.is_active) ||
+    envGlobalConfig.disabled_special_spaces.includes(selectedSpace);
 
   // Initialize form if editing
   useEffect(() => {
@@ -410,6 +404,13 @@ export default function AuditoriumReservationForm({
 
     if (!user?.id) return;
     if (submittingRef.current) return;
+
+    if (isAuditoriumMaintenanceActive) {
+      toast.error(
+        `${resolveSpaceDisplayName(selectedSpace)} se encuentra en pausa o remodelación. No se permiten reservas de ningún tipo hasta que sea habilitado nuevamente.`,
+      );
+      return;
+    }
 
     if (isPastReservation) {
       toast.error(
@@ -722,9 +723,9 @@ export default function AuditoriumReservationForm({
                         key={sp.id}
                         type="button"
                         onClick={() => {
-                          if (isDisabledGlobal && !isSuperAdmin) {
+                          if (isPaused) {
                             toast.warning(
-                              `${sp.name} se encuentra temporalmente en pausa o remodelación.`,
+                              `${sp.name} se encuentra en pausa o remodelación. No se pueden realizar reservas hasta que sea habilitado nuevamente.`,
                             );
                             return;
                           }
@@ -1152,7 +1153,7 @@ export default function AuditoriumReservationForm({
                   </span>
                 </span>
 
-                {canAssignToOthers && (
+                {isSuperAdmin && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1176,9 +1177,9 @@ export default function AuditoriumReservationForm({
               </div>
             </div>
 
-            {/* Panel Desplegable para actualizar Correo de Destino y Notificar Nuevo Rol */}
-            {isEditingRecipient && canAssignToOthers && (
-              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-3 animate-in fade-in">
+            {/* Panel Desplegable exclusivo SuperAdmin para actualizar Correo de Destino y Notificar Nuevo Rol */}
+            {isEditingRecipient && isSuperAdmin && (
+              <div className="swiss-view-enter p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-xs font-bold text-[#043263]">

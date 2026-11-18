@@ -104,7 +104,23 @@
   animation: swissShimmer 1.6s infinite linear;
 }
 
-/* Elemento nativo <dialog> con @starting-style y ::backdrop */
+/* Transición suave (<1s) entre vistas, paneles y modales */
+@keyframes swissViewEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.swiss-view-enter {
+  animation: swissViewEnter 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Elemento nativo <dialog> con @starting-style y ::backdrop (<1s) */
 dialog.swiss-dialog {
   border: 1px solid var(--border-hairline);
   border-radius: 1rem;
@@ -117,16 +133,16 @@ dialog.swiss-dialog {
   opacity: 1;
   transform: scale(1) translateY(0);
   transition:
-    opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
-    overlay 0.18s allow-discrete,
-    display 0.18s allow-discrete;
+    opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    overlay 0.32s allow-discrete,
+    display 0.32s allow-discrete;
 }
 
 @starting-style {
   dialog.swiss-dialog[open] {
     opacity: 0;
-    transform: scale(0.96) translateY(8px);
+    transform: scale(0.95) translateY(14px);
   }
 }
 
@@ -134,10 +150,10 @@ dialog.swiss-dialog::backdrop {
   background: rgba(4, 50, 99, 0.48);
   backdrop-filter: blur(4px);
   transition:
-    background-color 0.18s ease,
-    backdrop-filter 0.18s ease,
-    overlay 0.18s allow-discrete,
-    display 0.18s allow-discrete;
+    background-color 0.3s ease,
+    backdrop-filter 0.3s ease,
+    overlay 0.3s allow-discrete,
+    display 0.3s allow-discrete;
 }
 
 @starting-style {

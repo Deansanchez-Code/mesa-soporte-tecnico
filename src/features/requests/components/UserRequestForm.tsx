@@ -388,19 +388,17 @@ export default function UserRequestForm({
     const isSpacePaused = (id: string) =>
       Boolean(spacesMaintenance[id]?.is_active);
 
-    const isAdminOrSuperAdmin = ["admin", "superadmin"].includes(
-      ((user?.role as string) || "").toLowerCase(),
-    );
-
     const handleSpaceSelection = (
       id: "1" | "2" | "3" | "4" | "5",
       label: string,
     ) => {
-      if (isSpaceDisabled(id) && !isSuperAdmin) {
-        toast.error(`${label} se encuentra deshabilitado temporalmente.`);
+      if (isSpaceDisabled(id)) {
+        toast.error(
+          `${label} se encuentra deshabilitado temporalmente. No es posible realizar reservas hasta que sea habilitado de nuevo.`,
+        );
         return;
       }
-      if (isSpacePaused(id) && !isAdminOrSuperAdmin) {
+      if (isSpacePaused(id)) {
         setActiveModalConfig(
           spacesMaintenance[id] || {
             ...DEFAULT_AUDITORIUM_MAINTENANCE,
@@ -504,9 +502,9 @@ export default function UserRequestForm({
     ].filter((c) => c.visible);
 
     return (
-      <div className="w-full max-w-[1600px] mx-auto animate-in fade-in duration-500 px-2 sm:px-3 py-1.5">
-        {/* ENCABEZADO COMPACTO CALIBRADO PARA FULL HD 1080P (CERO SCROLL INNECESARIO) */}
-        <div className="mb-3.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 border-b border-slate-200/80 pb-3">
+      <div className="swiss-view-enter w-full max-w-[1600px] mx-auto px-2 sm:px-3 py-1 flex-1 flex flex-col">
+        {/* ENCABEZADO COMPACTO CALIBRADO PARA FULL HD 1080P */}
+        <div className="mb-3 flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
           <div>
             <div className="flex flex-wrap items-center gap-2.5">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sena-green/10 text-sena-green text-[11px] font-black uppercase tracking-wider">
@@ -565,10 +563,10 @@ export default function UserRequestForm({
           </div>
         )}
 
-        {/* GRID DE 3 COLUMNAS EQUILIBRADAS (CALIBRADO FULL HD 1080P) */}
-        <div className="@container grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
-          {/* COLUMNA 1: AGENDA / EVENTOS DE HOY (DIFERENCIADO POR AMBIENTE, HORARIO Y TIEMPO TRANSCURRIDO) */}
-          <div className="flex flex-col gap-3.5 h-full bg-slate-50/70 rounded-3xl p-4 lg:p-5 border border-slate-200/70 shadow-xs">
+        {/* GRID DE 3 COLUMNAS EQUILIBRADAS (APROVECHANDO ESPACIO VERTICAL COMPLETO) */}
+        <div className="@container grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch flex-1">
+          {/* COLUMNA 1: AGENDA / EVENTOS DE HOY (ORDEN CRONOLÓGICO CONSERVADO) */}
+          <div className="flex flex-col gap-3 h-full bg-slate-50/70 rounded-3xl p-4 lg:p-5 border border-slate-200/70 shadow-xs">
             {(() => {
               const activeCount = todayReservations.filter(
                 (r) => new Date(r.end_time).getTime() > nowMs,
@@ -618,26 +616,11 @@ export default function UserRequestForm({
               ) : (
                 <div className="space-y-2.5">
                   {[...todayReservations]
-                    .sort((a, b) => {
-                      const aStart = new Date(a.start_time).getTime();
-                      const aEnd = new Date(a.end_time).getTime();
-                      const bStart = new Date(b.start_time).getTime();
-                      const bEnd = new Date(b.end_time).getTime();
-                      const aRank =
-                        nowMs >= aStart && nowMs < aEnd
-                          ? 0
-                          : nowMs < aStart
-                            ? 1
-                            : 2;
-                      const bRank =
-                        nowMs >= bStart && nowMs < bEnd
-                          ? 0
-                          : nowMs < bStart
-                            ? 1
-                            : 2;
-                      if (aRank !== bRank) return aRank - bRank;
-                      return aStart - bStart;
-                    })
+                    .sort(
+                      (a, b) =>
+                        new Date(a.start_time).getTime() -
+                        new Date(b.start_time).getTime(),
+                    )
                     .map((res) => {
                       const start = new Date(res.start_time);
                       const end = new Date(res.end_time);
@@ -1024,10 +1007,11 @@ export default function UserRequestForm({
     );
   }
 
-  // --- VISTA DE FORMULARIO (WRAPPER COMÚN) ---
+  // --- VISTA DE FORMULARIO (WRAPPER COMÚN CON TRANSICIÓN <1s) ---
   return (
     <div
-      className={`w-full mx-auto animate-in fade-in slide-in-from-right-8 duration-300 ${
+      key={view}
+      className={`swiss-view-enter w-full mx-auto ${
         view === "RESERVATION" || view === "AVAILABILITY"
           ? "max-w-[1560px]"
           : "max-w-4xl"

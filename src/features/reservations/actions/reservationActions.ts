@@ -657,7 +657,29 @@ export async function createReservationAction(
 
     // Validación de Remodelación / Mantenimiento (Multi-espacio)
     const targetSpaceForMaintenance = auditorium_id || "1";
-    if (!isAdmin) {
+    // 2.5. Bloqueo absoluto si el espacio está en Pausa / Remodelación o Deshabilitado (aplica a todos los roles hasta habilitar)
+    {
+      const { data: globalSetting } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "environments_global_config")
+        .maybeSingle();
+
+      const globalCfg = globalSetting?.value as
+        | EnvironmentsGlobalConfig
+        | undefined;
+      if (
+        Array.isArray(globalCfg?.disabled_special_spaces) &&
+        globalCfg.disabled_special_spaces
+          .map(String)
+          .includes(String(targetSpaceForMaintenance))
+      ) {
+        const spaceName = getSpaceDisplayName(targetSpaceForMaintenance);
+        throw new Error(
+          `${spaceName} se encuentra temporalmente deshabilitado. No es posible realizar reservas de ningún tipo hasta que sea habilitado de nuevo.`,
+        );
+      }
+
       let mConfig: SpaceMaintenanceConfig | null = null;
       const { data: spacesSetting } = await supabase
         .from("system_settings")
@@ -686,24 +708,15 @@ export async function createReservationAction(
         }
       }
 
-      if (mConfig?.is_active && mConfig.start_date) {
-        const resDate = new Date(start_time).toLocaleDateString("en-CA", {
-          timeZone: "America/Bogota",
-        });
-        const mStart = mConfig.start_date;
-        const mEnd = mConfig.end_date || "2026-12-31";
-
-        if (resDate >= mStart && resDate <= mEnd) {
-          const endMsg = mConfig.end_date
-            ? `hasta el ${mConfig.end_date}`
-            : "por el resto de la vigencia 2026";
-          const spaceName =
-            mConfig.space_name ||
-            getSpaceDisplayName(targetSpaceForMaintenance);
-          throw new Error(
-            `${spaceName} se encuentra fuera de servicio por remodelación/mantenimiento a partir del ${mStart} (${endMsg}). Para más información, diríjase a la Coordinación Académica o de Formación.`,
-          );
-        }
+      if (mConfig?.is_active) {
+        const endMsg = mConfig.end_date
+          ? `hasta el ${mConfig.end_date}`
+          : "hasta nuevo aviso";
+        const spaceName =
+          mConfig.space_name || getSpaceDisplayName(targetSpaceForMaintenance);
+        throw new Error(
+          `${spaceName} se encuentra fuera de servicio por pausa/remodelación (${endMsg}). No se pueden realizar reservas de ningún tipo hasta que sea habilitado nuevamente.`,
+        );
       }
     }
 
@@ -1337,9 +1350,30 @@ export async function createReservationBatchAction(
         }
       }
 
-      // Validación de Remodelación / Mantenimiento (Multi-espacio)
+      // Validación estricta de Remodelación / Pausa / Deshabilitación (aplica a todos los roles hasta habilitar)
       const targetSpaceForMaintenance = data.auditorium_id || "1";
-      if (!isAdmin) {
+      {
+        const { data: globalSetting } = await supabase
+          .from("system_settings")
+          .select("value")
+          .eq("key", "environments_global_config")
+          .maybeSingle();
+
+        const globalCfg = globalSetting?.value as
+          | EnvironmentsGlobalConfig
+          | undefined;
+        if (
+          Array.isArray(globalCfg?.disabled_special_spaces) &&
+          globalCfg.disabled_special_spaces
+            .map(String)
+            .includes(String(targetSpaceForMaintenance))
+        ) {
+          const spaceName = getSpaceDisplayName(targetSpaceForMaintenance);
+          throw new Error(
+            `${spaceName} se encuentra temporalmente deshabilitado. No es posible realizar reservas de ningún tipo hasta que sea habilitado de nuevo.`,
+          );
+        }
+
         let mConfig: SpaceMaintenanceConfig | null = null;
         const { data: spacesSetting } = await supabase
           .from("system_settings")
@@ -1368,27 +1402,16 @@ export async function createReservationBatchAction(
           }
         }
 
-        if (mConfig?.is_active && mConfig.start_date) {
-          const resDate = new Date(data.start_time).toLocaleDateString(
-            "en-CA",
-            {
-              timeZone: "America/Bogota",
-            },
+        if (mConfig?.is_active) {
+          const endMsg = mConfig.end_date
+            ? `hasta el ${mConfig.end_date}`
+            : "hasta nuevo aviso";
+          const spaceName =
+            mConfig.space_name ||
+            getSpaceDisplayName(targetSpaceForMaintenance);
+          throw new Error(
+            `${spaceName} se encuentra fuera de servicio por pausa/remodelación (${endMsg}). No se pueden realizar reservas de ningún tipo hasta que sea habilitado nuevamente.`,
           );
-          const mStart = mConfig.start_date;
-          const mEnd = mConfig.end_date || "2026-12-31";
-
-          if (resDate >= mStart && resDate <= mEnd) {
-            const endMsg = mConfig.end_date
-              ? `hasta el ${mConfig.end_date}`
-              : "por el resto de la vigencia 2026";
-            const spaceName =
-              mConfig.space_name ||
-              getSpaceDisplayName(targetSpaceForMaintenance);
-            throw new Error(
-              `${spaceName} se encuentra fuera de servicio por remodelación/mantenimiento a partir del ${mStart} (${endMsg}). Para más información, diríjase a la Coordinación Académica o de Formación.`,
-            );
-          }
         }
       }
 
@@ -2902,28 +2925,9 @@ export async function assignSpaceCoordinatorAction(params: {
     if (!publicUser) throw new Error("No autenticado");
 
     const roleLower = (publicUser?.role || "").toLowerCase();
-    const canManageCoord =
-      ["superadmin", "admin", "coordinator", "vip"].includes(roleLower) ||
-      Boolean(
-        (
-          publicUser as {
-            is_vip?: boolean;
-            perm_manage_assignments?: boolean;
-          }
-        )?.is_vip,
-      ) ||
-      Boolean(
-        (
-          publicUser as {
-            is_vip?: boolean;
-            perm_manage_assignments?: boolean;
-          }
-        )?.perm_manage_assignments,
-      );
-
-    if (!canManageCoord) {
+    if (roleLower !== "superadmin") {
       throw new Error(
-        "Acceso denegado: No tienes permisos para actualizar el destinatario o coordinador de este ambiente.",
+        "Acceso denegado: Únicamente el SuperAdmin tiene autorización para modificar el correo de destino o coordinador de ambientes.",
       );
     }
 
