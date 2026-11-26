@@ -493,8 +493,7 @@ export default function AuditoriumReservationForm({
       }
       setIsSuccess(true); // Mark as success immediately to prevent conflict flash
 
-      const isPending = !!(result as { pendingApproval?: boolean })
-        ?.pendingApproval;
+      const isPending = Boolean(result?.pendingApproval);
 
       // Helpers para nombres de espacio
       const getSpaceName = (spaceId: string) => {
@@ -507,60 +506,63 @@ export default function AuditoriumReservationForm({
 
       const spaceName = getSpaceName(selectedSpace);
 
-      // Handle Support Tickets
-      if (reservationToEdit && !legacyAssignmentIdToReplace) {
-        // Al editar (ya sea multi-día o de un solo día), actualizamos el ticket consolidado original
-        const datesString = supportTicketsPayload
-          .map((t) => t.date.split("-").reverse().join("-"))
-          .join(", ");
-        const primerDia = supportTicketsPayload[0];
+      // Handle Support Tickets (solo si la reserva quedó aprobada de inmediato;
+      // si queda PENDING, el ticket se generará cuando el coordinador autorice la solicitud)
+      if (!isPending) {
+        if (reservationToEdit && !legacyAssignmentIdToReplace) {
+          // Al editar (ya sea multi-día o de un solo día), actualizamos el ticket consolidado original
+          const datesString = supportTicketsPayload
+            .map((t) => t.date.split("-").reverse().join("-"))
+            .join(", ");
+          const primerDia = supportTicketsPayload[0];
 
-        const assignedUserObj = assignableUsers.find(
-          (u) => u.id === assignedUserId,
-        );
-        const assignedInfo =
-          assignedUserObj && assignedUserId !== user?.id
-            ? `\nAsignado a: ${assignedUserObj.full_name} (${assignedUserObj.job_category || assignedUserObj.employment_type || "Funcionario"})`
-            : "";
+          const assignedUserObj = assignableUsers.find(
+            (u) => u.id === assignedUserId,
+          );
+          const assignedInfo =
+            assignedUserObj && assignedUserId !== user?.id
+              ? `\nAsignado a: ${assignedUserObj.full_name} (${assignedUserObj.job_category || assignedUserObj.employment_type || "Funcionario"})`
+              : "";
 
-        const fullNewDescription = `Reserva de ${spaceName}: ${title}\nFechas: ${datesString}\nHora: ${primerDia.start} - ${primerDia.end}\nRecursos: ${selectedResources.join(
-          ", ",
-        )}\nDetalles: ${description}${assignedInfo}\n(ACTUALIZADO)`;
+          const fullNewDescription = `Reserva de ${spaceName}: ${title}\nFechas: ${datesString}\nHora: ${primerDia.start} - ${primerDia.end}\nRecursos: ${selectedResources.join(
+            ", ",
+          )}\nDetalles: ${description}${assignedInfo}\n(ACTUALIZADO)`;
 
-        await syncTicketWithReservation(reservationToEdit.title || "", {
-          fullNewDescription,
-          isoStart: primerDia.isoStart,
-          previousUserId: reservationToEdit.user_id,
-          newUserId: assignedUserId || reservationToEdit.user_id || user?.id,
-        });
-      } else {
-        // Create Batch (New)
-        // Agrupar todas las fechas en un solo ticket para evitar spam
-        const datesString = supportTicketsPayload
-          .map((t) => t.date.split("-").reverse().join("-"))
-          .join(", ");
+          await syncTicketWithReservation(reservationToEdit.title || "", {
+            fullNewDescription,
+            isoStart: primerDia.isoStart,
+            previousUserId: reservationToEdit.user_id,
+            newUserId: assignedUserId || reservationToEdit.user_id || user?.id,
+          });
+        } else {
+          // Create Batch (New)
+          // Agrupar todas las fechas en un solo ticket para evitar spam
+          const datesString = supportTicketsPayload
+            .map((t) => t.date.split("-").reverse().join("-"))
+            .join(", ");
 
-        const primerDia = supportTicketsPayload[0];
+          const primerDia = supportTicketsPayload[0];
 
-        const assignedUserObj = assignableUsers.find(
-          (u) => u.id === assignedUserId,
-        );
-        const assignedInfo =
-          assignedUserObj && assignedUserId !== user?.id
-            ? `\nAsignado a: ${assignedUserObj.full_name} (${assignedUserObj.job_category || assignedUserObj.employment_type || "Funcionario"})`
-            : "";
+          const assignedUserObj = assignableUsers.find(
+            (u) => u.id === assignedUserId,
+          );
+          const assignedInfo =
+            assignedUserObj && assignedUserId !== user?.id
+              ? `\nAsignado a: ${assignedUserObj.full_name} (${assignedUserObj.job_category || assignedUserObj.employment_type || "Funcionario"})`
+              : "";
 
-        const ticketConsolidado = {
-          category: "Reserva Auditorio", // Mantenemos la categoría base por temas de filtrado en panel
-          ticket_type: "REQ" as const,
-          description: `Reserva de ${spaceName}: ${title}\nFechas: ${datesString}\nHora: ${primerDia.start} - ${primerDia.end}\nRecursos: ${selectedResources.join(", ")}\nDetalles: ${description}${assignedInfo}`,
-          user_id: assignedUserId || user?.id || "",
-          location: spaceName,
-          event_date: primerDia.isoStart,
-        };
+          const ticketConsolidado = {
+            category: "Reserva Auditorio", // Mantenemos la categoría base por temas de filtrado en panel
+            ticket_type: "REQ" as const,
+            description: `Reserva de ${spaceName}: ${title}\nFechas: ${datesString}\nHora: ${primerDia.start} - ${primerDia.end}\nRecursos: ${selectedResources.join(", ")}\nDetalles: ${description}${assignedInfo}`,
+            user_id: assignedUserId || user?.id || "",
+            location: spaceName,
+            event_date: primerDia.isoStart,
+          };
 
-        // Enviamos el ticket consolidado
-        await createBatchTickets([ticketConsolidado]);
+          // Enviamos el ticket consolidado
+          await createBatchTickets([ticketConsolidado]);
+        }
       }
 
       if (isPending) {

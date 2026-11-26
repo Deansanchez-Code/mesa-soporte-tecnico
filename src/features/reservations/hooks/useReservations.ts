@@ -138,7 +138,10 @@ export function useReservations({
     const result = await createReservationBatchAction(data, forceVipOverride);
     if (result.error) throw new Error(result.error);
     queryClient.invalidateQueries({ queryKey: ["reservations"] });
-    return result.data;
+    return {
+      data: result.data,
+      pendingApproval: Boolean(result.pendingApproval),
+    };
   };
 
   const createSupportTicket = async (data: {

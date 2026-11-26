@@ -10,6 +10,7 @@ import {
   isUserSpaceCoordinator,
   getSpaceCoordinator,
 } from "./reservationActions";
+import { createTicketForApprovedReservation } from "../services/reservationTicketService";
 
 async function verifyLibraryCoordinator() {
   const supabase = await createClient();
@@ -172,12 +173,14 @@ export async function approveLibraryReservation(id: number) {
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
       .select(
-        "*, users(full_name, email, username, employment_type, job_category)",
+        "*, users(full_name, email, username, employment_type, job_category, is_vip)",
       )
       .eq("id", id)
       .single();
 
     if (fetchError || !reservation) throw new Error("Reserva no encontrada");
+
+    const coordinator = await getSpaceCoordinator("3");
 
     const { error: updateError } = await supabaseAdmin
       .from("reservations")
@@ -185,6 +188,19 @@ export async function approveLibraryReservation(id: number) {
       .eq("id", id);
 
     if (updateError) throw updateError;
+
+    try {
+      await createTicketForApprovedReservation(
+        supabaseAdmin,
+        reservation as Parameters<typeof createTicketForApprovedReservation>[1],
+        coordinator.full_name,
+      );
+    } catch (ticketErr) {
+      await Logger.error(
+        `[Biblioteca] Error creando ticket tras aprobar reserva #${id}`,
+        { error: ticketErr },
+      );
+    }
 
     // Send Confirmation Email to User (owner of the reservation)
     const user = (
@@ -195,6 +211,7 @@ export async function approveLibraryReservation(id: number) {
           username: string;
           employment_type: string;
           job_category?: string;
+          is_vip?: boolean | null;
         };
       }
     ).users;
@@ -220,7 +237,6 @@ export async function approveLibraryReservation(id: number) {
     }
 
     // Insert In-App Notification
-    const coordinator = await getSpaceCoordinator("3");
     await supabaseAdmin.from("user_notifications").insert([
       {
         user_id: reservation.user_id,

@@ -10,6 +10,10 @@ import {
   isUserSpaceCoordinator,
   getSpaceCoordinator,
 } from "./reservationActions";
+import {
+  createTicketForApprovedReservation,
+  cancelTicketForReservation,
+} from "../services/reservationTicketService";
 
 const ALLOWED_107_APPROVERS = [
   "nbarrerac@sena.edu.co",
@@ -203,7 +207,7 @@ export async function approveAmbiente107Reservation(id: number) {
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
       .select(
-        "*, users(full_name, email, username, employment_type, job_category)",
+        "*, users(full_name, email, username, employment_type, job_category, is_vip)",
       )
       .eq("id", id)
       .single();
@@ -220,6 +224,19 @@ export async function approveAmbiente107Reservation(id: number) {
 
     if (updateError) throw updateError;
 
+    try {
+      await createTicketForApprovedReservation(
+        supabaseAdmin,
+        reservation as Parameters<typeof createTicketForApprovedReservation>[1],
+        coordinator.full_name,
+      );
+    } catch (ticketErr) {
+      await Logger.error(
+        `[Ambiente107] Error creando ticket tras aprobar reserva #${id}`,
+        { error: ticketErr },
+      );
+    }
+
     // Destinatario y correo institucional del funcionario/instructor que queda con la reserva
     const user = (
       reservation as unknown as {
@@ -229,6 +246,7 @@ export async function approveAmbiente107Reservation(id: number) {
           username: string;
           employment_type: string;
           job_category?: string;
+          is_vip?: boolean | null;
         };
       }
     ).users;
@@ -312,6 +330,19 @@ export async function cancelAmbiente107Reservation(id: number, reason: string) {
       .eq("id", id);
 
     if (updateError) throw updateError;
+
+    try {
+      await cancelTicketForReservation(
+        supabaseAdmin,
+        reservation,
+        `Rechazada/cancelada por ${coordinator.full_name}. Motivo: ${reason}`,
+      );
+    } catch (ticketErr) {
+      await Logger.error(
+        `[Ambiente107] Error cancelando ticket de reserva #${id}`,
+        { error: ticketErr },
+      );
+    }
 
     const user = (
       reservation as unknown as {
