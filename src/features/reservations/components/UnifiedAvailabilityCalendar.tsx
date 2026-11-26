@@ -370,10 +370,12 @@ export default function UnifiedAvailabilityCalendar({
             <span className="w-2.5 h-2.5 rounded-xs bg-[#39A900]" />
             Hora libre
           </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-xs bg-blue-600" />
-            Tu selección (1h+)
-          </span>
+          {selectedSlot && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-xs bg-blue-600" />
+              Tu selección (1h+)
+            </span>
+          )}
           <span className="inline-flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-xs bg-[#043263]" />
             Ocupado
@@ -572,36 +574,6 @@ export default function UnifiedAvailabilityCalendar({
                                 type="button"
                                 onClick={() => {
                                   if (!onSelectSlot) return;
-                                  if (isSlotDayMatch && h > selStartH) {
-                                    let clear = true;
-                                    for (let hr = selStartH; hr <= h; hr++) {
-                                      if (
-                                        isHourPast(selectedDate, hr) ||
-                                        getReservationAtHour(
-                                          spaceId,
-                                          selectedDate,
-                                          hr,
-                                        )
-                                      ) {
-                                        clear = false;
-                                        break;
-                                      }
-                                    }
-                                    if (clear) {
-                                      onSelectSlot({
-                                        spaceId,
-                                        date: selectedDate,
-                                        startTime: formatHour(selStartH),
-                                        endTime: formatHour(
-                                          Math.min(22, h + 1),
-                                        ),
-                                      });
-                                      return;
-                                    }
-                                    toast.warning(
-                                      "Hay una reserva intermedia; iniciando nueva selección de 1 hora.",
-                                    );
-                                  }
                                   onSelectSlot({
                                     spaceId,
                                     date: selectedDate,
@@ -612,7 +584,7 @@ export default function UnifiedAvailabilityCalendar({
                                 title={
                                   isSelected
                                     ? `Seleccionado ${formatHour(h)} - ${formatHour(h + 1)}`
-                                    : `Libre ${formatHour(h)} - ${formatHour(h + 1)} (Clic para seleccionar)`
+                                    : `Libre ${formatHour(h)} - ${formatHour(h + 1)} (Clic para reservar)`
                                 }
                                 className={`w-full h-10 rounded border text-xs font-bold flex items-center justify-center transition cursor-pointer ${
                                   isSelected
@@ -633,9 +605,8 @@ export default function UnifiedAvailabilityCalendar({
             </table>
           </div>
           <p className="text-[11px] text-slate-500">
-            <strong>Horas flexibles:</strong> 1er clic elige{" "}
-            <strong>1 hora</strong>; 2do clic en hora posterior extiende a 2h,
-            3h o más.
+            Toca o haz clic en una hora libre (<strong>+</strong>) para pasar al
+            formulario de reserva y ajustar la duración (1h, 2h, 3h o más).
           </p>
 
           {/* Agenda compacta del día */}
