@@ -248,6 +248,7 @@ export default function ContractorsTab({
         newAgent={newAgent}
         setNewAgent={setNewAgent}
         areas={configData.areas}
+        currentUserRole={currentUserRole}
       />
     </section>
   );

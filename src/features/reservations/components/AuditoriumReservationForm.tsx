@@ -35,6 +35,14 @@ import {
   resolveSpaceDisplayName,
 } from "../services/maintenanceService";
 import { SpaceMaintenanceConfig, EnvironmentsGlobalConfig } from "../types";
+import {
+  canAccessNextVigencia,
+  FIXED_RESERVATION_RESOURCES,
+  getCurrentVigenciaEndDateStr,
+  getVisibleSpaceIdsForUser,
+  hasCrossSpaceOverlap,
+  isDateBeyondCurrentVigencia,
+} from "../rules/reservationRules";
 
 interface AuditoriumReservationFormProps {
   user: UserProfile["profile"];
@@ -44,6 +52,8 @@ interface AuditoriumReservationFormProps {
   legacyAssignmentIdToReplace?: number;
   initialSpace?: string;
   initialDate?: string;
+  initialStartTime?: string;
+  initialEndTime?: string;
 }
 
 // Helper to get local date string YYYY-MM-DD
@@ -62,8 +72,16 @@ export default function AuditoriumReservationForm({
   legacyAssignmentIdToReplace,
   initialSpace,
   initialDate,
+  initialStartTime,
+  initialEndTime,
 }: AuditoriumReservationFormProps) {
   const todayStr = getLocalDateString();
+  const allowNextVigencia = canAccessNextVigencia(user);
+  const currentVigenciaMax = getCurrentVigenciaEndDateStr();
+  const visibleSpaceIds = useMemo(
+    () => getVisibleSpaceIdsForUser(user),
+    [user],
+  );
   const [startDate, setStartDate] = useState(
     initialDate && initialDate >= todayStr ? initialDate : todayStr,
   );
@@ -100,19 +118,31 @@ export default function AuditoriumReservationForm({
     return `${nextH.toString().padStart(2, "0")}:00`;
   };
 
-  const [startTime, setStartTime] = useState(getInitialStartTime());
+  const [startTime, setStartTime] = useState(
+    initialStartTime || getInitialStartTime(),
+  );
   const [endTime, setEndTime] = useState(
-    getInitialEndTime(getInitialStartTime()),
+    initialEndTime ||
+      getInitialEndTime(initialStartTime || getInitialStartTime()),
   );
   const [title, setTitle] = useState("");
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [isMultiDay, setIsMultiDay] = useState(false);
+  const [multiDayMode, setMultiDayMode] = useState<"same" | "custom">("same");
+  const [customDayTimes, setCustomDayTimes] = useState<
+    Record<string, { startTime: string; endTime: string }>
+  >({});
   const [isWeeklyRepeat, setIsWeeklyRepeat] = useState(false);
   const [repeatWeeks, setRepeatWeeks] = useState(2);
-  const [selectedSpace, setSelectedSpace] = useState(
-    String(reservationToEdit?.auditorium_id || initialSpace || "1"),
-  ); // 1: Auditorio, 2: Subdirección, 3: Biblioteca, 4: Ambiente 107, 5: Ambiente de Cocina
+  const [selectedSpace, setSelectedSpace] = useState(() => {
+    const candidate = String(
+      reservationToEdit?.auditorium_id || initialSpace || "1",
+    );
+    return visibleSpaceIds.includes(candidate)
+      ? candidate
+      : visibleSpaceIds[0] || "1";
+  });
   const [assignedUserId, setAssignedUserId] = useState<string>(
     reservationToEdit?.user_id || user?.id || "",
   );
@@ -283,17 +313,28 @@ export default function AuditoriumReservationForm({
       const t = setTimeout(() => {
         setStartDate(validDate);
         setFinalDate(validDate);
+        if (initialStartTime) setStartTime(initialStartTime);
+        if (initialEndTime) setEndTime(initialEndTime);
       }, 0);
       return () => clearTimeout(t);
     }
-  }, [initialDate, reservationToEdit, todayStr]);
+  }, [
+    initialDate,
+    initialStartTime,
+    initialEndTime,
+    reservationToEdit,
+    todayStr,
+  ]);
 
   useEffect(() => {
     if (initialSpace && !reservationToEdit) {
-      const t = setTimeout(() => setSelectedSpace(initialSpace), 0);
+      const safeSpace = visibleSpaceIds.includes(initialSpace)
+        ? initialSpace
+        : visibleSpaceIds[0] || "1";
+      const t = setTimeout(() => setSelectedSpace(safeSpace), 0);
       return () => clearTimeout(t);
     }
-  }, [initialSpace, reservationToEdit]);
+  }, [initialSpace, reservationToEdit, visibleSpaceIds]);
 
   // Verificar si el espacio seleccionado se encuentra en pausa/remodelación o deshabilitado (bloqueo absoluto hasta habilitar)
   const maintenanceConfig =
@@ -352,7 +393,14 @@ export default function AuditoriumReservationForm({
     return () => clearTimeout(t);
   }, [reservationToEdit, initialSpace]);
 
-  // 2. Detectar conflictos visuales UI (Múltiples días o Semanales)
+  const getTimesForDate = (dateStr: string) => {
+    if (isMultiDay && multiDayMode === "custom" && customDayTimes[dateStr]) {
+      return customDayTimes[dateStr];
+    }
+    return { startTime, endTime };
+  };
+
+  // 2. Detectar conflictos visuales UI (Múltiples días o Semanales, respetando horario por día)
   const conflicts = useMemo<Reservation[]>(() => {
     if (isSuccess || isSubmitting) return [];
     if (!startTime || !endTime || !startDate || targetDates.length === 0)
@@ -370,8 +418,13 @@ export default function AuditoriumReservationForm({
 
       if (!targetDateSet.has(rDateStr)) return false;
 
-      const [sH, sM] = startTime.split(":").map(Number);
-      const [eH, eM] = endTime.split(":").map(Number);
+      const dayTimes =
+        isMultiDay && multiDayMode === "custom" && customDayTimes[rDateStr]
+          ? customDayTimes[rDateStr]
+          : { startTime, endTime };
+
+      const [sH, sM] = dayTimes.startTime.split(":").map(Number);
+      const [eH, eM] = dayTimes.endTime.split(":").map(Number);
 
       const rStartHours = rStart.getHours() + rStart.getMinutes() / 60;
       const rEndHours = rEnd.getHours() + rEnd.getMinutes() / 60;
@@ -390,11 +443,20 @@ export default function AuditoriumReservationForm({
     isSuccess,
     isSubmitting,
     targetDates,
+    isMultiDay,
+    multiDayMode,
+    customDayTimes,
   ]);
 
-  // Detección de horarios pasados
+  // Detección de horarios pasados (evaluando horario específico de cada día)
   const hasPastDateSelected = targetDates.some((d) => d < todayStr);
-  const hasPastTimeSelected = targetDates.some((d) => isPastSlot(d, startTime));
+  const hasPastTimeSelected = targetDates.some((d) => {
+    const dayTimes =
+      isMultiDay && multiDayMode === "custom" && customDayTimes[d]
+        ? customDayTimes[d]
+        : { startTime, endTime };
+    return isPastSlot(d, dayTimes.startTime);
+  });
   const isPastReservation =
     !reservationToEdit && (hasPastDateSelected || hasPastTimeSelected);
 
@@ -404,6 +466,19 @@ export default function AuditoriumReservationForm({
 
     if (!user?.id) return;
     if (submittingRef.current) return;
+
+    if (!visibleSpaceIds.includes(String(selectedSpace))) {
+      toast.error("No tienes permisos para reservar este ambiente.");
+      return;
+    }
+
+    if (
+      !allowNextVigencia &&
+      targetDates.some((d) => isDateBeyondCurrentVigencia(d))
+    ) {
+      toast.error("Fecha no disponible para reserva.");
+      return;
+    }
 
     if (isAuditoriumMaintenanceActive) {
       toast.error(
@@ -417,6 +492,34 @@ export default function AuditoriumReservationForm({
         "No es posible realizar reservas en fechas u horarios que ya han pasado. Por favor selecciona una fecha y horario futuros.",
       );
       return;
+    }
+
+    // Evitar multi-reservas simultáneas del mismo usuario en otros ambientes
+    const ownerUserId = assignedUserId || user.id;
+    const ownerReservations = reservations.filter(
+      (r) => String(r.user_id) === String(ownerUserId),
+    );
+    for (const d of targetDates) {
+      const dayTimes = getTimesForDate(d);
+      const dayStartIso = new Date(
+        `${d}T${dayTimes.startTime}:00-05:00`,
+      ).toISOString();
+      const dayEndIso = new Date(
+        `${d}T${dayTimes.endTime}:00-05:00`,
+      ).toISOString();
+      const crossOverlap = hasCrossSpaceOverlap(
+        ownerReservations,
+        String(selectedSpace),
+        dayStartIso,
+        dayEndIso,
+        reservationToEdit?.id,
+      );
+      if (crossOverlap) {
+        toast.error(
+          `No puedes tener reservas simultáneas en diferentes ambientes (${resolveSpaceDisplayName(String(crossOverlap.auditorium_id || "1"))} el ${d}).`,
+        );
+        return;
+      }
     }
 
     if (conflicts.length > 0 && !isOverride) {
@@ -451,8 +554,9 @@ export default function AuditoriumReservationForm({
 
       for (let i = 0; i < datesToReserve.length; i++) {
         const date = datesToReserve[i];
-        const startDateObj = new Date(`${date}T${startTime}:00-05:00`);
-        const endDateObj = new Date(`${date}T${endTime}:00-05:00`);
+        const dayTimes = getTimesForDate(date);
+        const startDateObj = new Date(`${date}T${dayTimes.startTime}:00-05:00`);
+        const endDateObj = new Date(`${date}T${dayTimes.endTime}:00-05:00`);
         const startIso = startDateObj.toISOString();
         const endIso = endDateObj.toISOString();
 
@@ -475,8 +579,8 @@ export default function AuditoriumReservationForm({
 
         supportTicketsPayload.push({
           date,
-          start: startTime,
-          end: endTime,
+          start: dayTimes.startTime,
+          end: dayTimes.endTime,
           isoStart: startIso,
         });
       }
@@ -566,17 +670,8 @@ export default function AuditoriumReservationForm({
       }
 
       if (isPending) {
-        const coordName =
-          activeSpaceCoord?.full_name ||
-          (selectedSpace === "4"
-            ? "Nury Mildret Barrera (Ambiente 107)"
-            : selectedSpace === "5"
-              ? "Nury Mildret Barrera (Ambiente de Cocina)"
-              : selectedSpace === "3"
-                ? "la Coordinación de Biblioteca"
-                : "la Coordinación de Formación");
         toast.info(
-          `Solicitud de prereserva recibida. Queda pendiente de autorización por ${coordName} (${activeSpaceCoord?.email || ""}).`,
+          "Solicitud de prereserva registrada. Queda pendiente de autorización.",
           { duration: 6000 },
         );
       } else {
@@ -591,7 +686,10 @@ export default function AuditoriumReservationForm({
         title,
         spaceName,
         dates: datesString,
-        timeRange: `${startTime} - ${endTime}`,
+        timeRange:
+          isMultiDay && multiDayMode === "custom"
+            ? "Horarios personalizados por día"
+            : `${startTime} - ${endTime}`,
         status: isPending ? "PENDING" : "APPROVED",
       });
       setCountdown(5);
@@ -616,6 +714,21 @@ export default function AuditoriumReservationForm({
       className="@container max-h-[85dvh] overflow-y-auto px-6 sm:px-8 py-6 sm:py-8 scrollbar-thin scrollbar-thumb-gray-200"
     >
       <div className="space-y-6 pb-4">
+        {/* Título o Motivo de la Actividad en la parte superior */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+          <label className="block text-sm font-bold text-slate-800 mb-1.5">
+            Título o Motivo de la Actividad *
+          </label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition text-sm"
+            placeholder="Ej: Reunión de Equipo, Capacitación, Sustentación..."
+            required
+          />
+        </div>
+
         {/* Encabezado Técnico Swiss GovTech */}
         <div className="bento-grid-swiss shadow-sm">
           <div className="bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200">
@@ -630,7 +743,7 @@ export default function AuditoriumReservationForm({
               </span>
             </div>
             {(() => {
-              const allIds = ["1", "2", "3", "4", "5"];
+              const allIds = visibleSpaceIds;
               const pausedCount = allIds.filter(
                 (id) =>
                   envGlobalConfig.disabled_special_spaces.includes(id) ||
@@ -656,56 +769,51 @@ export default function AuditoriumReservationForm({
           <div className="bg-white p-4 space-y-3">
             <div className="flex items-center justify-between">
               <label className="swiss-section-tag">
-                01 / SELECCIÓN DE AMBIENTE ESPECIAL
+                01 / SELECCIÓN DE AMBIENTE
               </label>
               <span className="tabular-mono text-[11px] font-bold text-[#39A900]">
                 ● {resolveSpaceDisplayName(selectedSpace)}
               </span>
             </div>
 
-            <div className="grid grid-cols-1 @sm:grid-cols-2 @xl:grid-cols-5 gap-2.5">
+            <div
+              className={`grid grid-cols-1 @sm:grid-cols-2 ${
+                visibleSpaceIds.length <= 3
+                  ? "@xl:grid-cols-3"
+                  : "@xl:grid-cols-5"
+              } gap-2.5`}
+            >
               {(() => {
-                const u = user as { employment_type?: string; role?: string };
-                const empType = (u?.employment_type || "").toLowerCase();
-                const isOfficial =
-                  empType.includes("planta") ||
-                  empType.includes("funcionario") ||
-                  empType.includes("oficial");
-                const isAdmin = ["admin", "superadmin"].includes(
-                  (u?.role || "").toLowerCase(),
-                );
-                const canSeeSubdireccion = isOfficial || isAdmin;
-
                 const spaceItems = [
                   {
                     id: "1",
                     name: "Auditorio 103",
                     subtitle: "Uso General",
-                    visible: true,
+                    visible: visibleSpaceIds.includes("1"),
                   },
                   {
                     id: "2",
                     name: "Subdirección",
-                    subtitle: "Privado · Planta",
-                    visible: canSeeSubdireccion,
+                    subtitle: "Institucional",
+                    visible: visibleSpaceIds.includes("2"),
                   },
                   {
                     id: "3",
                     name: "Biblioteca",
-                    subtitle: "Coord. Biblioteca",
-                    visible: true,
+                    subtitle: "Académico",
+                    visible: visibleSpaceIds.includes("3"),
                   },
                   {
                     id: "4",
                     name: "Ambiente 107",
-                    subtitle: "Prerreserva VIP",
-                    visible: true,
+                    subtitle: "Uso General",
+                    visible: visibleSpaceIds.includes("4"),
                   },
                   {
                     id: "5",
                     name: "Ambiente de Cocina",
-                    subtitle: "Prerreserva VIP",
-                    visible: true,
+                    subtitle: "Prerreserva",
+                    visible: visibleSpaceIds.includes("5"),
                   },
                 ];
 
@@ -875,22 +983,9 @@ export default function AuditoriumReservationForm({
           </div>
         )}
 
-        <div className="mt-2">
-          <label className="block text-sm font-bold text-gray-700 mb-1">
-            Título de la Actividad
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition"
-            placeholder="Ej: Reunión de Equipo, Capacitación..."
-          />
-        </div>
-
         {/* Fechas */}
         <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
               <Calendar className="w-4 h-4" /> Fechas
             </label>
@@ -901,12 +996,32 @@ export default function AuditoriumReservationForm({
                   id="multiDay"
                   checked={isMultiDay}
                   onChange={(e) => {
-                    setIsMultiDay(e.target.checked);
-                    if (e.target.checked) setIsWeeklyRepeat(false);
+                    const checked = e.target.checked;
+                    setIsMultiDay(checked);
+                    if (checked) {
+                      setIsWeeklyRepeat(false);
+                      if (finalDate <= startDate) {
+                        const [sY, sM, sD] = startDate.split("-").map(Number);
+                        const nextD = new Date(sY, sM - 1, sD + 1);
+                        let nextStr = getLocalDateString(nextD);
+                        if (
+                          !allowNextVigencia &&
+                          nextStr > currentVigenciaMax
+                        ) {
+                          nextStr = currentVigenciaMax;
+                        }
+                        setFinalDate(nextStr);
+                      }
+                    } else {
+                      setFinalDate(startDate);
+                    }
                   }}
                   className="w-4 h-4 text-sena-green rounded focus:ring-sena-green"
                 />
-                <label htmlFor="multiDay" className="text-xs text-gray-600">
+                <label
+                  htmlFor="multiDay"
+                  className="text-xs text-gray-600 cursor-pointer"
+                >
                   Días seguidos
                 </label>
               </div>
@@ -922,14 +1037,17 @@ export default function AuditoriumReservationForm({
                   }}
                   className="w-4 h-4 text-sena-green rounded focus:ring-sena-green"
                 />
-                <label htmlFor="weeklyRepeat" className="text-xs text-gray-600">
+                <label
+                  htmlFor="weeklyRepeat"
+                  className="text-xs text-gray-600 cursor-pointer"
+                >
                   Repetir semanalmente
                 </label>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">
                 {isWeeklyRepeat ? "Fecha Primera Sesión" : "Fecha Inicio"}
@@ -938,11 +1056,19 @@ export default function AuditoriumReservationForm({
                 type="date"
                 value={startDate}
                 min={todayStr}
+                max={!allowNextVigencia ? currentVigenciaMax : undefined}
                 onChange={(e) => {
-                  const val =
+                  let val =
                     e.target.value >= todayStr ? e.target.value : todayStr;
+                  if (!allowNextVigencia && val > currentVigenciaMax) {
+                    val = currentVigenciaMax;
+                  }
                   setStartDate(val);
-                  if (!isMultiDay && !isWeeklyRepeat) setFinalDate(val);
+                  if (!isMultiDay && !isWeeklyRepeat) {
+                    setFinalDate(val);
+                  } else if (isMultiDay && finalDate < val) {
+                    setFinalDate(val);
+                  }
                 }}
                 className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-sena-green outline-none"
               />
@@ -950,13 +1076,22 @@ export default function AuditoriumReservationForm({
             {isMultiDay && (
               <div className="animate-in fade-in slide-in-from-left-2">
                 <label className="block text-xs text-gray-500 mb-1">
-                  Fecha Fin
+                  Fecha Fin ({targetDates.length}{" "}
+                  {targetDates.length === 1 ? "día" : "días seguidos"})
                 </label>
                 <input
                   type="date"
                   value={finalDate}
                   min={startDate}
-                  onChange={(e) => setFinalDate(e.target.value)}
+                  max={!allowNextVigencia ? currentVigenciaMax : undefined}
+                  onChange={(e) => {
+                    let val =
+                      e.target.value >= startDate ? e.target.value : startDate;
+                    if (!allowNextVigencia && val > currentVigenciaMax) {
+                      val = currentVigenciaMax;
+                    }
+                    setFinalDate(val);
+                  }}
                   className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-sena-green outline-none"
                 />
               </div>
@@ -981,13 +1116,45 @@ export default function AuditoriumReservationForm({
             )}
           </div>
 
-          {(isWeeklyRepeat || (isMultiDay && targetDates.length > 1)) && (
+          {isMultiDay && (
+            <div className="mt-4 pt-3 border-t border-gray-200/70 space-y-2">
+              <span className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                Horario para los {targetDates.length} días seguidos
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMultiDayMode("same")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                    multiDayMode === "same"
+                      ? "bg-[#043263] text-white border-[#043263]"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  Mismo horario todos los días
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMultiDayMode("custom")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                    multiDayMode === "custom"
+                      ? "bg-[#043263] text-white border-[#043263]"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  Horario diferente por día
+                </button>
+              </div>
+            </div>
+          )}
+
+          {(isWeeklyRepeat || (isMultiDay && targetDates.length > 0)) && (
             <div className="mt-4 pt-3 border-t border-gray-100 animate-in fade-in">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                   {isWeeklyRepeat
                     ? `Sesiones a reservar (${targetDates.length} semanas, cada 7 días):`
-                    : `Días continuos a reservar (${targetDates.length} días):`}
+                    : `Días continuos seleccionados (${targetDates.length} días):`}
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
@@ -1014,72 +1181,172 @@ export default function AuditoriumReservationForm({
         </div>
 
         {/* Horas */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">
-              Hora Inicio
+        {isMultiDay && multiDayMode === "custom" ? (
+          <div className="space-y-2.5">
+            <label className="block text-sm font-bold text-gray-700">
+              Horario Personalizado por Día ({targetDates.length} días)
             </label>
-            <select
-              value={startTime}
-              onChange={(e) => {
-                setStartTime(e.target.value);
-                const sH = parseInt(e.target.value.split(":")[0]);
-                const eH = parseInt(endTime.split(":")[0]);
-                if (eH <= sH) {
-                  setEndTime(
-                    `${Math.min(22, sH + 1)
-                      .toString()
-                      .padStart(2, "0")}:00`,
-                  );
-                }
-              }}
-              className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition"
-            >
-              {timeSlots.map((hour) => {
-                const hourStr = `${hour.toString().padStart(2, "0")}:00`;
-                const isPast = targetDates.some((d) => isPastSlot(d, hourStr));
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              {targetDates.map((dateStr) => {
+                const dayTimes = getTimesForDate(dateStr);
+                const [y, m, d] = dateStr.split("-").map(Number);
+                const dateObj = new Date(y, m - 1, d);
+                const label = dateObj.toLocaleDateString("es-CO", {
+                  weekday: "short",
+                  day: "2-digit",
+                  month: "short",
+                });
                 return (
+                  <div
+                    key={dateStr}
+                    className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center p-2.5 bg-white border border-slate-200 rounded-xl"
+                  >
+                    <span className="text-xs font-bold text-slate-700 capitalize">
+                      {label}
+                    </span>
+                    <select
+                      value={dayTimes.startTime}
+                      onChange={(e) => {
+                        const newStart = e.target.value;
+                        const sH = parseInt(newStart.split(":")[0]);
+                        const eH = parseInt(dayTimes.endTime.split(":")[0]);
+                        const nextEnd =
+                          eH <= sH
+                            ? `${Math.min(22, sH + 1)
+                                .toString()
+                                .padStart(2, "0")}:00`
+                            : dayTimes.endTime;
+                        setCustomDayTimes((prev) => ({
+                          ...prev,
+                          [dateStr]: { startTime: newStart, endTime: nextEnd },
+                        }));
+                      }}
+                      className="w-full p-2 border rounded-lg text-xs focus:ring-2 focus:ring-sena-green outline-none bg-white"
+                    >
+                      {timeSlots.map((hour) => {
+                        const hourStr = `${hour.toString().padStart(2, "0")}:00`;
+                        const isPast = isPastSlot(dateStr, hourStr);
+                        return (
+                          <option
+                            key={`${dateStr}-start-${hour}`}
+                            value={hourStr}
+                            disabled={isPast}
+                          >
+                            {hour === 12
+                              ? "12:00 PM"
+                              : hour > 12
+                                ? `${hour - 12}:00 PM`
+                                : `${hour}:00 AM`}
+                            {isPast ? " (Pasado)" : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <select
+                      value={dayTimes.endTime}
+                      onChange={(e) => {
+                        const newEnd = e.target.value;
+                        setCustomDayTimes((prev) => ({
+                          ...prev,
+                          [dateStr]: {
+                            startTime: dayTimes.startTime,
+                            endTime: newEnd,
+                          },
+                        }));
+                      }}
+                      className="w-full p-2 border rounded-lg text-xs focus:ring-2 focus:ring-sena-green outline-none bg-white"
+                    >
+                      {[...timeSlots, 22].map((hour) => (
+                        <option
+                          key={`${dateStr}-end-${hour}`}
+                          value={`${hour.toString().padStart(2, "0")}:00`}
+                          disabled={
+                            hour <= parseInt(dayTimes.startTime.split(":")[0])
+                          }
+                        >
+                          {hour === 12
+                            ? "12:00 PM"
+                            : hour > 12
+                              ? `${hour - 12}:00 PM`
+                              : `${hour}:00 AM`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">
+                Hora Inicio
+              </label>
+              <select
+                value={startTime}
+                onChange={(e) => {
+                  setStartTime(e.target.value);
+                  const sH = parseInt(e.target.value.split(":")[0]);
+                  const eH = parseInt(endTime.split(":")[0]);
+                  if (eH <= sH) {
+                    setEndTime(
+                      `${Math.min(22, sH + 1)
+                        .toString()
+                        .padStart(2, "0")}:00`,
+                    );
+                  }
+                }}
+                className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition"
+              >
+                {timeSlots.map((hour) => {
+                  const hourStr = `${hour.toString().padStart(2, "0")}:00`;
+                  const isPast = targetDates.some((d) =>
+                    isPastSlot(d, hourStr),
+                  );
+                  return (
+                    <option
+                      key={`start-${hour}`}
+                      value={hourStr}
+                      disabled={isPast}
+                    >
+                      {hour === 12
+                        ? "12:00 PM"
+                        : hour > 12
+                          ? `${hour - 12}:00 PM`
+                          : `${hour}:00 AM`}
+                      {isPast ? " (No disponible - Pasado)" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">
+                Hora Fin
+              </label>
+              <select
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition"
+              >
+                {[...timeSlots, 22].map((hour) => (
                   <option
-                    key={`start-${hour}`}
-                    value={hourStr}
-                    disabled={isPast}
+                    key={`end-${hour}`}
+                    value={`${hour.toString().padStart(2, "0")}:00`}
+                    disabled={hour <= parseInt(startTime.split(":")[0])}
                   >
                     {hour === 12
                       ? "12:00 PM"
                       : hour > 12
                         ? `${hour - 12}:00 PM`
                         : `${hour}:00 AM`}
-                    {isPast ? " (No disponible - Pasado)" : ""}
                   </option>
-                );
-              })}
-            </select>
+                ))}
+              </select>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">
-              Hora Fin
-            </label>
-            <select
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition"
-            >
-              {[...timeSlots, 22].map((hour) => (
-                <option
-                  key={`end-${hour}`}
-                  value={`${hour.toString().padStart(2, "0")}:00`}
-                  disabled={hour <= parseInt(startTime.split(":")[0])}
-                >
-                  {hour === 12
-                    ? "12:00 PM"
-                    : hour > 12
-                      ? `${hour - 12}:00 PM`
-                      : `${hour}:00 AM`}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        )}
 
         {/* Advertencia de horario en tiempo pasado */}
         {isPastReservation && (
@@ -1103,7 +1370,7 @@ export default function AuditoriumReservationForm({
             Recursos Necesarios
           </label>
           <div className="flex flex-wrap gap-3">
-            {["Proyector", "Sonido", "Portátil"].map((resource) => (
+            {FIXED_RESERVATION_RESOURCES.map((resource) => (
               <label
                 key={resource}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm cursor-pointer transition-all ${
@@ -1142,20 +1409,20 @@ export default function AuditoriumReservationForm({
                 Requerimientos Especiales (Opcional)
               </label>
 
-              {/* Correo de Destino actual + Botón para cambiarlo */}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-600">
-                  <Mail className="w-3.5 h-3.5 text-[#39A900]" />
-                  <span>Notifica solo si agregas texto:</span>
-                  <strong className="text-[#043263]">
-                    {activeSpaceCoord.full_name}
-                  </strong>
-                  <span className="tabular-mono text-[11px] text-slate-500">
-                    ({activeSpaceCoord.email})
+              {/* Correo de Destino actual + Botón para cambiarlo: exclusivo SuperAdmin */}
+              {isSuperAdmin && (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-600">
+                    <Mail className="w-3.5 h-3.5 text-[#39A900]" />
+                    <span>Notifica solo si agregas texto:</span>
+                    <strong className="text-[#043263]">
+                      {activeSpaceCoord.full_name}
+                    </strong>
+                    <span className="tabular-mono text-[11px] text-slate-500">
+                      ({activeSpaceCoord.email})
+                    </span>
                   </span>
-                </span>
 
-                {isSuperAdmin && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1175,8 +1442,8 @@ export default function AuditoriumReservationForm({
                         : "Cambiar Correo Destino"}
                     </span>
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Panel Desplegable exclusivo SuperAdmin para actualizar Correo de Destino y Notificar Nuevo Rol */}
@@ -1393,11 +1660,13 @@ export default function AuditoriumReservationForm({
                     );
                   });
 
+                  const selectedDayTimes = getTimesForDate(startDate);
                   const isSelected =
-                    startTime &&
-                    endTime &&
-                    hour >= parseInt(startTime.split(":")[0]) &&
-                    hour < parseInt(endTime.split(":")[0]);
+                    selectedDayTimes.startTime &&
+                    selectedDayTimes.endTime &&
+                    hour >=
+                      parseInt(selectedDayTimes.startTime.split(":")[0]) &&
+                    hour < parseInt(selectedDayTimes.endTime.split(":")[0]);
 
                   return (
                     <div
@@ -1489,49 +1758,13 @@ export default function AuditoriumReservationForm({
             </div>
           )}
 
-        {(selectedSpace === "3" &&
-          (() => {
-            const userEmail = ((user?.email as string) || "").toLowerCase();
-            const userRole = ((user?.role as string) || "").toLowerCase();
-            const isVip = !!(user as never as { is_vip?: boolean })?.is_vip;
-            const jobCategory = (
-              user as never as { job_category?: string }
-            )?.job_category?.toLowerCase();
-            const employmentType = (
-              user as never as { employment_type?: string }
-            )?.employment_type?.toLowerCase();
-
-            const isAdmin = ["admin", "superadmin"].includes(userRole);
-            const isStaff = [
-              "egutierrezn@sistema.local",
-              "rbiblioteca@sistema.local",
-            ].includes(userEmail);
-
-            const isInstructor = jobCategory === "instructor";
-            const isPlanta = employmentType?.includes("planta");
-
-            // Nueva regla: Permitir si es Admin, Staff, VIP, Instructor o Planta
-            return !isStaff && !isAdmin && !isVip && !isInstructor && !isPlanta;
-          })()) ||
-        (selectedSpace === "2" &&
-          (() => {
-            const isVip = !!(user as never as { is_vip?: boolean })?.is_vip;
-            const userRole = ((user?.role as string) || "").toLowerCase();
-            const isAdmin = ["admin", "superadmin"].includes(userRole);
-            return !isVip && !isAdmin;
-          })()) ? (
-          <div
-            className={`${selectedSpace === "3" ? "bg-purple-50 border-purple-200 text-purple-800" : "bg-orange-50 border-orange-200 text-orange-800"} border p-4 rounded-xl flex items-start gap-3`}
-          >
-            <AlertTriangle
-              className={`w-5 h-5 mt-0.5 shrink-0 ${selectedSpace === "3" ? "text-purple-600" : "text-orange-600"}`}
-            />
+        {!visibleSpaceIds.includes(String(selectedSpace)) ? (
+          <div className="bg-orange-50 border-orange-200 text-orange-800 border p-4 rounded-xl flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0 text-orange-600" />
             <div className="text-sm">
               <p className="font-bold">Acceso Restringido</p>
               <p>
-                {selectedSpace === "3"
-                  ? "Solo personal autorizado (Instructores, Planta, VIP o Coordinación) puede solicitar reservas en Biblioteca."
-                  : "Solo el personal VIP está autorizado para reservar la Subdirección."}
+                No tienes permisos para solicitar reservas en este ambiente.
               </p>
             </div>
           </div>

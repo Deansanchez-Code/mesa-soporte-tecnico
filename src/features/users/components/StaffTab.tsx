@@ -21,6 +21,7 @@ import { User, ConfigItem } from "@/app/admin/admin.types";
 import { useUserManagement } from "../hooks/useUserManagement";
 import UserModal from "./UserModal";
 import { NativeDialog } from "@/components/ui/NativeDialog";
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 import { toast } from "sonner";
 import { formatName } from "@/lib/utils";
 
@@ -56,6 +57,40 @@ export default function StaffTab({
   const [pinTargetUser, setPinTargetUser] = useState<User | null>(null);
   const [pinInput, setPinInput] = useState("");
   const [isSavingPin, setIsSavingPin] = useState(false);
+  const [showVigenciaDialog, setShowVigenciaDialog] = useState(false);
+  const [isRollingOverVigencia, setIsRollingOverVigencia] = useState(false);
+  const isSuperAdmin = (currentUserRole || "").toLowerCase() === "superadmin";
+
+  const handleVigenciaRollover = async () => {
+    setIsRollingOverVigencia(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
+        body: JSON.stringify({ action: "rollover_vigencia" }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "No se pudo ejecutar el cambio de vigencia.");
+        return;
+      }
+      toast.success(json.message || "Cambio de vigencia aplicado.");
+      setShowVigenciaDialog(false);
+      onRefresh();
+    } catch {
+      toast.error("Error de conexión ejecutando cambio de vigencia.");
+    } finally {
+      setIsRollingOverVigencia(false);
+    }
+  };
 
   const generateSixDigitPin = () => {
     const arr = new Uint32Array(1);
@@ -243,7 +278,7 @@ export default function StaffTab({
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between gap-4">
         {currentUserRole !== "admin" && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => {
                 resetUserForm();
@@ -254,6 +289,16 @@ export default function StaffTab({
             >
               <UserPlus className="w-4 h-4" /> Nuevo Funcionario
             </button>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={() => setShowVigenciaDialog(true)}
+                className="flex items-center gap-2 bg-[#FC7323] text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition shadow-sm font-bold cursor-pointer"
+                title="Desactiva contratistas y soportes al cambiar de vigencia anual; mantiene activos Planta, VIP y Superadmin"
+              >
+                <Power className="w-4 h-4" /> Cambio de Vigencia Anual
+              </button>
+            )}
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition cursor-pointer font-medium">
                 <FileSpreadsheet className="w-4 h-4 text-green-600" />
@@ -478,6 +523,32 @@ export default function StaffTab({
         newAgent={newAgent}
         setNewAgent={setNewAgent}
         areas={configData.areas}
+        currentUserRole={currentUserRole}
+      />
+
+      <ConfirmationDialog
+        isOpen={showVigenciaDialog}
+        onClose={() => setShowVigenciaDialog(false)}
+        onConfirm={handleVigenciaRollover}
+        title="Confirmar Cambio de Vigencia Anual"
+        message={
+          <div className="space-y-2">
+            <p>
+              Esta acción desactivará inmediatamente a todos los{" "}
+              <strong>contratistas</strong> y <strong>soportes técnicos</strong>{" "}
+              registrados en la plataforma.
+            </p>
+            <p className="text-xs text-slate-600">
+              Permanecerán activos los <strong>funcionarios de planta</strong>,{" "}
+              <strong>usuarios VIP</strong> y <strong>Superadmin</strong>. Los
+              contratistas previos que regresen deberán acudir a la Oficina de
+              Sistemas para su reactivación.
+            </p>
+          </div>
+        }
+        confirmText="Ejecutar Cambio de Vigencia"
+        variant="warning"
+        isLoading={isRollingOverVigencia}
       />
 
       <NativeDialog

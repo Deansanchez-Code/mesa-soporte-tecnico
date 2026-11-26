@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 import { Reservation } from "../types";
@@ -52,6 +53,28 @@ export function useReservations({
     },
     enabled: !!startDate,
   });
+
+  // 1.5 Suscripción en vivo (Supabase Realtime) sobre la tabla reservations
+  useEffect(() => {
+    const channel = supabase
+      .channel("reservations-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reservations",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["reservations"] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // 2. Query para Status VIP
   const { data: currentUserVip = false } = useQuery({

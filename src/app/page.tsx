@@ -64,6 +64,11 @@ function HomeContent() {
   const [resendCooldown, setResendCooldown] = useState(0);
 
   // Estados Registro Contratista
+  const [contractorStep, setContractorStep] = useState<
+    "verify_email" | "already_exists" | "register_form" | "registered_success"
+  >("verify_email");
+  const [contractorExistsMessage, setContractorExistsMessage] = useState("");
+  const [registeredUsername, setRegisteredUsername] = useState("");
   const [contractorName, setContractorName] = useState("");
   const [contractorEmail, setContractorEmail] = useState("");
   const [contractorArea, setContractorArea] = useState<
@@ -389,6 +394,51 @@ function HomeContent() {
     }
   };
 
+  // --- VERIFICAR CORREO PERSONAL DE CONTRATISTA ANTES DE REGISTRAR ---
+  const handleCheckContractorEmail = async () => {
+    const cleanEmail = contractorEmail.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      toast.warning("Ingresa un correo electrónico personal válido.");
+      return;
+    }
+    if (cleanEmail.endsWith("@sena.edu.co")) {
+      toast.info(
+        "Debes ingresar tu correo personal (no @sena.edu.co). Los funcionarios de planta ingresan con su Usuario Corporativo.",
+      );
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/register-contractor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "check_email", email: cleanEmail }),
+      });
+      const payload = await res.json();
+      if (!res.ok) {
+        toast.error(payload.error || "No fue posible verificar tu correo.");
+        return;
+      }
+
+      if (payload.exists) {
+        setContractorExistsMessage(
+          payload.message ||
+            "Tu correo personal ya se encuentra registrado. Por favor acércate a la Oficina de Sistemas para solicitar tu activación.",
+        );
+        setContractorStep("already_exists");
+        return;
+      }
+
+      setContractorStep("register_form");
+    } catch (err) {
+      console.error("Error verificando correo personal:", err);
+      toast.error("Error de conexión verificando tu correo personal.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // --- LOGIN CONTRATISTA / EXTERNO ---
   const handleContractorSubmit = async () => {
     if (!contractorName || !contractorEmail) return;
@@ -410,28 +460,13 @@ function HomeContent() {
     // Validación de correo institucional
     if (contractorEmail.toLowerCase().endsWith("@sena.edu.co")) {
       toast.info(
-        "Los correos @sena.edu.co deben ingresar por el 'Ingreso Corporativo'.",
+        "Debes ingresar tu correo personal. Los funcionarios de planta ingresan por Usuario Corporativo.",
       );
       setLoading(false);
       return;
     }
 
     try {
-      // 1. Intentar flujo de acceso si el usuario ya existe
-      const existingOtp = await requestOtpForUser(
-        derivedUsername,
-        "contractor",
-      );
-      if (existingOtp.ok) {
-        return;
-      }
-
-      if (existingOtp.status !== 404) {
-        toast.error(existingOtp.error);
-        return;
-      }
-
-      // 2. Registrar nuevo contratista y enviar OTP al correo para confirmar titularidad
       const isInstructor = contractorArea === "Instructor";
       const jobCategory = isInstructor ? "instructor" : "funcionario";
 
@@ -441,7 +476,7 @@ function HomeContent() {
         body: JSON.stringify({
           username: derivedUsername,
           full_name: contractorName,
-          email: contractorEmail,
+          email: contractorEmail.trim().toLowerCase(),
           role: "contractor",
           job_category: jobCategory,
           employment_type: "contratista",
@@ -449,26 +484,32 @@ function HomeContent() {
         }),
       });
 
-      const { user: newUser, error: createError } = await createRes.json();
-      if (!createRes.ok || createError) {
-        throw new Error(createError || "No se pudo completar el registro");
+      const payload = await createRes.json();
+      if (createRes.status === 409) {
+        setContractorExistsMessage(
+          payload.error ||
+            "Tu correo personal ya existe en la plataforma. Por favor acércate a la Oficina de Sistemas para tu activación.",
+        );
+        setContractorStep("already_exists");
+        return;
       }
 
-      if (newUser) {
-        const otpReq = await requestOtpForUser(
-          newUser.username.toLowerCase().trim(),
-          "contractor",
-        );
-        if (!otpReq.ok) {
-          toast.error(otpReq.error);
-        }
+      if (!createRes.ok || payload.error) {
+        throw new Error(payload.error || "No se pudo completar el registro");
       }
+
+      const createdUsername =
+        payload.user?.username?.toLowerCase().trim() || derivedUsername;
+      setRegisteredUsername(createdUsername);
+      setUsername(createdUsername);
+      setContractorStep("registered_success");
+      toast.success("Registro completado con éxito.");
     } catch (error) {
       console.error("Error en registro de contratista:", error);
       toast.error(
         error instanceof Error
           ? error.message
-          : "Error al procesar el ingreso. Verifica tus datos o intenta nuevamente.",
+          : "Error al procesar el registro. Verifica tus datos o intenta nuevamente.",
       );
     } finally {
       setLoading(false);
@@ -618,117 +659,276 @@ function HomeContent() {
               </div>
 
               <button
-                onClick={() => setViewState("contractor")}
+                onClick={() => {
+                  setContractorStep("verify_email");
+                  setContractorExistsMessage("");
+                  setRegisteredUsername("");
+                  setViewState("contractor");
+                }}
                 className="w-full bg-white border-2 border-sena-orange text-sena-orange hover:bg-orange-50 font-bold py-3 rounded-lg transition text-sm cursor-pointer"
               >
                 SOY CONTRATISTA
               </button>
+
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-[11px] text-slate-600 leading-relaxed">
+                <strong className="text-sena-blue">
+                  ¿Eres funcionario de planta nuevo o sin acceso?
+                </strong>{" "}
+                Solicita la creación de tu usuario por correo al Dinamizador TIC
+                / creador de la plataforma (
+                <a
+                  href="mailto:dasanchezh@sena.edu.co?subject=Solicitud%20Acceso%20Funcionario%20de%20Planta%20CADPH"
+                  className="font-bold text-sena-green hover:underline"
+                >
+                  dasanchezh@sena.edu.co
+                </a>
+                ).
+              </div>
             </>
           )}
 
-          {/* --- VISTA 2: FORMULARIO CONTRATISTA --- */}
+          {/* --- VISTA 2: FORMULARIO CONTRATISTA (VERIFICAR CORREO PERSONAL -> REGISTRO -> USUARIO) --- */}
           {viewState === "contractor" && (
             <div className="space-y-4 animate-in fade-in slide-in-from-right-8">
-              <div className="bg-orange-50 border border-orange-100 p-3 rounded-lg text-xs text-orange-800 mb-4">
-                Ingresa tus datos institucionales para gestionar reservas y
-                consultar disponibilidad de ambientes.
-              </div>
+              {contractorStep === "verify_email" && (
+                <>
+                  <div className="bg-orange-50 border border-orange-100 p-3 rounded-lg text-xs text-orange-900 leading-relaxed">
+                    Ingresa tu <strong>correo electrónico personal</strong> (no
+                    institucional{" "}
+                    <span className="tabular-mono">@sena.edu.co</span>) para
+                    verificar si ya cuentas con un registro previo en la
+                    plataforma.
+                  </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-600 ml-1">
-                  Nombre Completo
-                </label>
-                <input
-                  type="text"
-                  value={contractorName}
-                  onChange={(e) => setContractorName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-orange outline-none"
-                  placeholder="Ej: Carlos Rodriguez"
-                />
-              </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-600 ml-1">
+                      Correo Electrónico Personal *
+                    </label>
+                    <input
+                      type="email"
+                      value={contractorEmail}
+                      onChange={(e) => setContractorEmail(e.target.value)}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && handleCheckContractorEmail()
+                      }
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-orange outline-none"
+                      placeholder="Ej: nombre.apellido@gmail.com"
+                    />
+                  </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-600 ml-1">
-                  Correo Electrónico
-                </label>
-                <input
-                  type="email"
-                  value={contractorEmail}
-                  onChange={(e) => setContractorEmail(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-orange outline-none"
-                  placeholder="Ej: crodriguez@email.com"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-600 ml-1">
-                  Tipo de Vinculación
-                </label>
-                <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => setContractorArea("Contratista")}
-                    className={`py-2 px-3 rounded-lg text-sm font-medium border transition ${
-                      contractorArea === "Contratista"
-                        ? "bg-sena-orange text-white border-sena-orange"
-                        : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-                    }`}
+                    type="button"
+                    onClick={handleCheckContractorEmail}
+                    disabled={loading || !contractorEmail.trim()}
+                    className="w-full bg-sena-orange hover:bg-orange-600 text-white py-3 rounded-lg font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
-                    Funcionario
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Verificando...
+                      </>
+                    ) : (
+                      <>
+                        VERIFICAR CORREO PERSONAL
+                        <ArrowRight className="w-5 h-5" />
+                      </>
+                    )}
                   </button>
+                </>
+              )}
+
+              {contractorStep === "already_exists" && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 space-y-2 text-xs text-amber-950">
+                    <p className="font-black uppercase tracking-wider text-sena-orange">
+                      Usuario ya registrado en el sistema
+                    </p>
+                    <p className="leading-relaxed">
+                      {contractorExistsMessage ||
+                        "Tu correo personal ya se encuentra registrado. Por favor acércate a la Oficina de Sistemas para solicitar tu activación."}
+                    </p>
+                    <p className="font-semibold text-sena-blue pt-1">
+                      📍 Oficina de Sistemas — Centro de Formación CADPH
+                    </p>
+                  </div>
+
                   <button
-                    onClick={() => setContractorArea("Instructor")}
-                    className={`py-2 px-3 rounded-lg text-sm font-medium border transition ${
-                      contractorArea === "Instructor"
-                        ? "bg-sena-orange text-white border-sena-orange"
-                        : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-                    }`}
+                    type="button"
+                    onClick={() => {
+                      setContractorStep("verify_email");
+                      setContractorExistsMessage("");
+                    }}
+                    className="w-full border border-slate-300 text-slate-700 hover:bg-slate-50 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer"
                   >
-                    Instructor
+                    Probar con otro correo personal
                   </button>
                 </div>
-              </div>
+              )}
 
-              {/* DROPDOWN DE UBICACIÓN (SOLO PARA FUNCIONARIOS) */}
-              {contractorArea === "Contratista" && (
-                <div className="space-y-1 animate-in slide-in-from-top-2 fade-in">
-                  <label className="text-xs font-bold text-gray-600 ml-1">
-                    Ubicación <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={contractorLocation}
-                    onChange={(e) => setContractorLocation(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-orange outline-none bg-white font-medium text-gray-700"
+              {contractorStep === "register_form" && (
+                <>
+                  <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg text-xs text-emerald-900 leading-relaxed">
+                    Correo personal verificado:{" "}
+                    <strong className="tabular-mono">
+                      {contractorEmail.trim().toLowerCase()}
+                    </strong>
+                    . Completa tus datos usando tu{" "}
+                    <strong>correo personal</strong> para crear tu acceso.
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-600 ml-1">
+                      Nombre Completo *
+                    </label>
+                    <input
+                      type="text"
+                      value={contractorName}
+                      onChange={(e) => setContractorName(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-orange outline-none"
+                      placeholder="Ej: Carlos Rodriguez"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-600 ml-1">
+                      Correo Electrónico Personal
+                    </label>
+                    <input
+                      type="email"
+                      value={contractorEmail}
+                      disabled
+                      className="w-full px-4 py-2 border border-gray-200 bg-slate-50 text-slate-600 rounded-lg outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-600 ml-1">
+                      Tipo de Vinculación
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setContractorArea("Contratista")}
+                        className={`py-2 px-3 rounded-lg text-sm font-medium border transition ${
+                          contractorArea === "Contratista"
+                            ? "bg-sena-orange text-white border-sena-orange"
+                            : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        Funcionario
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setContractorArea("Instructor")}
+                        className={`py-2 px-3 rounded-lg text-sm font-medium border transition ${
+                          contractorArea === "Instructor"
+                            ? "bg-sena-orange text-white border-sena-orange"
+                            : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+                        }`}
+                      >
+                        Instructor
+                      </button>
+                    </div>
+                  </div>
+
+                  {contractorArea === "Contratista" && (
+                    <div className="space-y-1 animate-in slide-in-from-top-2 fade-in">
+                      <label className="text-xs font-bold text-gray-600 ml-1">
+                        Ubicación <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={contractorLocation}
+                        onChange={(e) => setContractorLocation(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-orange outline-none bg-white font-medium text-gray-700"
+                      >
+                        <option value="">-- Selecciona una ubicación --</option>
+                        {availableAreas.map((area) => (
+                          <option key={area} value={area}>
+                            {area}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleContractorSubmit}
+                    disabled={loading || !contractorName || !contractorEmail}
+                    className="w-full bg-sena-orange hover:bg-orange-600 text-white py-3 rounded-lg font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
                   >
-                    <option value="">-- Selecciona una ubicación --</option>
-                    {availableAreas.map((area) => (
-                      <option key={area} value={area}>
-                        {area}
-                      </option>
-                    ))}
-                  </select>
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Registrando...
+                      </>
+                    ) : (
+                      <>
+                        FINALIZAR REGISTRO
+                        <ArrowRight className="w-5 h-5" />
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+
+              {contractorStep === "registered_success" && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border-2 border-sena-green/35 bg-emerald-50/70 p-4 space-y-3 text-center">
+                    <div className="mx-auto w-12 h-12 rounded-xl bg-sena-green text-white flex items-center justify-center">
+                      <CheckCircle2 className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wider text-sena-green">
+                        ¡Registro Completado!
+                      </p>
+                      <p className="text-xs text-slate-700 mt-1">
+                        Para ingresar a la plataforma utiliza el siguiente
+                        usuario:
+                      </p>
+                    </div>
+                    <div className="bg-white border border-emerald-200 rounded-xl px-4 py-3 flex items-center justify-between gap-2">
+                      <span className="tabular-mono text-lg font-black text-sena-blue">
+                        {registeredUsername}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard
+                            .writeText(registeredUsername)
+                            .then(() =>
+                              toast.info("Usuario copiado al portapapeles."),
+                            )
+                            .catch(() => {});
+                        }}
+                        className="text-xs font-bold text-sena-green hover:underline cursor-pointer"
+                      >
+                        Copiar
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUsername(registeredUsername);
+                      setContractorStep("verify_email");
+                      setViewState("login");
+                    }}
+                    className="w-full bg-sena-green hover:bg-[#2d8500] text-white py-3 rounded-lg font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    IR A INGRESAR
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
                 </div>
               )}
 
               <button
-                onClick={handleContractorSubmit}
-                disabled={loading || !contractorName || !contractorEmail}
-                className="w-full bg-sena-orange hover:bg-orange-600 text-white py-3 rounded-lg font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-4"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Procesando...
-                  </>
-                ) : (
-                  <>
-                    CONTINUAR A RESERVAS
-                    <ArrowRight className="w-5 h-5" />
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={() => setViewState("login")}
+                type="button"
+                onClick={() => {
+                  setContractorStep("verify_email");
+                  setViewState("login");
+                }}
                 className="w-full text-gray-400 text-xs hover:text-gray-600 py-2"
               >
                 Volver al inicio

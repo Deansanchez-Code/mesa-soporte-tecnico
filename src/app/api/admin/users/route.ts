@@ -5,6 +5,11 @@ import { withAuth, AuthenticatedContext } from "@/lib/api-middleware";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { buildUserIdOrFilter, UUID_SCHEMA } from "@/lib/security";
 import { isPrivilegedKioskUser } from "@/lib/kiosk-pin";
+import {
+  isSuperAdminRole,
+  isSupportRole,
+  shouldDeactivateOnVigenciaRollover,
+} from "@/lib/vigencia-rules";
 import Logger from "@/lib/logger";
 
 const USER_PUBLIC_COLUMNS =
@@ -77,14 +82,23 @@ const UpdateUserSchema = z.object({
   perm_manage_assignments: z.boolean().optional(),
 });
 
-const BulkUpdateSchema = z.object({
-  action: z.enum(["enable", "disable"]),
-  job_category: z.string().trim().min(1).max(60),
-  employment_type: z.literal("contratista"),
-});
+const BulkUpdateSchema = z.union([
+  z.object({
+    action: z.enum(["enable", "disable"]),
+    job_category: z.string().trim().min(1).max(60),
+    employment_type: z.literal("contratista"),
+  }),
+  z.object({
+    action: z.literal("rollover_vigencia"),
+  }),
+]);
 
 async function ensureAdmin(userId: string) {
   return await verifyUserPermissions(userId, ["admin", "superadmin"]);
+}
+
+async function ensureSuperAdmin(userId: string) {
+  return await verifyUserPermissions(userId, ["superadmin"]);
 }
 
 // LIST USERS (Support pagination and filtering with explicit projection & bounded limits)
@@ -169,6 +183,20 @@ async function createUserHandler(
 
   const { email, password, full_name, fullName, role, area, ...otherData } =
     parsed.data;
+
+  // Regla de gobernanza: solo el Superadmin está autorizado para crear cuentas de soporte (agent) o superadmin
+  if (isSupportRole(role) || isSuperAdminRole(role)) {
+    if (!(await ensureSuperAdmin(ctx.user.id))) {
+      return NextResponse.json(
+        {
+          error:
+            "Solo el Superadmin está autorizado para crear o habilitar usuarios de soporte técnico.",
+        },
+        { status: 403 },
+      );
+    }
+  }
+
   const finalFullName = full_name || fullName || otherData.username || email;
 
   const isCoordinator =
@@ -257,6 +285,32 @@ async function updateUserHandler(
 
   const { id, password, email, ...updates } = parsed.data;
   const supabaseAdmin = getSupabaseAdmin();
+
+  const { data: previousUser } = await supabaseAdmin
+    .from("users")
+    .select(
+      "id, auth_id, username, role, job_category, is_vip, perm_manage_assignments",
+    )
+    .or(buildUserIdOrFilter(id))
+    .maybeSingle();
+
+  // Regla de gobernanza: solo el Superadmin puede habilitar, editar o promover cuentas de soporte (agent) o superadmin
+  if (
+    isSupportRole(previousUser?.role) ||
+    isSupportRole(updates.role) ||
+    isSuperAdminRole(previousUser?.role) ||
+    isSuperAdminRole(updates.role)
+  ) {
+    if (!(await ensureSuperAdmin(ctx.user.id))) {
+      return NextResponse.json(
+        {
+          error:
+            "Solo el Superadmin está autorizado para modificar o habilitar cuentas de soporte técnico.",
+        },
+        { status: 403 },
+      );
+    }
+  }
 
   if (password && password.length > 0) {
     let targetAuthId = id;
@@ -361,14 +415,6 @@ async function updateUserHandler(
       dbUpdates[field] = updatesRecord[field];
     }
   }
-
-  const { data: previousUser } = await supabaseAdmin
-    .from("users")
-    .select(
-      "id, auth_id, username, role, job_category, is_vip, perm_manage_assignments",
-    )
-    .or(buildUserIdOrFilter(id))
-    .maybeSingle();
 
   dbUpdates.updated_at = new Date().toISOString();
 
@@ -502,6 +548,24 @@ async function deleteUserHandler(
   }
 
   const supabaseAdmin = getSupabaseAdmin();
+  const { data: targetUser } = await supabaseAdmin
+    .from("users")
+    .select("role")
+    .or(buildUserIdOrFilter(id))
+    .maybeSingle();
+
+  if (isSupportRole(targetUser?.role) || isSuperAdminRole(targetUser?.role)) {
+    if (!(await ensureSuperAdmin(ctx.user.id))) {
+      return NextResponse.json(
+        {
+          error:
+            "Solo el Superadmin está autorizado para desactivar cuentas de soporte técnico.",
+        },
+        { status: 403 },
+      );
+    }
+  }
+
   const { error: dbError } = await supabaseAdmin
     .from("users")
     .update({
@@ -539,9 +603,80 @@ async function bulkUpdateHandler(
     return NextResponse.json({ error: "Invalid parameters" }, { status: 400 });
   }
 
+  const supabaseAdmin = getSupabaseAdmin();
+
+  // Cambio de vigencia anual: desactiva todos los contratistas y soportes (agent);
+  // funcionarios de planta, VIP y superadmin permanecen activos.
+  if (parsed.data.action === "rollover_vigencia") {
+    if (!(await ensureSuperAdmin(ctx.user.id))) {
+      return NextResponse.json(
+        {
+          error:
+            "Solo el Superadmin está autorizado para ejecutar el cambio de vigencia anual.",
+        },
+        { status: 403 },
+      );
+    }
+
+    const { data: allUsers, error: fetchError } = await supabaseAdmin
+      .from("users")
+      .select("id, auth_id, role, employment_type, is_vip, is_active");
+
+    if (fetchError) throw fetchError;
+
+    const toDeactivate = (allUsers || []).filter(
+      (u) => u.is_active !== false && shouldDeactivateOnVigenciaRollover(u),
+    );
+
+    const affectedSupports = toDeactivate.filter((u) =>
+      isSupportRole(u.role),
+    ).length;
+    const affectedContractors = toDeactivate.length - affectedSupports;
+
+    if (toDeactivate.length > 0) {
+      const targetIds = toDeactivate.map((u) => u.id);
+      const { error: deactivateError } = await supabaseAdmin
+        .from("users")
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", targetIds);
+
+      if (deactivateError) throw deactivateError;
+
+      for (const targetUser of toDeactivate) {
+        const authTarget = targetUser.auth_id || targetUser.id;
+        if (authTarget) {
+          try {
+            await supabaseAdmin.auth.admin.updateUserById(authTarget, {
+              ban_duration: "876000h",
+            });
+          } catch (banErr) {
+            Logger.warn("No se pudo suspender sesión Auth en vigencia", banErr);
+          }
+        }
+      }
+    }
+
+    Logger.warn("Superadmin executed annual vigencia rollover", {
+      actorId: ctx.user.id,
+      affectedContractors,
+      affectedSupports,
+      totalAffected: toDeactivate.length,
+    });
+
+    return NextResponse.json({
+      success: true,
+      affectedContractors,
+      affectedSupports,
+      totalAffected: toDeactivate.length,
+      message: `Cambio de vigencia aplicado: ${affectedContractors} contratista(s) y ${affectedSupports} soporte(s) desactivados. Planta, VIP y Superadmin permanecen activos.`,
+    });
+  }
+
   const { action, job_category } = parsed.data;
   const isActive = action === "enable";
-  const supabaseAdmin = getSupabaseAdmin();
 
   const { error: dbError } = await supabaseAdmin
     .from("users")
