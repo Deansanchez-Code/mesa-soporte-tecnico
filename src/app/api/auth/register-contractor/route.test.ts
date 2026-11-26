@@ -120,4 +120,74 @@ describe("POST /api/auth/register-contractor Hardening", () => {
       expect.anything(),
     );
   });
+
+  it("rechaza correo @sena.edu.co durante la verificación de contratista", async () => {
+    const req = new NextRequest(
+      "http://localhost/api/auth/register-contractor",
+      {
+        method: "POST",
+        headers: { "x-forwarded-for": "10.10.10.101" },
+        body: JSON.stringify({
+          action: "check_email",
+          email: "usuario@sena.edu.co",
+        }),
+      },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    expect(mockCreateUser).not.toHaveBeenCalled();
+  });
+
+  it("indica acudir a Oficina de Sistemas cuando el correo personal ya existe", async () => {
+    mockSingle.mockResolvedValue({
+      data: {
+        id: "existing-id",
+        is_active: false,
+        username: "contratista.existente",
+      },
+      error: null,
+    });
+
+    const req = new NextRequest(
+      "http://localhost/api/auth/register-contractor",
+      {
+        method: "POST",
+        headers: { "x-forwarded-for": "10.10.10.102" },
+        body: JSON.stringify({
+          action: "check_email",
+          email: "contratista.existente@gmail.com",
+        }),
+      },
+    );
+
+    const res = await POST(req);
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.exists).toBe(true);
+    expect(json.isActive).toBe(false);
+    expect(json.message).toMatch(/Oficina de Sistemas/i);
+  });
+
+  it("permite continuar registro y sugiere usuario cuando el correo personal no existe", async () => {
+    mockSingle.mockResolvedValue({ data: null, error: null });
+
+    const req = new NextRequest(
+      "http://localhost/api/auth/register-contractor",
+      {
+        method: "POST",
+        headers: { "x-forwarded-for": "10.10.10.103" },
+        body: JSON.stringify({
+          action: "check_email",
+          email: "nuevo.personal@gmail.com",
+        }),
+      },
+    );
+
+    const res = await POST(req);
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.exists).toBe(false);
+    expect(json.suggestedUsername).toBe("nuevo.personal");
+  });
 });

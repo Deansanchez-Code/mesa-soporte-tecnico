@@ -34,6 +34,7 @@ export default function AgentsTab({
   } = useUserManagement(onRefresh);
 
   const [searchTerm, setSearchTerm] = useState("");
+  const isSuperAdmin = (currentUserRole || "").toLowerCase() === "superadmin";
 
   return (
     <section className="animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -41,7 +42,7 @@ export default function AgentsTab({
         <h2 className="text-xl font-bold text-gray-800">
           Gestión de Usuarios (Técnicos y Admins)
         </h2>
-        {currentUserRole !== "admin" && (
+        {isSuperAdmin && (
           <button
             onClick={() => {
               resetUserForm();
@@ -50,7 +51,7 @@ export default function AgentsTab({
             }}
             className="bg-sena-blue hover:bg-blue-900 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-sm transition"
           >
-            <UserPlus className="w-4 h-4" /> Nuevo Usuario
+            <UserPlus className="w-4 h-4" /> Nuevo Soporte / Usuario
           </button>
         )}
       </div>
@@ -88,7 +89,7 @@ export default function AgentsTab({
               <th className="p-4 text-xs font-bold text-gray-500 uppercase">
                 Permisos
               </th>
-              {currentUserRole !== "admin" && (
+              {isSuperAdmin && (
                 <th className="p-4 text-xs font-bold text-gray-500 uppercase text-right">
                   Acciones
                 </th>
@@ -176,7 +177,7 @@ export default function AgentsTab({
                     </div>
                   </td>
                   <td className="p-4 text-right">
-                    {currentUserRole !== "admin" && (
+                    {isSuperAdmin && (
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleEditUser(agent)}
@@ -208,6 +209,7 @@ export default function AgentsTab({
         newAgent={newAgent}
         setNewAgent={setNewAgent}
         areas={configData.areas}
+        currentUserRole={currentUserRole}
       />
     </section>
   );

@@ -12,6 +12,7 @@ interface UserModalProps {
   newAgent: AgentFormData;
   setNewAgent: (agent: AgentFormData) => void;
   areas: ConfigItem[];
+  currentUserRole?: string;
 }
 
 export default function UserModal({
@@ -21,8 +22,10 @@ export default function UserModal({
   newAgent,
   setNewAgent,
   areas,
+  currentUserRole,
 }: UserModalProps) {
   if (!isOpen) return null;
+  const isSuperAdmin = (currentUserRole || "").toLowerCase() === "superadmin";
 
   return (
     <NativeDialog
@@ -84,9 +87,13 @@ export default function UserModal({
                 }
               >
                 <option value="user">Usuario (Planta)</option>
-                <option value="agent">Técnico de Mesa</option>
+                {isSuperAdmin && (
+                  <option value="agent">Técnico de Mesa (Soporte)</option>
+                )}
                 <option value="admin">Administrador</option>
-                <option value="superadmin">Super Admin (Root)</option>
+                {isSuperAdmin && (
+                  <option value="superadmin">Super Admin (Root)</option>
+                )}
               </select>
             </div>
           </div>

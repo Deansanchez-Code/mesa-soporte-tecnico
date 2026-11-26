@@ -23,6 +23,12 @@ import {
 import { DEFAULT_SPACE_COORDINATORS } from "../constants";
 import Logger from "@/lib/logger";
 import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
+import {
+  canAccessNextVigencia,
+  getVisibleSpaceIdsForUser,
+  hasCrossSpaceOverlap,
+  isDateBeyondCurrentVigencia,
+} from "../rules/reservationRules";
 
 function hasValidDescription(desc: string | null | undefined): boolean {
   if (!desc) return false;
@@ -735,8 +741,57 @@ export async function createReservationAction(
       );
     }
 
-    // 4. RBAC Check for Subdirección (ID 2) and Biblioteca (ID 3)
+    // 3.5 Reglas de visibilidad por rol, vigencia anual y bloqueo anti-multireserva simultánea
     const currentSpace = auditorium_id || "1";
+    const visibleSpaces = getVisibleSpaceIdsForUser({
+      role: publicUser?.role,
+      employment_type: publicUser?.employment_type,
+      job_category: publicUser?.job_category,
+      is_vip: publicUser?.is_vip,
+      perm_manage_assignments: publicUser?.perm_manage_assignments,
+    });
+    if (!visibleSpaces.includes(String(currentSpace))) {
+      throw new Error(
+        "No tienes permisos para reservar el ambiente seleccionado.",
+      );
+    }
+
+    const userCanNextVigencia = canAccessNextVigencia({
+      role: publicUser?.role,
+      employment_type: publicUser?.employment_type,
+      job_category: publicUser?.job_category,
+      is_vip: publicUser?.is_vip,
+      perm_manage_assignments: publicUser?.perm_manage_assignments,
+    });
+    if (!userCanNextVigencia && isDateBeyondCurrentVigencia(start_time)) {
+      throw new Error("Fecha no disponible para reserva en esta vigencia.");
+    }
+
+    // Evitar multi-reservas simultáneas del mismo usuario en diferentes ambientes
+    const ownerLookupId = publicUser?.id || user_id;
+    const { data: userConcurrentRows } = await supabase
+      .from("reservations")
+      .select("id, auditorium_id, start_time, end_time, status, user_id")
+      .in("status", ["APPROVED", "PENDING"])
+      .eq("user_id", ownerLookupId)
+      .lt("start_time", end_time)
+      .gt("end_time", start_time);
+
+    if (
+      userConcurrentRows &&
+      hasCrossSpaceOverlap(
+        userConcurrentRows,
+        String(currentSpace),
+        start_time,
+        end_time,
+      )
+    ) {
+      throw new Error(
+        "No puedes tener reservas simultáneas en diferentes ambientes en el mismo horario.",
+      );
+    }
+
+    // 4. RBAC Check for Subdirección (ID 2) and Biblioteca (ID 3)
     let initialStatus = "APPROVED";
     let needsApproval = false;
 
@@ -860,7 +915,15 @@ export async function createReservationAction(
       )
       .single();
 
-    if (error) throw error;
+    if (error) {
+      const pgCode = (error as { code?: string }).code;
+      if (pgCode === "23P01") {
+        throw new Error(
+          "El horario seleccionado acaba de ser reservado por otro usuario. Actualiza e intenta otra franja.",
+        );
+      }
+      throw error;
+    }
 
     // --- NOTIFICATION LOGIC ---
     try {
@@ -1195,7 +1258,15 @@ export async function updateReservationAction(
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      const pgCode = (error as { code?: string }).code;
+      if (pgCode === "23P01") {
+        throw new Error(
+          "El horario seleccionado acaba de ser reservado por otro usuario. Actualiza e intenta otra franja.",
+        );
+      }
+      throw error;
+    }
 
     // 6. Enviar correo de actualización al funcionario/instructor que queda con la reserva
     try {
@@ -1433,8 +1504,31 @@ export async function createReservationBatchAction(
     let initialStatus = "APPROVED";
     let hasNeedsApproval = false;
 
+    const batchActor = {
+      role: publicUser.role,
+      employment_type: publicUser.employment_type,
+      job_category: publicUser.job_category,
+      is_vip: publicUser.is_vip,
+      perm_manage_assignments: publicUser.perm_manage_assignments,
+    };
+    const visibleSpacesBatch = getVisibleSpaceIdsForUser(batchActor);
+    const batchCanNextVigencia = canAccessNextVigencia(batchActor);
+
     for (const res of validReservations) {
       const targetSpace = res.auditorium_id || "1";
+
+      if (!visibleSpacesBatch.includes(String(targetSpace))) {
+        throw new Error(
+          "No tienes permisos para reservar el ambiente seleccionado.",
+        );
+      }
+
+      if (
+        !batchCanNextVigencia &&
+        isDateBeyondCurrentVigencia(res.start_time)
+      ) {
+        throw new Error("Fecha no disponible para reserva en esta vigencia.");
+      }
 
       // RBAC Check for Subdirección (ID 2)
       if (targetSpace === "2") {
@@ -1589,6 +1683,30 @@ export async function createReservationBatchAction(
           );
         }
       }
+
+      // Evitar multi-reservas simultáneas del mismo usuario en otros ambientes
+      const { data: userConcurrentBatchRows } = await supabase
+        .from("reservations")
+        .select("id, auditorium_id, start_time, end_time, status, user_id")
+        .in("status", ["APPROVED", "PENDING"])
+        .eq("user_id", res.user_id)
+        .lt("start_time", res.end_time)
+        .gt("end_time", res.start_time);
+
+      if (
+        userConcurrentBatchRows &&
+        hasCrossSpaceOverlap(
+          userConcurrentBatchRows,
+          String(targetSpace),
+          res.start_time,
+          res.end_time,
+          res.id,
+        )
+      ) {
+        throw new Error(
+          "No puedes tener reservas simultáneas en diferentes ambientes en el mismo horario.",
+        );
+      }
     }
 
     // 4. Batch Upsert (Insert or Update) via adminSupabase so Coordinators/VIPs can edit/reassign any instructor's reservation
@@ -1628,6 +1746,12 @@ export async function createReservationBatchAction(
 
     if (error) {
       console.error("Error inserting reservations:", error);
+      const pgCode = (error as { code?: string }).code;
+      if (pgCode === "23P01") {
+        throw new Error(
+          "Uno de los horarios seleccionados acaba de ser reservado por otro usuario. Actualiza e intenta otra franja.",
+        );
+      }
       throw new Error(error.message || "Error al insertar reservas");
     }
 
@@ -1948,7 +2072,15 @@ export async function getAllSpacesMaintenanceAction(): Promise<{
       .select("key, value")
       .in("key", ["spaces_maintenance", "auditorium_maintenance"]);
 
-    if (error) throw error;
+    if (error) {
+      const pgCode = (error as { code?: string }).code;
+      if (pgCode === "23P01") {
+        throw new Error(
+          "El horario seleccionado acaba de ser reservado por otro usuario. Actualiza e intenta otra franja.",
+        );
+      }
+      throw error;
+    }
 
     const result: Record<string, SpaceMaintenanceConfig> = {};
     let legacyAuditorium: SpaceMaintenanceConfig | null = null;
@@ -2621,7 +2753,15 @@ export async function deleteInstructorAssignmentAction(assignmentId: number) {
       .delete()
       .eq("id", assignmentId);
 
-    if (error) throw error;
+    if (error) {
+      const pgCode = (error as { code?: string }).code;
+      if (pgCode === "23P01") {
+        throw new Error(
+          "El horario seleccionado acaba de ser reservado por otro usuario. Actualiza e intenta otra franja.",
+        );
+      }
+      throw error;
+    }
 
     revalidatePath("/dashboard");
     return { success: true };
@@ -2713,7 +2853,15 @@ export async function getEnvironmentsGlobalConfigAction() {
       .eq("key", "environments_global_config")
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      const pgCode = (error as { code?: string }).code;
+      if (pgCode === "23P01") {
+        throw new Error(
+          "El horario seleccionado acaba de ser reservado por otro usuario. Actualiza e intenta otra franja.",
+        );
+      }
+      throw error;
+    }
 
     const val = (data?.value || {}) as EnvironmentsGlobalConfig;
 
@@ -2808,7 +2956,15 @@ export async function saveEnvironmentsTabOrderAction(
       { onConflict: "key" },
     );
 
-    if (error) throw error;
+    if (error) {
+      const pgCode = (error as { code?: string }).code;
+      if (pgCode === "23P01") {
+        throw new Error(
+          "El horario seleccionado acaba de ser reservado por otro usuario. Actualiza e intenta otra franja.",
+        );
+      }
+      throw error;
+    }
 
     revalidatePath("/");
     revalidatePath("/dashboard");
@@ -2897,7 +3053,15 @@ export async function toggleSpaceStatusBySuperAdminAction(params: {
       { onConflict: "key" },
     );
 
-    if (error) throw error;
+    if (error) {
+      const pgCode = (error as { code?: string }).code;
+      if (pgCode === "23P01") {
+        throw new Error(
+          "El horario seleccionado acaba de ser reservado por otro usuario. Actualiza e intenta otra franja.",
+        );
+      }
+      throw error;
+    }
 
     revalidatePath("/");
     revalidatePath("/dashboard");

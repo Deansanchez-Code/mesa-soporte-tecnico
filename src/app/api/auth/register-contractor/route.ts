@@ -5,6 +5,11 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import Logger from "@/lib/logger";
 
+const CheckContractorEmailSchema = z.object({
+  action: z.literal("check_email"),
+  email: z.string().trim().email("Correo inválido").max(160),
+});
+
 const RegisterContractorSchema = z.object({
   username: z
     .string()
@@ -23,6 +28,71 @@ export async function POST(req: NextRequest) {
   // AUTH_CHECK_BYPASS: Public registration endpoint (Zod Validated, Rate-Limited & Role Locked)
   try {
     const ip = getClientIp(req);
+    const body = await req.json();
+
+    // Paso 1 de "Soy Contratista": verificar por correo personal si ya existe registro previo
+    const checkParsed = CheckContractorEmailSchema.safeParse(body);
+    if (checkParsed.success) {
+      const checkLimit = checkRateLimit(
+        `check-contractor:${ip}`,
+        15,
+        15 * 60 * 1000,
+      );
+      if (!checkLimit.allowed) {
+        return NextResponse.json(
+          {
+            error: "Demasiadas verificaciones recientes. Espera unos minutos.",
+          },
+          {
+            status: 429,
+            headers: { "Retry-After": String(checkLimit.retryAfterSeconds) },
+          },
+        );
+      }
+
+      const cleanEmail = checkParsed.data.email.toLowerCase().trim();
+      if (cleanEmail.endsWith("@sena.edu.co")) {
+        return NextResponse.json(
+          {
+            error:
+              "Debes ingresar tu correo personal (no @sena.edu.co). Los funcionarios de planta ingresan por Usuario Corporativo.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const derivedUsername = cleanEmail.split("@")[0].toLowerCase().trim();
+      const supabaseAdmin = getSupabaseAdmin();
+      const { data: existingUser, error: lookupError } = await supabaseAdmin
+        .from("users")
+        .select("id, is_active, username")
+        .or(`email.eq.${cleanEmail},username.eq.${derivedUsername}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (lookupError) {
+        Logger.error("Error verifying contractor email", lookupError);
+        return NextResponse.json(
+          { error: "No fue posible verificar tu correo en este momento." },
+          { status: 500 },
+        );
+      }
+
+      if (existingUser) {
+        return NextResponse.json({
+          exists: true,
+          isActive: existingUser.is_active !== false,
+          message:
+            "Tu correo personal ya se encuentra registrado en la plataforma. Por favor acércate a la Oficina de Sistemas para solicitar tu activación.",
+        });
+      }
+
+      return NextResponse.json({
+        exists: false,
+        suggestedUsername: derivedUsername,
+      });
+    }
+
     const limit = checkRateLimit(`reg-contractor:${ip}`, 5, 15 * 60 * 1000);
     if (!limit.allowed) {
       return NextResponse.json(
@@ -36,7 +106,6 @@ export async function POST(req: NextRequest) {
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    const body = await req.json();
     const parsed = RegisterContractorSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -80,7 +149,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "El usuario ya se encuentra registrado. Por favor inicia sesión con tu cuenta existente.",
+            "Tu usuario o correo personal ya se encuentra registrado. Por favor acércate a la Oficina de Sistemas para su activación.",
         },
         { status: 409 },
       );

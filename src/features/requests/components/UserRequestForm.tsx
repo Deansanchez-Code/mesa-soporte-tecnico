@@ -21,7 +21,9 @@ import PanicButtonModal from "./PanicButtonModal";
 import LibraryApprovalModal from "@/features/reservations/components/LibraryApprovalModal";
 import Ambiente107ApprovalModal from "@/features/reservations/components/Ambiente107ApprovalModal";
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
+import UnifiedAvailabilityCalendar from "@/features/reservations/components/UnifiedAvailabilityCalendar";
 import AuditoriumMaintenanceModal from "@/features/reservations/components/AuditoriumMaintenanceModal";
+import { getVisibleSpaceIdsForUser } from "@/features/reservations/rules/reservationRules";
 import {
   getAllSpacesMaintenanceConfig,
   DEFAULT_AUDITORIUM_MAINTENANCE,
@@ -33,7 +35,6 @@ import {
   SpaceMaintenanceConfig,
   EnvironmentsGlobalConfig,
 } from "@/features/reservations/types";
-import AssignmentManager from "@/features/assignments/components/AssignmentManager";
 import { User } from "./types";
 
 const SupportRedirectMessage = ({
@@ -179,6 +180,11 @@ export default function UserRequestForm({
   const [selectedReservationSpace, setSelectedReservationSpace] = useState<
     "1" | "2" | "3" | "4" | "5"
   >("1");
+  const [reservationPrefill, setReservationPrefill] = useState<{
+    date: string;
+    startTime: string;
+    endTime: string;
+  } | null>(null);
 
   interface TodayReservation {
     id: number;
@@ -388,6 +394,16 @@ export default function UserRequestForm({
     const isSpacePaused = (id: string) =>
       Boolean(spacesMaintenance[id]?.is_active);
 
+    const visibleIds = getVisibleSpaceIdsForUser(
+      user as unknown as {
+        role?: string;
+        employment_type?: string;
+        job_category?: string;
+        is_vip?: boolean;
+        perm_manage_assignments?: boolean;
+      },
+    );
+
     const handleSpaceSelection = (
       id: "1" | "2" | "3" | "4" | "5",
       label: string,
@@ -409,6 +425,7 @@ export default function UserRequestForm({
         setShowMaintenanceModal(true);
         return;
       }
+      setReservationPrefill(null);
       setSelectedReservationSpace(id);
       handleViewChange("RESERVATION");
     };
@@ -416,7 +433,8 @@ export default function UserRequestForm({
     const spaceCards = [
       {
         id: "1" as const,
-        visible: isSuperAdmin || !isSpaceDisabled("1"),
+        visible:
+          visibleIds.includes("1") && (isSuperAdmin || !isSpaceDisabled("1")),
         disabled: isSpaceDisabled("1"),
         title: "Auditorio 103",
         subtitle: "Capacitaciones institucionales y eventos masivos.",
@@ -433,11 +451,14 @@ export default function UserRequestForm({
       },
       {
         id: "2" as const,
-        visible: canSeeSubdireccion && (isSuperAdmin || !isSpaceDisabled("2")),
+        visible:
+          visibleIds.includes("2") &&
+          canSeeSubdireccion &&
+          (isSuperAdmin || !isSpaceDisabled("2")),
         disabled: isSpaceDisabled("2"),
         title: "Subdirección",
         subtitle: "Reuniones ejecutivas y de alta gerencia.",
-        badge: isSpacePaused("2") ? "En Remodelación" : "VIP / Planta",
+        badge: isSpacePaused("2") ? "En Remodelación" : "Disponible",
         badgeClass: isSpacePaused("2")
           ? "bg-amber-100 text-amber-800 border border-amber-300 animate-pulse"
           : "bg-orange-100 text-sena-orange",
@@ -450,7 +471,10 @@ export default function UserRequestForm({
       },
       {
         id: "3" as const,
-        visible: canSeeBiblioteca && (isSuperAdmin || !isSpaceDisabled("3")),
+        visible:
+          visibleIds.includes("3") &&
+          canSeeBiblioteca &&
+          (isSuperAdmin || !isSpaceDisabled("3")),
         disabled: isSpaceDisabled("3"),
         title: "Biblioteca",
         subtitle: "Entornos de consulta, lectura y aprendizaje.",
@@ -467,7 +491,10 @@ export default function UserRequestForm({
       },
       {
         id: "4" as const,
-        visible: canSeeAmbiente107 && (isSuperAdmin || !isSpaceDisabled("4")),
+        visible:
+          visibleIds.includes("4") &&
+          canSeeAmbiente107 &&
+          (isSuperAdmin || !isSpaceDisabled("4")),
         disabled: isSpaceDisabled("4"),
         title: "Ambiente 107",
         subtitle: "Formación y sesiones técnicas especializadas.",
@@ -484,7 +511,10 @@ export default function UserRequestForm({
       },
       {
         id: "5" as const,
-        visible: canSeeAmbiente107 && (isSuperAdmin || !isSpaceDisabled("5")),
+        visible:
+          visibleIds.includes("5") &&
+          canSeeAmbiente107 &&
+          (isSuperAdmin || !isSpaceDisabled("5")),
         disabled: isSpaceDisabled("5"),
         title: "Ambiente de Cocina",
         subtitle: "Talleres gastronómicos y formación en cocina.",
@@ -1079,31 +1109,32 @@ export default function UserRequestForm({
             <AuditoriumReservationForm
               user={user}
               initialSpace={selectedReservationSpace}
+              initialDate={reservationPrefill?.date}
+              initialStartTime={reservationPrefill?.startTime}
+              initialEndTime={reservationPrefill?.endTime}
               onCancel={() => handleViewChange("SELECTION")}
               onSuccess={onCancel}
             />
           ) : view === "AVAILABILITY" ? (
-            <div className="min-h-[600px]">
-              <AssignmentManager
-                canManage={
-                  user.role === "admin" ||
-                  user.role === "superadmin" ||
-                  user.role === "coordinator" ||
-                  (
-                    user as { job_category?: string }
-                  )?.job_category?.toLowerCase() === "coordinador" ||
-                  !!user.is_vip ||
-                  !!user.perm_manage_assignments
+            <div className="min-h-[540px]">
+              <UnifiedAvailabilityCalendar
+                user={
+                  user as unknown as {
+                    id?: string;
+                    role?: string;
+                    employment_type?: string;
+                    job_category?: string;
+                    is_vip?: boolean;
+                    perm_manage_assignments?: boolean;
+                  }
                 }
-                canDeleteAuditorium={
-                  user.role === "superadmin" ||
-                  user.role === "admin" ||
-                  (
-                    user as { job_category?: string }
-                  )?.job_category?.toLowerCase() === "coordinador" ||
-                  !!user.is_vip
-                }
-                user={user}
+                onSelectSlot={({ spaceId, date, startTime, endTime }) => {
+                  setSelectedReservationSpace(
+                    spaceId as "1" | "2" | "3" | "4" | "5",
+                  );
+                  setReservationPrefill({ date, startTime, endTime });
+                  handleViewChange("RESERVATION");
+                }}
               />
             </div>
           ) : (
