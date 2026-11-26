@@ -10,6 +10,7 @@ import {
   cancelReservationAction,
   deleteInstructorAssignmentAction,
 } from "@/features/reservations/actions/reservationActions";
+import { mergeReservationsWithLegacy } from "@/features/reservations/rules/legacyAssignmentsAdapter";
 
 interface UseAssignmentsProps {
   areaId: number;
@@ -48,7 +49,11 @@ export function useAssignments({
         new Set(assignData?.map((a) => a.instructor_id) || []),
       );
 
-      let combined: Assignment[] = [];
+      type TimedAssignment = Assignment & {
+        start_time: string;
+        end_time: string;
+      };
+      let combined: TimedAssignment[] = [];
 
       if (instructorIds.length > 0) {
         const { data: userData, error: userError } = await supabase
@@ -119,13 +124,13 @@ export function useAssignments({
           )
           .in("status", ["APPROVED", "PENDING"])
           .eq("auditorium_id", targetAuditoriumId)
-          .gte("start_time", startStr + "T00:00:00")
-          .lte("start_time", endStr + "T23:59:59");
+          .gte("start_time", startStr + "T00:00:00-05:00")
+          .lte("start_time", endStr + "T23:59:59-05:00");
 
         if (resError) throw resError;
 
         if (resData && resData.length > 0) {
-          const reservationAssignments: Assignment[] = (
+          const reservationAssignments: TimedAssignment[] = (
             resData as unknown as (Assignment & {
               users: { full_name: string; is_vip: boolean };
             })[]
@@ -150,15 +155,22 @@ export function useAssignments({
               title: r.title,
               description: r.description,
               auditorium_id: r.auditorium_id || targetAuditoriumId,
-              start_time: r.start_time,
-              end_time: r.end_time,
+              start_time: r.start_time || "",
+              end_time: r.end_time || "",
               resources: r.resources,
               status: r.status,
               users: r.users || undefined,
               user_id: r.user_id,
             };
           });
-          combined = [...combined, ...reservationAssignments];
+          const legacyWithSpace = combined.map((item) => ({
+            ...item,
+            auditorium_id: item.auditorium_id || targetAuditoriumId,
+          }));
+          combined = mergeReservationsWithLegacy(
+            reservationAssignments,
+            legacyWithSpace,
+          );
         }
       }
 
