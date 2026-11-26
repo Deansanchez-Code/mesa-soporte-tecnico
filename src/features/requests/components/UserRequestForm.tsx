@@ -23,7 +23,15 @@ import Ambiente107ApprovalModal from "@/features/reservations/components/Ambient
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
 import UnifiedAvailabilityCalendar from "@/features/reservations/components/UnifiedAvailabilityCalendar";
 import AuditoriumMaintenanceModal from "@/features/reservations/components/AuditoriumMaintenanceModal";
-import { getVisibleSpaceIdsForUser } from "@/features/reservations/rules/reservationRules";
+import {
+  getBogotaDateString,
+  getVisibleSpaceIdsForUser,
+} from "@/features/reservations/rules/reservationRules";
+import {
+  mapAreaNameToSpaceId,
+  mapLegacyAssignmentToReservation,
+  mergeReservationsWithLegacy,
+} from "@/features/reservations/rules/legacyAssignmentsAdapter";
 import {
   getAllSpacesMaintenanceConfig,
   DEFAULT_AUDITORIUM_MAINTENANCE,
@@ -237,20 +245,75 @@ export default function UserRequestForm({
           .lte("start_time", tomorrow.toISOString())
           .order("start_time", { ascending: true });
 
-        if (data) {
-          const todayStr = now.toLocaleDateString("en-US", {
-            timeZone: "America/Bogota",
-          });
-          const typedData = data as unknown as TodayReservation[];
-          const filtered = typedData.filter((res) => {
-            const resDateStr = new Date(res.start_time).toLocaleDateString(
-              "en-US",
-              { timeZone: "America/Bogota" },
-            );
-            return resDateStr === todayStr;
-          });
-          setTodayReservations(filtered);
+        const todayBogota = getBogotaDateString(now);
+        const typedData = (data || []) as unknown as TodayReservation[];
+        const filtered = typedData.filter((res) => {
+          return getBogotaDateString(new Date(res.start_time)) === todayBogota;
+        });
+
+        let legacyToday: TodayReservation[] = [];
+        try {
+          const { data: areasData } = await supabase
+            .from("areas")
+            .select("id, name");
+          const areaNameById = new Map<number, string>();
+          for (const area of areasData || []) {
+            if (mapAreaNameToSpaceId(area.name)) {
+              areaNameById.set(area.id, area.name);
+            }
+          }
+          const specialAreaIds = Array.from(areaNameById.keys());
+          if (specialAreaIds.length > 0) {
+            const { data: assignRows } = await supabase
+              .from("instructor_assignments")
+              .select("id, area_id, instructor_id, assignment_date, time_block")
+              .in("area_id", specialAreaIds)
+              .eq("assignment_date", todayBogota);
+
+            if (assignRows && assignRows.length > 0) {
+              const instructorIds = Array.from(
+                new Set(assignRows.map((r) => r.instructor_id).filter(Boolean)),
+              );
+              const instructorNames = new Map<string, string>();
+              if (instructorIds.length > 0) {
+                const { data: userRows } = await supabase
+                  .from("users")
+                  .select("id, full_name")
+                  .in("id", instructorIds);
+                for (const u of userRows || []) {
+                  if (u.full_name) instructorNames.set(u.id, u.full_name);
+                }
+              }
+              legacyToday = assignRows
+                .map((row) =>
+                  mapLegacyAssignmentToReservation(
+                    {
+                      ...row,
+                      instructorName: instructorNames.get(row.instructor_id),
+                    },
+                    areaNameById.get(row.area_id),
+                  ),
+                )
+                .filter((x): x is NonNullable<typeof x> => x !== null)
+                .map((item) => ({
+                  id: item.id,
+                  start_time: item.start_time,
+                  end_time: item.end_time,
+                  title: item.title,
+                  auditorium_id: item.auditorium_id || "1",
+                  users: {
+                    full_name: item.users?.full_name || "Instructor",
+                  },
+                }));
+            }
+          }
+        } catch {
+          // Continuar con reservas nativas si falla consulta auxiliar
         }
+
+        setTodayReservations(
+          mergeReservationsWithLegacy(filtered, legacyToday),
+        );
       } catch (e) {
         console.error("Error fetching today's reservations:", e);
       } finally {
