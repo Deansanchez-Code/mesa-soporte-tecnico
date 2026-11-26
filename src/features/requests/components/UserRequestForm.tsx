@@ -29,6 +29,7 @@ import {
   DEFAULT_AUDITORIUM_MAINTENANCE,
   getEnvironmentsGlobalConfig,
   DEFAULT_ENVIRONMENTS_CONFIG,
+  resolveSpaceDisplayName,
 } from "@/features/reservations/services/maintenanceService";
 import { toggleSpaceStatusBySuperAdminAction } from "@/features/reservations/actions/reservationActions";
 import {
@@ -180,10 +181,13 @@ export default function UserRequestForm({
   const [selectedReservationSpace, setSelectedReservationSpace] = useState<
     "1" | "2" | "3" | "4" | "5"
   >("1");
+  const [calendarInitialSpace, setCalendarInitialSpace] = useState<
+    "ALL" | "1" | "2" | "3" | "4" | "5"
+  >("ALL");
   const [reservationPrefill, setReservationPrefill] = useState<{
     date: string;
-    startTime: string;
-    endTime: string;
+    startTime?: string;
+    endTime?: string;
   } | null>(null);
 
   interface TodayReservation {
@@ -427,7 +431,8 @@ export default function UserRequestForm({
       }
       setReservationPrefill(null);
       setSelectedReservationSpace(id);
-      handleViewChange("RESERVATION");
+      setCalendarInitialSpace(id);
+      handleViewChange("AVAILABILITY");
     };
 
     const spaceCards = [
@@ -969,7 +974,10 @@ export default function UserRequestForm({
             </div>
 
             <button
-              onClick={() => handleViewChange("AVAILABILITY")}
+              onClick={() => {
+                setCalendarInitialSpace("ALL");
+                handleViewChange("AVAILABILITY");
+              }}
               className="group relative flex-1 bg-gradient-to-br from-sena-blue via-[#053b75] to-[#032244] p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center text-center justify-between overflow-hidden border-b-6 border-sena-green hover:border-b-4 hover:translate-y-0.5 cursor-pointer min-h-[290px]"
             >
               <div className="w-full flex items-center justify-between text-[10px] font-black tracking-widest uppercase text-white/70">
@@ -1092,14 +1100,16 @@ export default function UserRequestForm({
                         : selectedReservationSpace === "5"
                           ? "Reservar Ambiente de Cocina"
                           : "Reservar Subdirección"
-                  : "Disponibilidad de Ambientes"}
+                  : calendarInitialSpace !== "ALL"
+                    ? `Disponibilidad y Reserva — ${resolveSpaceDisplayName(calendarInitialSpace)}`
+                    : "Disponibilidad de Ambientes"}
             </h2>
             <p className="text-sm text-gray-500">
               {view === "TICKET"
                 ? "Completa los detalles para asignar un técnico."
                 : view === "RESERVATION"
                   ? "Verifica disponibilidad y agenda tu evento."
-                  : "Consulta y gestión de asignaciones de instructores."}
+                  : "Consulta la programación (Diaria, Semanal o Mensual) y haz clic en una hora libre para reservar."}
             </p>
           </div>
         </div>
@@ -1112,7 +1122,7 @@ export default function UserRequestForm({
               initialDate={reservationPrefill?.date}
               initialStartTime={reservationPrefill?.startTime}
               initialEndTime={reservationPrefill?.endTime}
-              onCancel={() => handleViewChange("SELECTION")}
+              onCancel={() => handleViewChange("AVAILABILITY")}
               onSuccess={onCancel}
             />
           ) : view === "AVAILABILITY" ? (
@@ -1128,11 +1138,19 @@ export default function UserRequestForm({
                     perm_manage_assignments?: boolean;
                   }
                 }
+                initialSpaceId={calendarInitialSpace}
                 onSelectSlot={({ spaceId, date, startTime, endTime }) => {
                   setSelectedReservationSpace(
                     spaceId as "1" | "2" | "3" | "4" | "5",
                   );
                   setReservationPrefill({ date, startTime, endTime });
+                  handleViewChange("RESERVATION");
+                }}
+                onQuickReserve={({ spaceId, date }) => {
+                  setSelectedReservationSpace(
+                    spaceId as "1" | "2" | "3" | "4" | "5",
+                  );
+                  setReservationPrefill({ date });
                   handleViewChange("RESERVATION");
                 }}
               />
