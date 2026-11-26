@@ -1985,16 +1985,24 @@ export default function AuditoriumReservationForm({
             </div>
           </div>
         ) : (
-          <div className={isSplit ? "flex pt-2" : "flex gap-4 pt-4"}>
-            {!isSplit && (
-              <button
-                type="button"
-                onClick={onCancel}
-                className="flex-1 px-4 py-4 border-2 border-gray-100 rounded-2xl font-bold text-gray-500 hover:bg-gray-50 transition"
-              >
-                Cancelar
-              </button>
-            )}
+          <div
+            className={
+              isSplit
+                ? "flex flex-col-reverse sm:flex-row gap-3 pt-2"
+                : "flex gap-4 pt-4"
+            }
+          >
+            <button
+              type="button"
+              onClick={onCancel}
+              className={
+                isSplit
+                  ? "sm:flex-1 px-4 py-3 border border-slate-300 rounded-xl font-bold text-slate-600 bg-white hover:bg-slate-50 transition cursor-pointer"
+                  : "flex-1 px-4 py-4 border-2 border-gray-100 rounded-2xl font-bold text-gray-500 hover:bg-gray-50 transition"
+              }
+            >
+              {isSplit ? "Volver al calendario" : "Cancelar"}
+            </button>
             <button
               type="submit"
               disabled={
