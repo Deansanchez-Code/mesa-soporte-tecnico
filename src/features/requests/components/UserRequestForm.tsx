@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Monitor,
   Send,
@@ -23,7 +23,10 @@ import Ambiente107ApprovalModal from "@/features/reservations/components/Ambient
 import AuditoriumReservationForm from "@/features/reservations/components/AuditoriumReservationForm";
 import UnifiedAvailabilityCalendar from "@/features/reservations/components/UnifiedAvailabilityCalendar";
 import AuditoriumMaintenanceModal from "@/features/reservations/components/AuditoriumMaintenanceModal";
-import { getVisibleSpaceIdsForUser } from "@/features/reservations/rules/reservationRules";
+import {
+  getBogotaDateString,
+  getVisibleSpaceIdsForUser,
+} from "@/features/reservations/rules/reservationRules";
 import {
   getAllSpacesMaintenanceConfig,
   DEFAULT_AUDITORIUM_MAINTENANCE,
@@ -189,6 +192,43 @@ export default function UserRequestForm({
     startTime?: string;
     endTime?: string;
   } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState(() => {
+    const bogotaHour = Number(
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: "America/Bogota",
+        hour: "2-digit",
+        hour12: false,
+      }).format(new Date()),
+    );
+    const nextHour = bogotaHour >= 7 && bogotaHour < 21 ? bogotaHour + 1 : 7;
+    const endHour = Math.min(22, nextHour + 1);
+    return {
+      spaceId: "1",
+      date: getBogotaDateString(),
+      startTime: `${String(nextHour).padStart(2, "0")}:00`,
+      endTime: `${String(endHour).padStart(2, "0")}:00`,
+    };
+  });
+
+  const handleFormSelectionChange = useCallback(
+    (sel: {
+      spaceId: string;
+      date: string;
+      startTime: string;
+      endTime: string;
+    }) => {
+      setSelectedReservationSpace(sel.spaceId as "1" | "2" | "3" | "4" | "5");
+      setSelectedSlot((prev) =>
+        prev.spaceId === sel.spaceId &&
+        prev.date === sel.date &&
+        prev.startTime === sel.startTime &&
+        prev.endTime === sel.endTime
+          ? prev
+          : sel,
+      );
+    },
+    [],
+  );
 
   interface TodayReservation {
     id: number;
@@ -432,6 +472,7 @@ export default function UserRequestForm({
       setReservationPrefill(null);
       setSelectedReservationSpace(id);
       setCalendarInitialSpace(id);
+      setSelectedSlot((prev) => ({ ...prev, spaceId: id }));
       handleViewChange("AVAILABILITY");
     };
 
@@ -1114,7 +1155,11 @@ export default function UserRequestForm({
           </div>
         </div>
 
-        <div className="p-8">
+        <div
+          className={
+            view === "AVAILABILITY" ? "p-4 sm:p-6 bg-slate-50/70" : "p-8"
+          }
+        >
           {view === "RESERVATION" ? (
             <AuditoriumReservationForm
               user={user}
@@ -1126,34 +1171,52 @@ export default function UserRequestForm({
               onSuccess={onCancel}
             />
           ) : view === "AVAILABILITY" ? (
-            <div className="min-h-[540px]">
-              <UnifiedAvailabilityCalendar
-                user={
-                  user as unknown as {
-                    id?: string;
-                    role?: string;
-                    employment_type?: string;
-                    job_category?: string;
-                    is_vip?: boolean;
-                    perm_manage_assignments?: boolean;
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.32fr)_minmax(395px,1fr)] gap-5 items-start">
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs min-w-0">
+                <UnifiedAvailabilityCalendar
+                  user={
+                    user as unknown as {
+                      id?: string;
+                      role?: string;
+                      employment_type?: string;
+                      job_category?: string;
+                      is_vip?: boolean;
+                      perm_manage_assignments?: boolean;
+                    }
                   }
-                }
-                initialSpaceId={calendarInitialSpace}
-                onSelectSlot={({ spaceId, date, startTime, endTime }) => {
-                  setSelectedReservationSpace(
-                    spaceId as "1" | "2" | "3" | "4" | "5",
-                  );
-                  setReservationPrefill({ date, startTime, endTime });
-                  handleViewChange("RESERVATION");
-                }}
-                onQuickReserve={({ spaceId, date }) => {
-                  setSelectedReservationSpace(
-                    spaceId as "1" | "2" | "3" | "4" | "5",
-                  );
-                  setReservationPrefill({ date });
-                  handleViewChange("RESERVATION");
-                }}
-              />
+                  initialSpaceId={calendarInitialSpace}
+                  selectedSlot={selectedSlot}
+                  onSelectSlot={({ spaceId, date, startTime, endTime }) => {
+                    setSelectedReservationSpace(
+                      spaceId as "1" | "2" | "3" | "4" | "5",
+                    );
+                    setReservationPrefill({ date, startTime, endTime });
+                    setSelectedSlot({ spaceId, date, startTime, endTime });
+                  }}
+                  onDateChange={(date) => {
+                    setReservationPrefill((prev) => ({
+                      date,
+                      startTime: prev?.startTime || selectedSlot.startTime,
+                      endTime: prev?.endTime || selectedSlot.endTime,
+                    }));
+                    setSelectedSlot((prev) => ({ ...prev, date }));
+                  }}
+                />
+              </div>
+
+              <div className="min-w-0">
+                <AuditoriumReservationForm
+                  variant="split"
+                  user={user}
+                  initialSpace={selectedReservationSpace}
+                  initialDate={reservationPrefill?.date}
+                  initialStartTime={reservationPrefill?.startTime}
+                  initialEndTime={reservationPrefill?.endTime}
+                  onSelectionChange={handleFormSelectionChange}
+                  onCancel={() => handleViewChange("SELECTION")}
+                  onSuccess={onCancel}
+                />
+              </div>
             </div>
           ) : (
             <div className="py-12">

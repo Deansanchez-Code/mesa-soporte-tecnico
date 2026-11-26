@@ -54,6 +54,13 @@ interface AuditoriumReservationFormProps {
   initialDate?: string;
   initialStartTime?: string;
   initialEndTime?: string;
+  variant?: "default" | "split";
+  onSelectionChange?: (selection: {
+    spaceId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+  }) => void;
 }
 
 // Helper to get local date string YYYY-MM-DD
@@ -74,7 +81,10 @@ export default function AuditoriumReservationForm({
   initialDate,
   initialStartTime,
   initialEndTime,
+  variant = "default",
+  onSelectionChange,
 }: AuditoriumReservationFormProps) {
+  const isSplit = variant === "split";
   const todayStr = getLocalDateString();
   const allowNextVigencia = canAccessNextVigencia(user);
   const currentVigenciaMax = getCurrentVigenciaEndDateStr();
@@ -706,189 +716,321 @@ export default function AuditoriumReservationForm({
     }
   };
 
+  const lastEmittedSelectionRef = useRef("");
+  useEffect(() => {
+    if (!onSelectionChange || reservationToEdit) return;
+    const signature = `${selectedSpace}|${startDate}|${startTime}|${endTime}`;
+    if (signature === lastEmittedSelectionRef.current) return;
+    lastEmittedSelectionRef.current = signature;
+    onSelectionChange({
+      spaceId: selectedSpace,
+      date: startDate,
+      startTime,
+      endTime,
+    });
+  }, [
+    selectedSpace,
+    startDate,
+    startTime,
+    endTime,
+    onSelectionChange,
+    reservationToEdit,
+  ]);
+
   const timeSlots = Array.from({ length: 16 }, (_, i) => i + 6);
+  const startHourNum = parseInt(startTime.split(":")[0] || "7");
+  const endHourNum = parseInt(endTime.split(":")[0] || "8");
+  const currentDurationHours = Math.max(1, endHourNum - startHourNum);
+  const isPrerreservaSpace = ["3", "4", "5"].includes(String(selectedSpace));
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="@container max-h-[85dvh] overflow-y-auto px-6 sm:px-8 py-6 sm:py-8 scrollbar-thin scrollbar-thumb-gray-200"
+      className={
+        isSplit
+          ? "@container bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden"
+          : "@container max-h-[85dvh] overflow-y-auto px-6 sm:px-8 py-6 sm:py-8 scrollbar-thin scrollbar-thumb-gray-200"
+      }
     >
-      <div className="space-y-6 pb-4">
+      {isSplit && (
+        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2 bg-white">
+          <div className="flex items-center gap-2.5">
+            <span className="w-1.5 h-5 rounded-full bg-[#043263]" />
+            <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">
+              Solicitar Reserva
+            </h3>
+          </div>
+          <span
+            className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+              isPrerreservaSpace
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-emerald-50 text-emerald-800 border-emerald-200"
+            }`}
+          >
+            {isPrerreservaSpace ? "Prerreserva" : "Confirmación Directa"}
+          </span>
+        </div>
+      )}
+
+      <div className={isSplit ? "p-4 sm:p-5 space-y-4" : "space-y-6 pb-4"}>
         {/* Título o Motivo de la Actividad en la parte superior */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
-          <label className="block text-sm font-bold text-slate-800 mb-1.5">
+        <div
+          className={
+            isSplit
+              ? "space-y-1"
+              : "bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs"
+          }
+        >
+          <label
+            className={
+              isSplit
+                ? "block text-xs font-bold uppercase tracking-wide text-slate-600"
+                : "block text-sm font-bold text-slate-800 mb-1.5"
+            }
+          >
             Título o Motivo de la Actividad *
           </label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition text-sm"
+            className={
+              isSplit
+                ? "w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#39A900] outline-none transition text-sm bg-white"
+                : "w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition text-sm"
+            }
             placeholder="Ej: Reunión de Equipo, Capacitación, Sustentación..."
             required
           />
         </div>
 
-        {/* Encabezado Técnico Swiss GovTech */}
-        <div className="bento-grid-swiss shadow-sm">
-          <div className="bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200">
-            <div className="flex items-center gap-2.5">
-              <span className="tabular-mono text-xs font-bold px-2 py-0.5 bg-[#043263] text-white rounded">
-                GOV·SENA·2026
-              </span>
-              <span className="text-xs font-bold text-[#0F172A] tracking-tight uppercase">
-                {reservationToEdit
-                  ? "MODO EDICIÓN · MATRIZ DE ESPACIOS"
-                  : `MATRIZ DE RESERVA · ${resolveSpaceDisplayName(selectedSpace)}`}
-              </span>
-            </div>
-            {(() => {
-              const allIds = visibleSpaceIds;
-              const pausedCount = allIds.filter(
-                (id) =>
-                  envGlobalConfig.disabled_special_spaces.includes(id) ||
-                  Boolean(spacesMaintenance[id]?.is_active),
-              ).length;
-              const enabledCount = allIds.length - pausedCount;
-              return (
-                <div className="flex items-center gap-3 text-xs tabular-mono text-slate-600">
-                  <span>
-                    Habilitados:{" "}
-                    <strong className="text-[#39A900]">{enabledCount}</strong>
-                  </span>
-                  <span>
-                    En Pausa:{" "}
-                    <strong className="text-[#FC7323]">{pausedCount}</strong>
-                  </span>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Retícula Bento 1px de Selección de Espacio */}
-          <div className="bg-white p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="swiss-section-tag">
-                01 / SELECCIÓN DE AMBIENTE
+        {/* Vista compacta Split: Ambiente + Fecha inicio lado a lado */}
+        {isSplit && (
+          <div className="grid grid-cols-1 @sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1">
+                Ambiente
               </label>
-              <span className="tabular-mono text-[11px] font-bold text-[#39A900]">
-                ● {resolveSpaceDisplayName(selectedSpace)}
-              </span>
+              <select
+                value={selectedSpace}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const paused =
+                    envGlobalConfig.disabled_special_spaces.includes(id) ||
+                    Boolean(spacesMaintenance[id]?.is_active);
+                  if (paused) {
+                    toast.warning(
+                      `${resolveSpaceDisplayName(id)} se encuentra en pausa o remodelación.`,
+                    );
+                    return;
+                  }
+                  setSelectedSpace(id);
+                }}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-[#39A900] outline-none"
+              >
+                {visibleSpaceIds.map((id) => {
+                  const paused =
+                    envGlobalConfig.disabled_special_spaces.includes(id) ||
+                    Boolean(spacesMaintenance[id]?.is_active);
+                  return (
+                    <option key={id} value={id} disabled={paused}>
+                      {resolveSpaceDisplayName(id)}
+                      {paused ? " (En pausa)" : ""}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1">
+                {isWeeklyRepeat ? "Fecha Primera Sesión" : "Fecha Inicio"}
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                min={todayStr}
+                max={!allowNextVigencia ? currentVigenciaMax : undefined}
+                onChange={(e) => {
+                  let val =
+                    e.target.value >= todayStr ? e.target.value : todayStr;
+                  if (!allowNextVigencia && val > currentVigenciaMax) {
+                    val = currentVigenciaMax;
+                  }
+                  setStartDate(val);
+                  if (!isMultiDay && !isWeeklyRepeat) {
+                    setFinalDate(val);
+                  } else if (isMultiDay && finalDate < val) {
+                    setFinalDate(val);
+                  }
+                }}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-[#39A900] outline-none"
+              />
+            </div>
+          </div>
+        )}
 
-            <div
-              className={`grid grid-cols-1 @sm:grid-cols-2 ${
-                visibleSpaceIds.length <= 3
-                  ? "@xl:grid-cols-3"
-                  : "@xl:grid-cols-5"
-              } gap-2.5`}
-            >
+        {/* Encabezado Técnico Swiss GovTech (solo modo modal estándar) */}
+        {!isSplit && (
+          <div className="bento-grid-swiss shadow-sm">
+            <div className="bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <span className="tabular-mono text-xs font-bold px-2 py-0.5 bg-[#043263] text-white rounded">
+                  GOV·SENA·2026
+                </span>
+                <span className="text-xs font-bold text-[#0F172A] tracking-tight uppercase">
+                  {reservationToEdit
+                    ? "MODO EDICIÓN · MATRIZ DE ESPACIOS"
+                    : `MATRIZ DE RESERVA · ${resolveSpaceDisplayName(selectedSpace)}`}
+                </span>
+              </div>
               {(() => {
-                const spaceItems = [
-                  {
-                    id: "1",
-                    name: "Auditorio 103",
-                    subtitle: "Uso General",
-                    visible: visibleSpaceIds.includes("1"),
-                  },
-                  {
-                    id: "2",
-                    name: "Subdirección",
-                    subtitle: "Institucional",
-                    visible: visibleSpaceIds.includes("2"),
-                  },
-                  {
-                    id: "3",
-                    name: "Biblioteca",
-                    subtitle: "Académico",
-                    visible: visibleSpaceIds.includes("3"),
-                  },
-                  {
-                    id: "4",
-                    name: "Ambiente 107",
-                    subtitle: "Uso General",
-                    visible: visibleSpaceIds.includes("4"),
-                  },
-                  {
-                    id: "5",
-                    name: "Ambiente de Cocina",
-                    subtitle: "Prerreserva",
-                    visible: visibleSpaceIds.includes("5"),
-                  },
-                ];
-
-                return spaceItems
-                  .filter((sp) => sp.visible)
-                  .map((sp) => {
-                    const isDisabledGlobal =
-                      envGlobalConfig.disabled_special_spaces.includes(sp.id);
-                    const isMaintActive = Boolean(
-                      spacesMaintenance[sp.id]?.is_active,
-                    );
-                    const isPaused = isDisabledGlobal || isMaintActive;
-                    const isSelected = selectedSpace === sp.id;
-
-                    return (
-                      <button
-                        key={sp.id}
-                        type="button"
-                        onClick={() => {
-                          if (isPaused) {
-                            toast.warning(
-                              `${sp.name} se encuentra en pausa o remodelación. No se pueden realizar reservas hasta que sea habilitado nuevamente.`,
-                            );
-                            return;
-                          }
-                          setSelectedSpace(sp.id);
-                        }}
-                        className={`min-h-[76px] p-3 rounded-xl border text-left transition-all active:translate-y-[1px] flex flex-col justify-between ${
-                          isSelected
-                            ? "border-2 border-[#39A900] bg-emerald-50/50 text-[#0F172A] shadow-sm"
-                            : isPaused
-                              ? "border-orange-300 bg-orange-50/60 text-amber-950 hover:border-orange-400"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-[#043263]"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between w-full gap-1.5">
-                          <span className="font-bold text-xs leading-tight flex items-center gap-1.5">
-                            <Calendar
-                              className={`w-4 h-4 shrink-0 ${
-                                isSelected
-                                  ? "text-[#39A900]"
-                                  : isPaused
-                                    ? "text-[#FC7323]"
-                                    : "text-[#043263]"
-                              }`}
-                            />
-                            {sp.name}
-                          </span>
-                          {isPaused ? (
-                            <span className="tabular-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FC7323] text-white shrink-0">
-                              PAUSA
-                            </span>
-                          ) : (
-                            <span
-                              className={`w-2 h-2 rounded-full shrink-0 ${
-                                isSelected ? "bg-[#39A900]" : "bg-emerald-400"
-                              }`}
-                            />
-                          )}
-                        </div>
-                        <div className="tabular-mono text-[11px] text-slate-500 mt-1.5 flex items-center justify-between">
-                          <span>
-                            {isPaused ? "Obras / Mantenimiento" : sp.subtitle}
-                          </span>
-                          <span className="text-[10px] font-bold opacity-70">
-                            0{sp.id}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  });
+                const allIds = visibleSpaceIds;
+                const pausedCount = allIds.filter(
+                  (id) =>
+                    envGlobalConfig.disabled_special_spaces.includes(id) ||
+                    Boolean(spacesMaintenance[id]?.is_active),
+                ).length;
+                const enabledCount = allIds.length - pausedCount;
+                return (
+                  <div className="flex items-center gap-3 text-xs tabular-mono text-slate-600">
+                    <span>
+                      Habilitados:{" "}
+                      <strong className="text-[#39A900]">{enabledCount}</strong>
+                    </span>
+                    <span>
+                      En Pausa:{" "}
+                      <strong className="text-[#FC7323]">{pausedCount}</strong>
+                    </span>
+                  </div>
+                );
               })()}
             </div>
+
+            {/* Retícula Bento 1px de Selección de Espacio */}
+            <div className="bg-white p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="swiss-section-tag">
+                  01 / SELECCIÓN DE AMBIENTE
+                </label>
+                <span className="tabular-mono text-[11px] font-bold text-[#39A900]">
+                  ● {resolveSpaceDisplayName(selectedSpace)}
+                </span>
+              </div>
+
+              <div
+                className={`grid grid-cols-1 @sm:grid-cols-2 ${
+                  visibleSpaceIds.length <= 3
+                    ? "@xl:grid-cols-3"
+                    : "@xl:grid-cols-5"
+                } gap-2.5`}
+              >
+                {(() => {
+                  const spaceItems = [
+                    {
+                      id: "1",
+                      name: "Auditorio 103",
+                      subtitle: "Uso General",
+                      visible: visibleSpaceIds.includes("1"),
+                    },
+                    {
+                      id: "2",
+                      name: "Subdirección",
+                      subtitle: "Institucional",
+                      visible: visibleSpaceIds.includes("2"),
+                    },
+                    {
+                      id: "3",
+                      name: "Biblioteca",
+                      subtitle: "Académico",
+                      visible: visibleSpaceIds.includes("3"),
+                    },
+                    {
+                      id: "4",
+                      name: "Ambiente 107",
+                      subtitle: "Uso General",
+                      visible: visibleSpaceIds.includes("4"),
+                    },
+                    {
+                      id: "5",
+                      name: "Ambiente de Cocina",
+                      subtitle: "Prerreserva",
+                      visible: visibleSpaceIds.includes("5"),
+                    },
+                  ];
+
+                  return spaceItems
+                    .filter((sp) => sp.visible)
+                    .map((sp) => {
+                      const isDisabledGlobal =
+                        envGlobalConfig.disabled_special_spaces.includes(sp.id);
+                      const isMaintActive = Boolean(
+                        spacesMaintenance[sp.id]?.is_active,
+                      );
+                      const isPaused = isDisabledGlobal || isMaintActive;
+                      const isSelected = selectedSpace === sp.id;
+
+                      return (
+                        <button
+                          key={sp.id}
+                          type="button"
+                          onClick={() => {
+                            if (isPaused) {
+                              toast.warning(
+                                `${sp.name} se encuentra en pausa o remodelación. No se pueden realizar reservas hasta que sea habilitado nuevamente.`,
+                              );
+                              return;
+                            }
+                            setSelectedSpace(sp.id);
+                          }}
+                          className={`min-h-[76px] p-3 rounded-xl border text-left transition-all active:translate-y-[1px] flex flex-col justify-between ${
+                            isSelected
+                              ? "border-2 border-[#39A900] bg-emerald-50/50 text-[#0F172A] shadow-sm"
+                              : isPaused
+                                ? "border-orange-300 bg-orange-50/60 text-amber-950 hover:border-orange-400"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-[#043263]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full gap-1.5">
+                            <span className="font-bold text-xs leading-tight flex items-center gap-1.5">
+                              <Calendar
+                                className={`w-4 h-4 shrink-0 ${
+                                  isSelected
+                                    ? "text-[#39A900]"
+                                    : isPaused
+                                      ? "text-[#FC7323]"
+                                      : "text-[#043263]"
+                                }`}
+                              />
+                              {sp.name}
+                            </span>
+                            {isPaused ? (
+                              <span className="tabular-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FC7323] text-white shrink-0">
+                                PAUSA
+                              </span>
+                            ) : (
+                              <span
+                                className={`w-2 h-2 rounded-full shrink-0 ${
+                                  isSelected ? "bg-[#39A900]" : "bg-emerald-400"
+                                }`}
+                              />
+                            )}
+                          </div>
+                          <div className="tabular-mono text-[11px] text-slate-500 mt-1.5 flex items-center justify-between">
+                            <span>
+                              {isPaused ? "Obras / Mantenimiento" : sp.subtitle}
+                            </span>
+                            <span className="text-[10px] font-bold opacity-70">
+                              0{sp.id}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    });
+                })()}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Selector de Asignación para Coordinadores / Administradores (Bento Cell 02) */}
         {canAssignToOthers && assignableUsers.length > 0 && (
@@ -984,12 +1126,26 @@ export default function AuditoriumReservationForm({
         )}
 
         {/* Fechas */}
-        <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-            <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
-              <Calendar className="w-4 h-4" /> Fechas
-            </label>
-            <div className="flex items-center gap-4">
+        <div
+          className={
+            isSplit
+              ? isMultiDay || isWeeklyRepeat
+                ? "bg-[#F4F8FF] p-3.5 rounded-xl border border-blue-200 space-y-3"
+                : "space-y-2"
+              : "bg-gray-50/50 p-6 rounded-2xl border border-gray-100 shadow-sm"
+          }
+        >
+          <div
+            className={`flex flex-wrap items-center justify-between gap-2 ${
+              isSplit && !isMultiDay && !isWeeklyRepeat ? "" : "mb-3"
+            }`}
+          >
+            {!isSplit && (
+              <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                <Calendar className="w-4 h-4" /> Fechas
+              </label>
+            )}
+            <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-1.5">
                 <input
                   type="checkbox"
@@ -1020,7 +1176,7 @@ export default function AuditoriumReservationForm({
                 />
                 <label
                   htmlFor="multiDay"
-                  className="text-xs text-gray-600 cursor-pointer"
+                  className="text-xs font-semibold text-gray-700 cursor-pointer"
                 >
                   Días seguidos
                 </label>
@@ -1039,7 +1195,7 @@ export default function AuditoriumReservationForm({
                 />
                 <label
                   htmlFor="weeklyRepeat"
-                  className="text-xs text-gray-600 cursor-pointer"
+                  className="text-xs font-semibold text-gray-700 cursor-pointer"
                 >
                   Repetir semanalmente
                 </label>
@@ -1047,74 +1203,84 @@ export default function AuditoriumReservationForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                {isWeeklyRepeat ? "Fecha Primera Sesión" : "Fecha Inicio"}
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                min={todayStr}
-                max={!allowNextVigencia ? currentVigenciaMax : undefined}
-                onChange={(e) => {
-                  let val =
-                    e.target.value >= todayStr ? e.target.value : todayStr;
-                  if (!allowNextVigencia && val > currentVigenciaMax) {
-                    val = currentVigenciaMax;
-                  }
-                  setStartDate(val);
-                  if (!isMultiDay && !isWeeklyRepeat) {
-                    setFinalDate(val);
-                  } else if (isMultiDay && finalDate < val) {
-                    setFinalDate(val);
-                  }
-                }}
-                className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-sena-green outline-none"
-              />
+          {(!isSplit || isMultiDay || isWeeklyRepeat) && (
+            <div
+              className={`grid grid-cols-1 ${
+                isSplit ? "" : "sm:grid-cols-2"
+              } gap-4`}
+            >
+              {!isSplit && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">
+                    {isWeeklyRepeat ? "Fecha Primera Sesión" : "Fecha Inicio"}
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    min={todayStr}
+                    max={!allowNextVigencia ? currentVigenciaMax : undefined}
+                    onChange={(e) => {
+                      let val =
+                        e.target.value >= todayStr ? e.target.value : todayStr;
+                      if (!allowNextVigencia && val > currentVigenciaMax) {
+                        val = currentVigenciaMax;
+                      }
+                      setStartDate(val);
+                      if (!isMultiDay && !isWeeklyRepeat) {
+                        setFinalDate(val);
+                      } else if (isMultiDay && finalDate < val) {
+                        setFinalDate(val);
+                      }
+                    }}
+                    className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-sena-green outline-none"
+                  />
+                </div>
+              )}
+              {isMultiDay && (
+                <div className="animate-in fade-in slide-in-from-left-2">
+                  <label className="block text-xs text-gray-600 font-semibold mb-1">
+                    Hasta fecha ({targetDates.length}{" "}
+                    {targetDates.length === 1 ? "día" : "días seguidos"})
+                  </label>
+                  <input
+                    type="date"
+                    value={finalDate}
+                    min={startDate}
+                    max={!allowNextVigencia ? currentVigenciaMax : undefined}
+                    onChange={(e) => {
+                      let val =
+                        e.target.value >= startDate
+                          ? e.target.value
+                          : startDate;
+                      if (!allowNextVigencia && val > currentVigenciaMax) {
+                        val = currentVigenciaMax;
+                      }
+                      setFinalDate(val);
+                    }}
+                    className="w-full p-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-sena-green outline-none"
+                  />
+                </div>
+              )}
+              {isWeeklyRepeat && (
+                <div className="animate-in fade-in slide-in-from-left-2">
+                  <label className="block text-xs text-gray-600 font-semibold mb-1">
+                    Número de Semanas
+                  </label>
+                  <select
+                    value={repeatWeeks}
+                    onChange={(e) => setRepeatWeeks(Number(e.target.value))}
+                    className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-sena-green outline-none bg-white"
+                  >
+                    {[2, 3, 4, 6, 8, 12].map((w) => (
+                      <option key={w} value={w}>
+                        {w} semanas (1 sesión cada 7 días)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
-            {isMultiDay && (
-              <div className="animate-in fade-in slide-in-from-left-2">
-                <label className="block text-xs text-gray-500 mb-1">
-                  Fecha Fin ({targetDates.length}{" "}
-                  {targetDates.length === 1 ? "día" : "días seguidos"})
-                </label>
-                <input
-                  type="date"
-                  value={finalDate}
-                  min={startDate}
-                  max={!allowNextVigencia ? currentVigenciaMax : undefined}
-                  onChange={(e) => {
-                    let val =
-                      e.target.value >= startDate ? e.target.value : startDate;
-                    if (!allowNextVigencia && val > currentVigenciaMax) {
-                      val = currentVigenciaMax;
-                    }
-                    setFinalDate(val);
-                  }}
-                  className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-sena-green outline-none"
-                />
-              </div>
-            )}
-            {isWeeklyRepeat && (
-              <div className="animate-in fade-in slide-in-from-left-2">
-                <label className="block text-xs text-gray-500 mb-1">
-                  Número de Semanas
-                </label>
-                <select
-                  value={repeatWeeks}
-                  onChange={(e) => setRepeatWeeks(Number(e.target.value))}
-                  className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-sena-green outline-none bg-white"
-                >
-                  {[2, 3, 4, 6, 8, 12].map((w) => (
-                    <option key={w} value={w}>
-                      {w} semanas (1 sesión cada 7 días)
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
+          )}
 
           {isMultiDay && (
             <div className="mt-4 pt-3 border-t border-gray-200/70 space-y-2">
@@ -1278,72 +1444,118 @@ export default function AuditoriumReservationForm({
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">
-                Hora Inicio
-              </label>
-              <select
-                value={startTime}
-                onChange={(e) => {
-                  setStartTime(e.target.value);
-                  const sH = parseInt(e.target.value.split(":")[0]);
-                  const eH = parseInt(endTime.split(":")[0]);
-                  if (eH <= sH) {
-                    setEndTime(
-                      `${Math.min(22, sH + 1)
-                        .toString()
-                        .padStart(2, "0")}:00`,
-                    );
+          <div className="space-y-2.5">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1">
+                  Hora Inicio
+                </label>
+                <select
+                  value={startTime}
+                  onChange={(e) => {
+                    setStartTime(e.target.value);
+                    const sH = parseInt(e.target.value.split(":")[0]);
+                    const eH = parseInt(endTime.split(":")[0]);
+                    if (eH <= sH) {
+                      setEndTime(
+                        `${Math.min(22, sH + 1)
+                          .toString()
+                          .padStart(2, "0")}:00`,
+                      );
+                    }
+                  }}
+                  className={
+                    isSplit
+                      ? "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-[#39A900] outline-none"
+                      : "w-full p-3 border rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition"
                   }
-                }}
-                className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition"
-              >
-                {timeSlots.map((hour) => {
-                  const hourStr = `${hour.toString().padStart(2, "0")}:00`;
-                  const isPast = targetDates.some((d) =>
-                    isPastSlot(d, hourStr),
-                  );
-                  return (
+                >
+                  {timeSlots.map((hour) => {
+                    const hourStr = `${hour.toString().padStart(2, "0")}:00`;
+                    const isPast = targetDates.some((d) =>
+                      isPastSlot(d, hourStr),
+                    );
+                    return (
+                      <option
+                        key={`start-${hour}`}
+                        value={hourStr}
+                        disabled={isPast}
+                      >
+                        {hour === 12
+                          ? "12:00 PM"
+                          : hour > 12
+                            ? `${hour - 12}:00 PM`
+                            : `${hour}:00 AM`}
+                        {isPast ? " (No disponible - Pasado)" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1">
+                  Hora Fin (mín. 1h)
+                </label>
+                <select
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className={
+                    isSplit
+                      ? "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-[#39A900] outline-none"
+                      : "w-full p-3 border rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition"
+                  }
+                >
+                  {[...timeSlots, 22].map((hour) => (
                     <option
-                      key={`start-${hour}`}
-                      value={hourStr}
-                      disabled={isPast}
+                      key={`end-${hour}`}
+                      value={`${hour.toString().padStart(2, "0")}:00`}
+                      disabled={hour <= parseInt(startTime.split(":")[0])}
                     >
                       {hour === 12
                         ? "12:00 PM"
                         : hour > 12
                           ? `${hour - 12}:00 PM`
                           : `${hour}:00 AM`}
-                      {isPast ? " (No disponible - Pasado)" : ""}
                     </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600">
+              <span>
+                Duración:{" "}
+                <strong className="tabular-mono text-slate-900">
+                  {currentDurationHours}{" "}
+                  {currentDurationHours === 1 ? "hora" : "horas"} ({startTime} -{" "}
+                  {endTime})
+                </strong>
+              </span>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4].map((hrs) => {
+                  const targetEnd = Math.min(22, startHourNum + hrs);
+                  const canFit = startHourNum + hrs <= 22;
+                  const active = currentDurationHours === hrs;
+                  return (
+                    <button
+                      key={hrs}
+                      type="button"
+                      disabled={!canFit}
+                      onClick={() =>
+                        setEndTime(
+                          `${targetEnd.toString().padStart(2, "0")}:00`,
+                        )
+                      }
+                      className={`px-2 py-0.5 rounded text-[11px] font-bold border transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                        active
+                          ? "bg-[#043263] text-white border-[#043263]"
+                          : "bg-white text-slate-700 border-slate-300 hover:border-slate-400"
+                      }`}
+                    >
+                      {hrs}h
+                    </button>
                   );
                 })}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">
-                Hora Fin
-              </label>
-              <select
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-sena-green outline-none transition"
-              >
-                {[...timeSlots, 22].map((hour) => (
-                  <option
-                    key={`end-${hour}`}
-                    value={`${hour.toString().padStart(2, "0")}:00`}
-                    disabled={hour <= parseInt(startTime.split(":")[0])}
-                  >
-                    {hour === 12
-                      ? "12:00 PM"
-                      : hour > 12
-                        ? `${hour - 12}:00 PM`
-                        : `${hour}:00 AM`}
-                  </option>
-                ))}
-              </select>
+              </div>
             </div>
           </div>
         )}
@@ -1611,80 +1823,84 @@ export default function AuditoriumReservationForm({
           </div>
         </div>
 
-        {/* Disponibilidad */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="font-bold text-gray-700 text-sm">Disponibilidad</h4>
-            <div className="flex gap-3 text-[10px]">
-              <span className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-green-100 border border-green-300"></div>
-                Libre
-              </span>
-              <span className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-red-100 border border-red-300"></div>
-                Ocupado
-              </span>
-              <span className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-blue-100 border border-blue-300"></div>
-                Tu Selección
-              </span>
+        {/* Disponibilidad inline (solo modo estándar; en vista Split se usa UnifiedAvailabilityCalendar) */}
+        {!isSplit && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-bold text-gray-700 text-sm">
+                Disponibilidad
+              </h4>
+              <div className="flex gap-3 text-[10px]">
+                <span className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-green-100 border border-green-300"></div>
+                  Libre
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-red-100 border border-red-300"></div>
+                  Ocupado
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-blue-100 border border-blue-300"></div>
+                  Tu Selección
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-5 gap-1">
+              {loading
+                ? Array.from({ length: 15 }).map((_, idx) => (
+                    <Skeleton
+                      key={idx}
+                      className="h-10 w-full rounded border border-gray-100"
+                    />
+                  ))
+                : timeSlots.map((hour) => {
+                    const formatHour = (h: number) =>
+                      h.toString().padStart(2, "0");
+                    const slotStart = new Date(
+                      `${startDate}T${formatHour(hour)}:00:00-05:00`,
+                    );
+                    const slotEnd = new Date(
+                      `${startDate}T${formatHour(hour + 1)}:00:00-05:00`,
+                    );
+
+                    const isOccupied = reservations.some((r) => {
+                      if (String(r.auditorium_id) !== String(selectedSpace))
+                        return false;
+                      const rStart = new Date(r.start_time);
+                      const rEnd = new Date(r.end_time);
+                      return (
+                        slotStart.getTime() < rEnd.getTime() &&
+                        slotEnd.getTime() > rStart.getTime()
+                      );
+                    });
+
+                    const selectedDayTimes = getTimesForDate(startDate);
+                    const isSelected =
+                      selectedDayTimes.startTime &&
+                      selectedDayTimes.endTime &&
+                      hour >=
+                        parseInt(selectedDayTimes.startTime.split(":")[0]) &&
+                      hour < parseInt(selectedDayTimes.endTime.split(":")[0]);
+
+                    return (
+                      <div
+                        key={hour}
+                        className={`p-2 rounded border text-center text-xs transition-all ${
+                          isOccupied
+                            ? "bg-red-50 border-red-200 text-red-400 cursor-not-allowed"
+                            : isSelected
+                              ? "bg-blue-50 border-blue-300 text-blue-700 font-bold shadow-sm ring-1 ring-blue-200"
+                              : "bg-white border-green-100 hover:border-green-300 text-gray-600"
+                        }`}
+                      >
+                        {hour}:00
+                      </div>
+                    );
+                  })}
             </div>
           </div>
-
-          <div className="grid grid-cols-5 gap-1">
-            {loading
-              ? Array.from({ length: 15 }).map((_, idx) => (
-                  <Skeleton
-                    key={idx}
-                    className="h-10 w-full rounded border border-gray-100"
-                  />
-                ))
-              : timeSlots.map((hour) => {
-                  const formatHour = (h: number) =>
-                    h.toString().padStart(2, "0");
-                  const slotStart = new Date(
-                    `${startDate}T${formatHour(hour)}:00:00-05:00`,
-                  );
-                  const slotEnd = new Date(
-                    `${startDate}T${formatHour(hour + 1)}:00:00-05:00`,
-                  );
-
-                  const isOccupied = reservations.some((r) => {
-                    if (String(r.auditorium_id) !== String(selectedSpace))
-                      return false;
-                    const rStart = new Date(r.start_time);
-                    const rEnd = new Date(r.end_time);
-                    return (
-                      slotStart.getTime() < rEnd.getTime() &&
-                      slotEnd.getTime() > rStart.getTime()
-                    );
-                  });
-
-                  const selectedDayTimes = getTimesForDate(startDate);
-                  const isSelected =
-                    selectedDayTimes.startTime &&
-                    selectedDayTimes.endTime &&
-                    hour >=
-                      parseInt(selectedDayTimes.startTime.split(":")[0]) &&
-                    hour < parseInt(selectedDayTimes.endTime.split(":")[0]);
-
-                  return (
-                    <div
-                      key={hour}
-                      className={`p-2 rounded border text-center text-xs transition-all ${
-                        isOccupied
-                          ? "bg-red-50 border-red-200 text-red-400 cursor-not-allowed"
-                          : isSelected
-                            ? "bg-blue-50 border-blue-300 text-blue-700 font-bold shadow-sm ring-1 ring-blue-200"
-                            : "bg-white border-green-100 hover:border-green-300 text-gray-600"
-                      }`}
-                    >
-                      {hour}:00
-                    </div>
-                  );
-                })}
-          </div>
-        </div>
+        )}
 
         {/* Conflicto Msg */}
         {conflicts.length > 0 && (
@@ -1769,14 +1985,16 @@ export default function AuditoriumReservationForm({
             </div>
           </div>
         ) : (
-          <div className="flex gap-4 pt-4">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="flex-1 px-4 py-4 border-2 border-gray-100 rounded-2xl font-bold text-gray-500 hover:bg-gray-50 transition"
-            >
-              Cancelar
-            </button>
+          <div className={isSplit ? "flex pt-2" : "flex gap-4 pt-4"}>
+            {!isSplit && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="flex-1 px-4 py-4 border-2 border-gray-100 rounded-2xl font-bold text-gray-500 hover:bg-gray-50 transition"
+              >
+                Cancelar
+              </button>
+            )}
             <button
               type="submit"
               disabled={

@@ -23,13 +23,19 @@ import {
 interface UnifiedAvailabilityCalendarProps {
   user: ReservationActorLike & { id?: string };
   initialSpaceId?: string;
+  selectedSlot?: {
+    spaceId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+  } | null;
   onSelectSlot?: (selection: {
     spaceId: string;
     date: string;
     startTime: string;
     endTime: string;
   }) => void;
-  onQuickReserve?: (selection: { spaceId: string; date: string }) => void;
+  onDateChange?: (date: string) => void;
 }
 
 type CalendarViewMode = "daily" | "weekly" | "monthly";
@@ -78,8 +84,9 @@ function formatShortDate(dateStr: string): string {
 export default function UnifiedAvailabilityCalendar({
   user,
   initialSpaceId,
+  selectedSlot,
   onSelectSlot,
-  onQuickReserve,
+  onDateChange,
 }: UnifiedAvailabilityCalendarProps) {
   const todayStr = getBogotaDateString();
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -123,6 +130,19 @@ export default function UnifiedAvailabilityCalendar({
     const t = setTimeout(() => setScopeSpaceId(nextScope), 0);
     return () => clearTimeout(t);
   }, [initialSpaceId, visibleSpaceIds]);
+
+  useEffect(() => {
+    if (selectedSlot?.date && selectedSlot.date !== selectedDate) {
+      const target = selectedSlot.date;
+      const t = setTimeout(() => setSelectedDate(target), 0);
+      return () => clearTimeout(t);
+    }
+  }, [selectedSlot?.date, selectedDate]);
+
+  const updateSelectedDate = (nextDate: string) => {
+    setSelectedDate(nextDate);
+    onDateChange?.(nextDate);
+  };
 
   const dailySpaceIds = useMemo(
     () =>
@@ -264,7 +284,7 @@ export default function UnifiedAvailabilityCalendar({
       toast.info("Fecha no disponible para reserva.");
       return;
     }
-    setSelectedDate(dateStr);
+    updateSelectedDate(dateStr);
     setReturnView(from);
     setView("daily");
   };
@@ -309,20 +329,6 @@ export default function UnifiedAvailabilityCalendar({
               </option>
             ))}
           </select>
-
-          {scopeSpaceId !== "ALL" &&
-            !isSpacePaused(scopeSpaceId) &&
-            onQuickReserve && (
-              <button
-                type="button"
-                onClick={() =>
-                  onQuickReserve({ spaceId: scopeSpaceId, date: selectedDate })
-                }
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#39A900] hover:bg-[#2d8500] text-white text-xs font-bold shadow-xs transition cursor-pointer"
-              >
-                Solicitar Reserva
-              </button>
-            )}
         </div>
 
         <div
@@ -363,6 +369,10 @@ export default function UnifiedAvailabilityCalendar({
           <span className="inline-flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-xs bg-[#39A900]" />
             Hora libre
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-xs bg-blue-600" />
+            Tu selección (1h+)
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-xs bg-[#043263]" />
@@ -411,22 +421,22 @@ export default function UnifiedAvailabilityCalendar({
                 onChange={(e) => {
                   const val = e.target.value;
                   if (!val || val < todayStr) {
-                    setSelectedDate(todayStr);
+                    updateSelectedDate(todayStr);
                     return;
                   }
                   if (!allowNextVigencia && isDateBeyondCurrentVigencia(val)) {
-                    setSelectedDate(currentVigenciaMax);
+                    updateSelectedDate(currentVigenciaMax);
                     toast.info("Fecha no disponible para reserva.");
                     return;
                   }
-                  setSelectedDate(val);
+                  updateSelectedDate(val);
                 }}
                 aria-label="Fecha de disponibilidad diaria"
                 className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold outline-none focus:ring-2 focus:ring-[#39A900]"
               />
               <button
                 type="button"
-                onClick={() => setSelectedDate(todayStr)}
+                onClick={() => updateSelectedDate(todayStr)}
                 className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Hoy
@@ -435,7 +445,7 @@ export default function UnifiedAvailabilityCalendar({
                 type="button"
                 onClick={() => {
                   const next = addDaysStr(todayStr, 1);
-                  if (!isDateDisabled(next)) setSelectedDate(next);
+                  if (!isDateDisabled(next)) updateSelectedDate(next);
                 }}
                 className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
@@ -541,6 +551,18 @@ export default function UnifiedAvailabilityCalendar({
                             );
                           }
 
+                          const isSlotDayMatch =
+                            selectedSlot?.spaceId === spaceId &&
+                            selectedSlot?.date === selectedDate;
+                          const selStartH = isSlotDayMatch
+                            ? parseInt(selectedSlot.startTime.split(":")[0])
+                            : -1;
+                          const selEndH = isSlotDayMatch
+                            ? parseInt(selectedSlot.endTime.split(":")[0])
+                            : -1;
+                          const isSelected =
+                            isSlotDayMatch && h >= selStartH && h < selEndH;
+
                           return (
                             <td
                               key={h}
@@ -549,19 +571,56 @@ export default function UnifiedAvailabilityCalendar({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (onSelectSlot) {
-                                    onSelectSlot({
-                                      spaceId,
-                                      date: selectedDate,
-                                      startTime: formatHour(h),
-                                      endTime: formatHour(Math.min(22, h + 1)),
-                                    });
+                                  if (!onSelectSlot) return;
+                                  if (isSlotDayMatch && h > selStartH) {
+                                    let clear = true;
+                                    for (let hr = selStartH; hr <= h; hr++) {
+                                      if (
+                                        isHourPast(selectedDate, hr) ||
+                                        getReservationAtHour(
+                                          spaceId,
+                                          selectedDate,
+                                          hr,
+                                        )
+                                      ) {
+                                        clear = false;
+                                        break;
+                                      }
+                                    }
+                                    if (clear) {
+                                      onSelectSlot({
+                                        spaceId,
+                                        date: selectedDate,
+                                        startTime: formatHour(selStartH),
+                                        endTime: formatHour(
+                                          Math.min(22, h + 1),
+                                        ),
+                                      });
+                                      return;
+                                    }
+                                    toast.warning(
+                                      "Hay una reserva intermedia; iniciando nueva selección de 1 hora.",
+                                    );
                                   }
+                                  onSelectSlot({
+                                    spaceId,
+                                    date: selectedDate,
+                                    startTime: formatHour(h),
+                                    endTime: formatHour(Math.min(22, h + 1)),
+                                  });
                                 }}
-                                title={`Libre ${formatHour(h)} - ${formatHour(h + 1)} (Clic para reservar)`}
-                                className="w-full h-10 rounded border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center transition cursor-pointer"
+                                title={
+                                  isSelected
+                                    ? `Seleccionado ${formatHour(h)} - ${formatHour(h + 1)}`
+                                    : `Libre ${formatHour(h)} - ${formatHour(h + 1)} (Clic para seleccionar)`
+                                }
+                                className={`w-full h-10 rounded border text-xs font-bold flex items-center justify-center transition cursor-pointer ${
+                                  isSelected
+                                    ? "border-blue-600 bg-blue-100 text-blue-800 ring-1 ring-blue-500 font-black"
+                                    : "border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800"
+                                }`}
                               >
-                                +
+                                {isSelected ? "SEL" : "+"}
                               </button>
                             </td>
                           );
@@ -573,6 +632,95 @@ export default function UnifiedAvailabilityCalendar({
               </tbody>
             </table>
           </div>
+          <p className="text-[11px] text-slate-500">
+            <strong>Horas flexibles:</strong> 1er clic elige{" "}
+            <strong>1 hora</strong>; 2do clic en hora posterior extiende a 2h,
+            3h o más.
+          </p>
+
+          {/* Agenda compacta del día */}
+          {(() => {
+            const dayAgenda = reservations
+              .filter((r) => {
+                if (!dailySpaceIds.includes(String(r.auditorium_id || "1"))) {
+                  return false;
+                }
+                return (
+                  getBogotaDateString(new Date(r.start_time)) === selectedDate
+                );
+              })
+              .sort(
+                (a, b) =>
+                  new Date(a.start_time).getTime() -
+                  new Date(b.start_time).getTime(),
+              );
+
+            return (
+              <div className="border border-slate-200 rounded-xl p-3 bg-white space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
+                    Agenda del día ({formatShortDate(selectedDate)})
+                  </h4>
+                  <span className="text-[11px] font-semibold text-slate-500 tabular-mono">
+                    {dayAgenda.length} reserva(s)
+                  </span>
+                </div>
+                {dayAgenda.length === 0 ? (
+                  <p className="text-xs text-slate-500">
+                    Sin reservas registradas para esta fecha en los ambientes
+                    visibles.
+                  </p>
+                ) : (
+                  <ul className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {dayAgenda.map((item) => {
+                      const sTime = new Intl.DateTimeFormat("es-CO", {
+                        timeZone: "America/Bogota",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      }).format(new Date(item.start_time));
+                      const eTime = new Intl.DateTimeFormat("es-CO", {
+                        timeZone: "America/Bogota",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      }).format(new Date(item.end_time));
+                      const isPend = item.status === "PENDING";
+                      return (
+                        <li
+                          key={item.id}
+                          className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="tabular-mono font-bold text-[#043263]">
+                              {sTime}–{eTime}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-700 font-semibold text-[11px] shrink-0">
+                              {resolveSpaceDisplayName(
+                                String(item.auditorium_id || "1"),
+                              )}
+                            </span>
+                            <span className="font-semibold text-slate-800 truncate">
+                              {item.title}
+                            </span>
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              isPend
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-emerald-100 text-emerald-800"
+                            }`}
+                          >
+                            {isPend ? "Prerreserva" : "Confirmada"}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
