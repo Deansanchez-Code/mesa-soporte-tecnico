@@ -25,10 +25,52 @@ import Logger from "@/lib/logger";
 import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
 import {
   canAccessNextVigencia,
+  getBogotaDateString,
   getVisibleSpaceIdsForUser,
   hasCrossSpaceOverlap,
   isDateBeyondCurrentVigencia,
 } from "../rules/reservationRules";
+import {
+  getTimeBlockBounds,
+  mapAreaNameToSpaceId,
+} from "../rules/legacyAssignmentsAdapter";
+
+async function hasLegacyAssignmentConflict(
+  supabaseClient: Awaited<ReturnType<typeof createClient>>,
+  targetSpaceId: string,
+  startIso: string,
+  endIso: string,
+): Promise<boolean> {
+  try {
+    const { data: areasData } = await supabaseClient
+      .from("areas")
+      .select("id, name");
+    const matchingAreaIds = (areasData || [])
+      .filter((a) => mapAreaNameToSpaceId(a.name) === String(targetSpaceId))
+      .map((a) => a.id);
+
+    if (matchingAreaIds.length === 0) return false;
+
+    const bogotaDate = getBogotaDateString(new Date(startIso));
+    const { data: assignRows } = await supabaseClient
+      .from("instructor_assignments")
+      .select("id, area_id, assignment_date, time_block")
+      .in("area_id", matchingAreaIds)
+      .eq("assignment_date", bogotaDate);
+
+    const startMs = new Date(startIso).getTime();
+    const endMs = new Date(endIso).getTime();
+
+    return (assignRows || []).some((row) => {
+      const bounds = getTimeBlockBounds(row.assignment_date, row.time_block);
+      const bStart = new Date(bounds.startIso).getTime();
+      const bEnd = new Date(bounds.endIso).getTime();
+      return startMs < bEnd && endMs > bStart;
+    });
+  } catch {
+    return false;
+  }
+}
 
 function hasValidDescription(desc: string | null | undefined): boolean {
   if (!desc) return false;
@@ -741,6 +783,19 @@ export async function createReservationAction(
       );
     }
 
+    if (
+      await hasLegacyAssignmentConflict(
+        supabase,
+        String(auditorium_id || "1"),
+        start_time,
+        end_time,
+      )
+    ) {
+      throw new Error(
+        "Horario no disponible (existe una asignación de formación registrada en este ambiente)",
+      );
+    }
+
     // 3.5 Reglas de visibilidad por rol, vigencia anual y bloqueo anti-multireserva simultánea
     const currentSpace = auditorium_id || "1";
     const visibleSpaces = getVisibleSpaceIdsForUser({
@@ -1204,6 +1259,19 @@ export async function updateReservationAction(
     if (conflicts && conflicts.length > 0) {
       throw new Error(
         "Horario no disponible (conflicto detectado en este espacio)",
+      );
+    }
+
+    if (
+      await hasLegacyAssignmentConflict(
+        supabase,
+        String(auditorium_id || "1"),
+        start_time,
+        end_time,
+      )
+    ) {
+      throw new Error(
+        "Horario no disponible (existe una asignación de formación registrada en este ambiente)",
       );
     }
 
@@ -1682,6 +1750,20 @@ export async function createReservationBatchAction(
             `Conflicto detectado para el ${new Date(res.start_time).toLocaleDateString()} (se solapa con otra reserva en el mismo espacio)`,
           );
         }
+      }
+
+      if (
+        !forceVipOverride &&
+        (await hasLegacyAssignmentConflict(
+          supabase,
+          String(targetSpace),
+          res.start_time,
+          res.end_time,
+        ))
+      ) {
+        throw new Error(
+          `Horario no disponible (existe una asignación de formación registrada en este ambiente el ${new Date(res.start_time).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })})`,
+        );
       }
 
       // Evitar multi-reservas simultáneas del mismo usuario en otros ambientes

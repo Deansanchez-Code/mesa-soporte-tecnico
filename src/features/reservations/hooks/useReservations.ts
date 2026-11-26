@@ -15,6 +15,11 @@ import {
   createTicketAction,
   createTicketsBatchAction,
 } from "@/features/tickets/actions/ticketActions";
+import {
+  mapAreaNameToSpaceId,
+  mapLegacyAssignmentToReservation,
+  mergeReservationsWithLegacy,
+} from "../rules/legacyAssignmentsAdapter";
 
 interface UseReservationsProps {
   userId: string;
@@ -49,6 +54,17 @@ export function subscribeReservationsRealtime(
           reservationsRealtimeListeners.forEach((fn) => fn());
         },
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "instructor_assignments",
+        },
+        () => {
+          reservationsRealtimeListeners.forEach((fn) => fn());
+        },
+      )
       .subscribe();
   }
 
@@ -77,8 +93,10 @@ export function useReservations({
   } = useQuery<Reservation[]>({
     queryKey: ["reservations", startDate, finalDate],
     queryFn: async () => {
-      const startOfDay = `${startDate}T00:00:00`;
-      const endOfDay = `${finalDate || startDate}T23:59:59`;
+      const endDate = finalDate || startDate;
+      // Rango en hora local de Colombia (-05:00) para incluir reservas nocturnas (>= 19:00)
+      const startOfDay = `${startDate}T00:00:00-05:00`;
+      const endOfDay = `${endDate}T23:59:59-05:00`;
 
       const { data, error } = await supabase
         .from("reservations")
@@ -89,7 +107,68 @@ export function useReservations({
         .order("start_time");
 
       if (error) throw error;
-      return data as unknown as Reservation[];
+      const baseReservations = (data || []) as unknown as Reservation[];
+
+      // Incorporar asignaciones heredadas vigentes de `instructor_assignments` (ej. Ambiente 107, Cocina)
+      try {
+        const { data: areasData } = await supabase
+          .from("areas")
+          .select("id, name");
+
+        const areaNameById = new Map<number, string>();
+        for (const area of areasData || []) {
+          if (mapAreaNameToSpaceId(area.name)) {
+            areaNameById.set(area.id, area.name);
+          }
+        }
+
+        const specialAreaIds = Array.from(areaNameById.keys());
+        if (specialAreaIds.length > 0) {
+          const { data: legacyRows } = await supabase
+            .from("instructor_assignments")
+            .select("id, area_id, instructor_id, assignment_date, time_block")
+            .in("area_id", specialAreaIds)
+            .gte("assignment_date", startDate)
+            .lte("assignment_date", endDate);
+
+          if (legacyRows && legacyRows.length > 0) {
+            const instructorIds = Array.from(
+              new Set(
+                legacyRows.map((row) => row.instructor_id).filter(Boolean),
+              ),
+            );
+            const instructorNames = new Map<string, string>();
+
+            if (instructorIds.length > 0) {
+              const { data: userRows } = await supabase
+                .from("users")
+                .select("id, full_name")
+                .in("id", instructorIds);
+              for (const u of userRows || []) {
+                if (u.full_name) instructorNames.set(u.id, u.full_name);
+              }
+            }
+
+            const mappedLegacy = legacyRows
+              .map((row) =>
+                mapLegacyAssignmentToReservation(
+                  {
+                    ...row,
+                    instructorName: instructorNames.get(row.instructor_id),
+                  },
+                  areaNameById.get(row.area_id),
+                ),
+              )
+              .filter((item): item is Reservation => item !== null);
+
+            return mergeReservationsWithLegacy(baseReservations, mappedLegacy);
+          }
+        }
+      } catch (legacyErr) {
+        console.warn("No se pudieron cargar asignaciones legacy:", legacyErr);
+      }
+
+      return baseReservations;
     },
     enabled: !!startDate,
   });
