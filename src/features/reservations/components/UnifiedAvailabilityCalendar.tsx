@@ -22,12 +22,14 @@ import {
 
 interface UnifiedAvailabilityCalendarProps {
   user: ReservationActorLike & { id?: string };
+  initialSpaceId?: string;
   onSelectSlot?: (selection: {
     spaceId: string;
     date: string;
     startTime: string;
     endTime: string;
   }) => void;
+  onQuickReserve?: (selection: { spaceId: string; date: string }) => void;
 }
 
 type CalendarViewMode = "daily" | "weekly" | "monthly";
@@ -75,7 +77,9 @@ function formatShortDate(dateStr: string): string {
 
 export default function UnifiedAvailabilityCalendar({
   user,
+  initialSpaceId,
   onSelectSlot,
+  onQuickReserve,
 }: UnifiedAvailabilityCalendarProps) {
   const todayStr = getBogotaDateString();
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -105,7 +109,28 @@ export default function UnifiedAvailabilityCalendar({
     null,
   );
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
-  const [scopeSpaceId, setScopeSpaceId] = useState<string>("ALL");
+  const [scopeSpaceId, setScopeSpaceId] = useState<string>(() =>
+    initialSpaceId && visibleSpaceIds.includes(initialSpaceId)
+      ? initialSpaceId
+      : "ALL",
+  );
+
+  useEffect(() => {
+    const nextScope =
+      initialSpaceId && visibleSpaceIds.includes(initialSpaceId)
+        ? initialSpaceId
+        : "ALL";
+    const t = setTimeout(() => setScopeSpaceId(nextScope), 0);
+    return () => clearTimeout(t);
+  }, [initialSpaceId, visibleSpaceIds]);
+
+  const dailySpaceIds = useMemo(
+    () =>
+      scopeSpaceId === "ALL"
+        ? visibleSpaceIds
+        : visibleSpaceIds.filter((id) => id === scopeSpaceId),
+    [scopeSpaceId, visibleSpaceIds],
+  );
 
   const [monthCursor, setMonthCursor] = useState(() => {
     const [y, m] = todayStr.split("-").map(Number);
@@ -271,21 +296,33 @@ export default function UnifiedAvailabilityCalendar({
             </button>
           )}
 
-          {view !== "daily" && (
-            <select
-              value={scopeSpaceId}
-              onChange={(e) => setScopeSpaceId(e.target.value)}
-              aria-label="Filtrar disponibilidad por ambiente"
-              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[#39A900]"
-            >
-              <option value="ALL">Todos los ambientes</option>
-              {visibleSpaceIds.map((id) => (
-                <option key={id} value={id}>
-                  {resolveSpaceDisplayName(id)}
-                </option>
-              ))}
-            </select>
-          )}
+          <select
+            value={scopeSpaceId}
+            onChange={(e) => setScopeSpaceId(e.target.value)}
+            aria-label="Filtrar disponibilidad por ambiente"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[#39A900]"
+          >
+            <option value="ALL">Todos los ambientes</option>
+            {visibleSpaceIds.map((id) => (
+              <option key={id} value={id}>
+                {resolveSpaceDisplayName(id)}
+              </option>
+            ))}
+          </select>
+
+          {scopeSpaceId !== "ALL" &&
+            !isSpacePaused(scopeSpaceId) &&
+            onQuickReserve && (
+              <button
+                type="button"
+                onClick={() =>
+                  onQuickReserve({ spaceId: scopeSpaceId, date: selectedDate })
+                }
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#39A900] hover:bg-[#2d8500] text-white text-xs font-bold shadow-xs transition cursor-pointer"
+              >
+                Solicitar Reserva
+              </button>
+            )}
         </div>
 
         <div
@@ -431,7 +468,7 @@ export default function UnifiedAvailabilityCalendar({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {visibleSpaceIds.map((spaceId) => {
+                {dailySpaceIds.map((spaceId) => {
                   const name = resolveSpaceDisplayName(spaceId);
                   const paused = isSpacePaused(spaceId);
 
