@@ -26,6 +26,10 @@ export default function UserModal({
 }: UserModalProps) {
   if (!isOpen) return null;
   const isSuperAdmin = (currentUserRole || "").toLowerCase() === "superadmin";
+  const roleLower = (newAgent.role || "user").toLowerCase();
+  const requiresPasswordCredential = ["agent", "admin", "superadmin"].includes(
+    roleLower,
+  );
 
   return (
     <NativeDialog
@@ -81,7 +85,7 @@ export default function UserModal({
               </label>
               <select
                 className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#39A900] outline-none bg-white"
-                value={newAgent.role}
+                value={requiresPasswordCredential ? roleLower : "user"}
                 onChange={(e) =>
                   setNewAgent({ ...newAgent, role: e.target.value })
                 }
@@ -102,7 +106,7 @@ export default function UserModal({
             <label className="block text-xs font-bold text-slate-600 uppercase mb-1">
               Credencial de Acceso
             </label>
-            {newAgent.role === "user" ? (
+            {!requiresPasswordCredential ? (
               <div className="p-2.5 bg-slate-50 text-slate-600 rounded-lg text-xs border border-slate-200 leading-relaxed">
                 Acceso Kiosko sin contraseña compartida: PIN numérico de 6
                 dígitos para VIP/Coordinadores, ingreso directo institucional u
@@ -155,12 +159,26 @@ export default function UserModal({
                 value={newAgent.job_category || "funcionario"}
                 onChange={(e) => {
                   const val = e.target.value;
+                  const prevJobCat = (
+                    newAgent.job_category || "funcionario"
+                  ).toLowerCase();
                   if (val === "coordinador") {
                     setNewAgent({
                       ...newAgent,
                       job_category: val,
                       is_vip: true,
                       perm_manage_assignments: true,
+                    });
+                  } else if (prevJobCat === "coordinador") {
+                    setNewAgent({
+                      ...newAgent,
+                      job_category: val,
+                      is_vip: false,
+                      perm_manage_assignments: false,
+                      role:
+                        roleLower === "coordinator" || roleLower === "vip"
+                          ? "user"
+                          : newAgent.role,
                     });
                   } else {
                     setNewAgent({ ...newAgent, job_category: val });
@@ -278,10 +296,13 @@ export default function UserModal({
                     setNewAgent({
                       ...newAgent,
                       job_category: isCoord ? "coordinador" : "funcionario",
-                      is_vip: isCoord ? true : newAgent.is_vip,
-                      perm_manage_assignments: isCoord
-                        ? true
-                        : newAgent.perm_manage_assignments,
+                      is_vip: isCoord,
+                      perm_manage_assignments: isCoord,
+                      role:
+                        !isCoord &&
+                        (roleLower === "coordinator" || roleLower === "vip")
+                          ? "user"
+                          : newAgent.role,
                     });
                   }}
                   className="mt-0.5 rounded text-[#043263] focus:ring-[#043263] w-4 h-4"
@@ -317,9 +338,33 @@ export default function UserModal({
                 <input
                   type="checkbox"
                   checked={newAgent.is_vip}
-                  onChange={(e) =>
-                    setNewAgent({ ...newAgent, is_vip: e.target.checked })
-                  }
+                  onChange={(e) => {
+                    const isVip = e.target.checked;
+                    const normalizedRole =
+                      !isVip &&
+                      (roleLower === "coordinator" || roleLower === "vip")
+                        ? "user"
+                        : newAgent.role;
+                    if (
+                      !isVip &&
+                      (newAgent.job_category || "").toLowerCase() ===
+                        "coordinador"
+                    ) {
+                      setNewAgent({
+                        ...newAgent,
+                        is_vip: false,
+                        job_category: "funcionario",
+                        perm_manage_assignments: false,
+                        role: normalizedRole,
+                      });
+                    } else {
+                      setNewAgent({
+                        ...newAgent,
+                        is_vip: isVip,
+                        role: normalizedRole,
+                      });
+                    }
+                  }}
                   className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4"
                 />
                 <span>★ Usuario VIP (Prioridad Alta &amp; PIN Kiosko)</span>

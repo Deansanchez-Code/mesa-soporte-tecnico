@@ -356,4 +356,40 @@ describe("POST /api/auth/kiosk-otp (PIN VIP + Directo SENA + OTP Personal)", () 
     expect(res.status).toBe(403);
     expect(mockSendEmail).not.toHaveBeenCalled();
   });
+
+  it("permite ingreso directo sin PIN ni contraseña a ex-coordinador de planta al retirar VIP", async () => {
+    mockMaybeSingle.mockResolvedValue({
+      data: {
+        id: "excoord-uuid-1",
+        auth_id: "auth-excoord-1",
+        username: "excoordplanta",
+        full_name: "Ex Coordinador Planta",
+        role: "user",
+        area: "Académica",
+        employment_type: "planta",
+        job_category: "funcionario",
+        email: "excoordplanta@sena.edu.co",
+        is_vip: false,
+        perm_manage_assignments: false,
+        is_active: true,
+      },
+      error: null,
+    });
+    mockGetUserById.mockResolvedValue({
+      data: { user: { id: "auth-excoord-1", app_metadata: {} } },
+    });
+
+    const req = new NextRequest("http://localhost/api/auth/kiosk-otp", {
+      method: "POST",
+      headers: { "x-forwarded-for": "10.0.0.16" },
+      body: JSON.stringify({ action: "request", username: "excoordplanta" }),
+    });
+
+    const res = await POST(req);
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.authMode).toBe("direct");
+    expect(json.verified).toBe(true);
+    expect(mockSendEmail).not.toHaveBeenCalled();
+  });
 });

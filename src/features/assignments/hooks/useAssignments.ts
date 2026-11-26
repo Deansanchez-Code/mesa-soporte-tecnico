@@ -3,20 +3,78 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { formatDateForDB, TimeBlock, TIME_BLOCKS } from "@/lib/scheduling";
+import { formatDateForDB, TimeBlock } from "@/lib/scheduling";
 
 import { Assignment } from "../types";
 import {
   cancelReservationAction,
   deleteInstructorAssignmentAction,
 } from "@/features/reservations/actions/reservationActions";
-import { mergeReservationsWithLegacy } from "@/features/reservations/rules/legacyAssignmentsAdapter";
+import {
+  getTimeBlockBounds,
+  mapAreaNameToSpaceId,
+  mergeReservationsWithLegacy,
+} from "@/features/reservations/rules/legacyAssignmentsAdapter";
 
 interface UseAssignmentsProps {
   areaId: number;
   areaName: string;
   fetchStart: Date;
   fetchEnd: Date;
+}
+
+type TimedAssignment = Assignment & {
+  start_time: string;
+  end_time: string;
+};
+
+interface RawReservationUser {
+  full_name: string;
+  is_vip: boolean;
+}
+
+interface RawReservationRow {
+  id: number;
+  title?: string | null;
+  description?: string | null;
+  auditorium_id?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  resources?: string[] | null;
+  user_id?: string | null;
+  status?: "APPROVED" | "CANCELLED" | "PENDING" | null;
+  users?: RawReservationUser | RawReservationUser[] | null;
+}
+
+const bogotaDateTimeFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Bogota",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  hour12: false,
+});
+
+function getBogotaDateAndBlock(
+  isoDate?: string | null,
+): { dateStr: string; block: TimeBlock } | null {
+  if (!isoDate) return null;
+  const parsed = new Date(isoDate);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const parts = bogotaDateTimeFormatter.formatToParts(parsed);
+  const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value || "";
+
+  const dateStr = `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
+  const rawHour = Number.parseInt(getPart("hour"), 10);
+  const startHour = rawHour === 24 ? 0 : rawHour;
+
+  let block: TimeBlock = "MANANA";
+  if (startHour >= 12 && startHour < 18) block = "TARDE";
+  if (startHour >= 18) block = "NOCHE";
+
+  return { dateStr, block };
 }
 
 export function useAssignments({
@@ -42,17 +100,13 @@ export function useAssignments({
         .eq("area_id", areaId)
         .gte("assignment_date", startStr)
         .lte("assignment_date", endStr);
-      // ... lines 41-114 ... (skipping some for brevity in TargetContent but they must match)
+
       if (assignError) throw assignError;
 
       const instructorIds = Array.from(
         new Set(assignData?.map((a) => a.instructor_id) || []),
       );
 
-      type TimedAssignment = Assignment & {
-        start_time: string;
-        end_time: string;
-      };
       let combined: TimedAssignment[] = [];
 
       if (instructorIds.length > 0) {
@@ -68,21 +122,19 @@ export function useAssignments({
         );
 
         combined = (assignData || []).map((a) => {
-          const blockInfo = a.time_block
-            ? TIME_BLOCKS[a.time_block as TimeBlock]
-            : undefined;
-          const [startStrBlock, endStrBlock] = blockInfo
-            ? blockInfo.range.split(" - ")
-            : ["06:00", "12:00"];
+          const { startIso, endIso, label } = getTimeBlockBounds(
+            a.assignment_date,
+            a.time_block,
+          );
 
           return {
             ...a,
             user_id: a.instructor_id,
-            title: blockInfo
-              ? `Asignación de Formación (${blockInfo.label})`
+            title: a.time_block
+              ? `Asignación de Formación (${label})`
               : "Asignación de Formación",
-            start_time: `${a.assignment_date}T${startStrBlock}:00-05:00`,
-            end_time: `${a.assignment_date}T${endStrBlock}:00-05:00`,
+            start_time: startIso,
+            end_time: endIso,
             instructor: {
               full_name: userMap.get(a.instructor_id) || "Desconocido",
             },
@@ -91,32 +143,9 @@ export function useAssignments({
       }
 
       // 3. Fetch Reservations if it's a Special Area (Auditorio, Subdirección, Biblioteca, Ambiente 107 o Cocina)
-      const isAuditorio = areaName.toUpperCase().includes("AUDITORIO");
-      const isSubdireccion = areaName.toUpperCase().includes("SUBDIRECCIÓN");
-      const isBiblioteca = areaName.toUpperCase().includes("BIBLIOTECA");
-      const isAmbiente107 =
-        areaName.toUpperCase().includes("107") ||
-        areaName.toUpperCase().includes("AMBIENTE 107");
-      const isCocina = areaName.toUpperCase().includes("COCINA");
+      const targetAuditoriumId = mapAreaNameToSpaceId(areaName);
 
-      if (
-        isAuditorio ||
-        isSubdireccion ||
-        isBiblioteca ||
-        isAmbiente107 ||
-        isCocina
-      ) {
-        // ID Mapping: 39 -> '1', 47 -> '2', 19 -> '3', Ambiente 107 -> '4', Cocina -> '5'
-        const targetAuditoriumId = isAuditorio
-          ? "1"
-          : isSubdireccion
-            ? "2"
-            : isBiblioteca
-              ? "3"
-              : isAmbiente107
-                ? "4"
-                : "5";
-
+      if (targetAuditoriumId) {
         const { data: resData, error: resError } = await supabase
           .from("reservations")
           .select(
@@ -130,39 +159,34 @@ export function useAssignments({
         if (resError) throw resError;
 
         if (resData && resData.length > 0) {
-          const reservationAssignments: TimedAssignment[] = (
-            resData as unknown as (Assignment & {
-              users: { full_name: string; is_vip: boolean };
-            })[]
-          ).map((r) => {
-            const localDateObj = new Date(r.start_time!);
-            const rawDate = formatDateForDB(localDateObj);
+          const reservationAssignments: TimedAssignment[] = [];
+          for (const r of resData as RawReservationRow[]) {
+            const bogotaTiming = getBogotaDateAndBlock(r.start_time);
+            if (!bogotaTiming || !r.start_time) continue;
 
-            const startHour = localDateObj.getHours();
-            let block: TimeBlock = "MANANA";
-            if (startHour >= 12 && startHour < 18) block = "TARDE";
-            if (startHour >= 18) block = "NOCHE";
+            const joinedUser = Array.isArray(r.users) ? r.users[0] : r.users;
 
-            return {
+            reservationAssignments.push({
               id: r.id,
               instructor_id: "RESERVA",
-              assignment_date: rawDate,
-              time_block: block,
+              assignment_date: bogotaTiming.dateStr,
+              time_block: bogotaTiming.block,
               instructor: {
-                full_name: r.users?.full_name || "RESERVA",
+                full_name: joinedUser?.full_name || "RESERVA",
               },
               is_reservation: true,
-              title: r.title,
+              title: r.title || undefined,
               description: r.description,
               auditorium_id: r.auditorium_id || targetAuditoriumId,
-              start_time: r.start_time || "",
+              start_time: r.start_time,
               end_time: r.end_time || "",
               resources: r.resources,
-              status: r.status,
-              users: r.users || undefined,
-              user_id: r.user_id,
-            };
-          });
+              status: r.status || undefined,
+              users: joinedUser || undefined,
+              user_id: r.user_id || undefined,
+            });
+          }
+
           const legacyWithSpace = combined.map((item) => ({
             ...item,
             auditorium_id: item.auditorium_id || targetAuditoriumId,
@@ -193,8 +217,13 @@ export function useAssignments({
   const deleteAssignment = useCallback(
     async (id: number, isReservation: boolean, deletedByName?: string) => {
       try {
-        // Optimistic UI Update: remove immediately
-        setAssignments((prev) => prev.filter((a) => a.id !== id));
+        // Optimistic UI Update: remove matching record type immediately
+        setAssignments((prev) =>
+          prev.filter(
+            (a) =>
+              !(a.id === id && Boolean(a.is_reservation) === isReservation),
+          ),
+        );
 
         if (isReservation) {
           // Use Server Action
@@ -221,7 +250,7 @@ export function useAssignments({
         }
         // Force sync after a short delay to ensure DB propagation
         setTimeout(() => {
-          fetchAssignments();
+          void fetchAssignments();
         }, 500);
 
         return { success: true };

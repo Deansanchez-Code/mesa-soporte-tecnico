@@ -57,8 +57,12 @@ export function useUserManagement(onRefresh: () => void) {
   const handleCreateOrUpdateUser = async () => {
     let passwordToSave = newAgent.password;
 
-    // Para usuarios Kiosko sin contraseña ingresada, generar secreto aleatorio fuerte (el acceso se realiza vía OTP)
-    if (newAgent.role === "user" && !passwordToSave && !newAgent.isEditing) {
+    // Para usuarios Kiosko sin contraseña ingresada, generar secreto aleatorio fuerte (el acceso se realiza vía OTP/directo)
+    const roleLower = (newAgent.role || "user").toLowerCase();
+    const isKioskProfile = !["agent", "admin", "superadmin"].includes(
+      roleLower,
+    );
+    if (isKioskProfile && !passwordToSave && !newAgent.isEditing) {
       const bytes = new Uint8Array(18);
       window.crypto.getRandomValues(bytes);
       passwordToSave = Array.from(bytes, (b) => b.toString(36).padStart(2, "0"))
@@ -135,6 +139,14 @@ export function useUserManagement(onRefresh: () => void) {
   };
 
   const handleEditUser = (user: Agent | User) => {
+    const rawRoleLower = (user.role || "user").toLowerCase();
+    const isDegradedLegacyPlantaRole =
+      (rawRoleLower === "vip" || rawRoleLower === "coordinator") &&
+      (user.employment_type || "").toLowerCase() !== "contratista" &&
+      !user.is_vip &&
+      user.job_category?.toLowerCase() !== "coordinador" &&
+      !user.perm_manage_assignments;
+
     setNewAgent({
       id: user.auth_id || user.id, // Prefer auth_id if available
       full_name: user.full_name,
@@ -143,7 +155,7 @@ export function useUserManagement(onRefresh: () => void) {
       created_at: user.created_at || null,
 
       password: "", // Don't show existing password
-      role: user.role,
+      role: isDegradedLegacyPlantaRole ? "user" : user.role,
       area: user.area || "",
       is_active: user.is_active,
       perm_create_assets: user.perm_create_assets || false,
@@ -276,7 +288,7 @@ export function useUserManagement(onRefresh: () => void) {
       !confirm(
         targetCoordinator
           ? `¿Designar a ${user.full_name || user.username} como COORDINADOR(A)?\n\nObtendrá automáticamente privilegios VIP y permisos ampliados de gestión y asignación de ambientes.`
-          : `¿Retirar el rol de Coordinador(a) a ${user.full_name || user.username}?`,
+          : `¿Retirar el rol de Coordinador(a) a ${user.full_name || user.username}?\n\nSe retirará también el privilegio VIP/PIN y quedará como funcionario estándar de planta.`,
       )
     )
       return;
@@ -287,17 +299,24 @@ export function useUserManagement(onRefresh: () => void) {
       } = await supabase.auth.getSession();
       if (!session) throw new Error("No hay sesión activa");
 
+      const roleLower = (user.role || "").toLowerCase();
+      const normalizedRole =
+        !targetCoordinator &&
+        (roleLower === "coordinator" || roleLower === "vip")
+          ? "user"
+          : user.role;
+
       const payload = {
         id: user.auth_id || user.id,
         full_name: user.full_name,
         username: user.username,
-        role: user.role,
+        role: normalizedRole,
         area: user.area,
         is_active: user.is_active,
         employment_type: user.employment_type || "planta",
         job_category: targetCoordinator ? "coordinador" : "funcionario",
-        is_vip: targetCoordinator ? true : user.is_vip,
-        perm_manage_assignments: targetCoordinator ? true : false,
+        is_vip: targetCoordinator,
+        perm_manage_assignments: targetCoordinator,
       };
 
       const response = await fetch("/api/admin/users", {

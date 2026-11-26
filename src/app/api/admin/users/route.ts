@@ -294,6 +294,8 @@ async function updateUserHandler(
     .or(buildUserIdOrFilter(id))
     .maybeSingle();
 
+  const targetAuthLookupId = previousUser?.auth_id || id;
+
   // Regla de gobernanza: solo el Superadmin puede habilitar, editar o promover cuentas de soporte (agent) o superadmin
   if (
     isSupportRole(previousUser?.role) ||
@@ -313,10 +315,10 @@ async function updateUserHandler(
   }
 
   if (password && password.length > 0) {
-    let targetAuthId = id;
+    let targetAuthId = targetAuthLookupId;
 
     const { error: pwdError } = await supabaseAdmin.auth.admin.updateUserById(
-      id,
+      targetAuthLookupId,
       {
         password,
         ...(email ? { email, email_confirm: true } : {}),
@@ -329,7 +331,7 @@ async function updateUserHandler(
       if (pwdError.message.includes("User not found") && email) {
         const { data: newAuth, error: createError } =
           await supabaseAdmin.auth.admin.createUser({
-            id,
+            id: targetAuthLookupId,
             email,
             password,
             email_confirm: true,
@@ -346,15 +348,15 @@ async function updateUserHandler(
         throw pwdError;
       }
 
-      if (targetAuthId !== id) {
+      if (targetAuthId !== targetAuthLookupId) {
         await supabaseAdmin
           .from("users")
           .update({ auth_id: targetAuthId })
-          .eq("id", id);
+          .or(buildUserIdOrFilter(id));
       }
     }
   } else if (email) {
-    await supabaseAdmin.auth.admin.updateUserById(id, {
+    await supabaseAdmin.auth.admin.updateUserById(targetAuthLookupId, {
       email,
       email_confirm: true,
     });
@@ -364,21 +366,21 @@ async function updateUserHandler(
   const dbUpdates: Record<string, unknown> = {};
   if (updates.is_active === true) {
     try {
-      await supabaseAdmin.auth.admin.updateUserById(id, {
+      await supabaseAdmin.auth.admin.updateUserById(targetAuthLookupId, {
         ban_duration: "none",
       });
     } catch (e) {
       Logger.warn("Auth unban failed", e);
     }
   } else if (updates.is_active === false) {
-    if (id === ctx.user.id) {
+    if (id === ctx.user.id || targetAuthLookupId === ctx.user.id) {
       return NextResponse.json(
         { error: "No puedes desactivar tu propia cuenta administrativa" },
         { status: 400 },
       );
     }
     try {
-      await supabaseAdmin.auth.admin.updateUserById(id, {
+      await supabaseAdmin.auth.admin.updateUserById(targetAuthLookupId, {
         ban_duration: "876000h",
       });
     } catch (e) {
@@ -402,12 +404,50 @@ async function updateUserHandler(
   ] as const;
 
   const updatesRecord = { ...updates } as Record<string, unknown>;
-  if (
-    typeof updatesRecord.job_category === "string" &&
-    updatesRecord.job_category.toLowerCase() === "coordinador"
-  ) {
+  const prevJobCat = (previousUser?.job_category || "").toLowerCase();
+  const incomingJobCat =
+    typeof updatesRecord.job_category === "string"
+      ? updatesRecord.job_category.toLowerCase()
+      : undefined;
+  const effectiveRoleLower = String(
+    (updatesRecord.role as string | undefined) ?? previousUser?.role ?? "",
+  ).toLowerCase();
+
+  const isExplicitlyRevokingVip = updatesRecord.is_vip === false;
+  const isDemotingFromCoordinator =
+    prevJobCat === "coordinador" &&
+    incomingJobCat !== undefined &&
+    incomingJobCat !== "coordinador";
+
+  if (isExplicitlyRevokingVip) {
+    // Al retirar explícitamente VIP (p. ej. ex-coordinador que vuelve a planta),
+    // limpiar privilegios residuales para evitar solicitud de PIN/contraseña.
+    if (
+      incomingJobCat === "coordinador" ||
+      (!incomingJobCat && prevJobCat === "coordinador")
+    ) {
+      updatesRecord.job_category = "funcionario";
+    }
+    updatesRecord.perm_manage_assignments = false;
+    if (effectiveRoleLower === "vip" || effectiveRoleLower === "coordinator") {
+      updatesRecord.role = "user";
+    }
+  } else if (incomingJobCat === "coordinador") {
     updatesRecord.is_vip = true;
     updatesRecord.perm_manage_assignments = true;
+  } else if (isDemotingFromCoordinator) {
+    if (updatesRecord.perm_manage_assignments === undefined) {
+      updatesRecord.perm_manage_assignments = false;
+    }
+    if (updatesRecord.is_vip === undefined) {
+      updatesRecord.is_vip = false;
+    }
+    if (
+      effectiveRoleLower === "coordinator" ||
+      (effectiveRoleLower === "vip" && updatesRecord.is_vip === false)
+    ) {
+      updatesRecord.role = "user";
+    }
   }
 
   for (const field of allowedFields) {
@@ -425,7 +465,6 @@ async function updateUserHandler(
 
   if (updateError) throw updateError;
 
-  const targetAuthLookupId = previousUser?.auth_id || id;
   if (previousUser) {
     const mergedAfter = {
       role: (updatesRecord.role as string | undefined) ?? previousUser.role,
@@ -507,7 +546,7 @@ async function updateUserHandler(
 
   if (Object.keys(metadataUpdates).length > 0) {
     try {
-      await supabaseAdmin.auth.admin.updateUserById(id, {
+      await supabaseAdmin.auth.admin.updateUserById(targetAuthLookupId, {
         user_metadata: metadataUpdates,
       });
     } catch (e) {
