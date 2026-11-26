@@ -22,6 +22,46 @@ interface UseReservationsProps {
   finalDate?: string;
 }
 
+// Canal compartido con conteo de referencias para evitar colisiones cuando múltiples
+// vistas (Calendario + Formulario Split) montan `useReservations` simultáneamente.
+let sharedReservationsChannel: ReturnType<typeof supabase.channel> | null =
+  null;
+let reservationsChannelSeq = 0;
+const reservationsRealtimeListeners = new Set<() => void>();
+
+export function subscribeReservationsRealtime(
+  onChange: () => void,
+): () => void {
+  reservationsRealtimeListeners.add(onChange);
+
+  if (!sharedReservationsChannel) {
+    const channelName = `reservations-realtime-${++reservationsChannelSeq}`;
+    sharedReservationsChannel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reservations",
+        },
+        () => {
+          reservationsRealtimeListeners.forEach((fn) => fn());
+        },
+      )
+      .subscribe();
+  }
+
+  return () => {
+    reservationsRealtimeListeners.delete(onChange);
+    if (reservationsRealtimeListeners.size === 0 && sharedReservationsChannel) {
+      const ch = sharedReservationsChannel;
+      sharedReservationsChannel = null;
+      supabase.removeChannel(ch);
+    }
+  };
+}
+
 export function useReservations({
   userId,
   startDate,
@@ -54,26 +94,11 @@ export function useReservations({
     enabled: !!startDate,
   });
 
-  // 1.5 Suscripción en vivo (Supabase Realtime) sobre la tabla reservations
+  // 1.5 Suscripción en vivo (Supabase Realtime) compartida sobre la tabla reservations
   useEffect(() => {
-    const channel = supabase
-      .channel("reservations-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "reservations",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["reservations"] });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return subscribeReservationsRealtime(() => {
+      queryClient.invalidateQueries({ queryKey: ["reservations"] });
+    });
   }, [queryClient]);
 
   // 2. Query para Status VIP
