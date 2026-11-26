@@ -35,7 +35,10 @@ export function isPrivilegedKioskUser(user: KioskIdentityCandidate): boolean {
   if (jobCatLower.includes("coordinador")) {
     return true;
   }
-  if (["nbarrerac", "egutierrezn", "emgutierrezn"].includes(usernameLower)) {
+  if (
+    user.is_vip !== false &&
+    ["nbarrerac", "egutierrezn", "emgutierrezn"].includes(usernameLower)
+  ) {
     return true;
   }
   return false;

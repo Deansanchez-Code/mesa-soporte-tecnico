@@ -5,16 +5,20 @@ import { POST, PUT, DELETE, PATCH } from "./route";
 const {
   mockVerifyPermissions,
   mockCreateUser,
+  mockGetUserById,
   mockUpdateUserById,
   mockUsersSelectOrMaybeSingle,
   mockUsersSelectAll,
+  mockUsersUpdate,
   mockUsersUpdateIn,
 } = vi.hoisted(() => ({
   mockVerifyPermissions: vi.fn(),
   mockCreateUser: vi.fn(),
+  mockGetUserById: vi.fn(),
   mockUpdateUserById: vi.fn(),
   mockUsersSelectOrMaybeSingle: vi.fn(),
   mockUsersSelectAll: vi.fn(),
+  mockUsersUpdate: vi.fn(),
   mockUsersUpdateIn: vi.fn(),
 }));
 
@@ -55,14 +59,18 @@ vi.mock("@/lib/supabase/admin", () => ({
           }),
         };
       },
-      update: () => ({
-        or: vi.fn().mockResolvedValue({ error: null }),
-        in: mockUsersUpdateIn,
-      }),
+      update: (payload: Record<string, unknown>) => {
+        mockUsersUpdate(payload);
+        return {
+          or: vi.fn().mockResolvedValue({ error: null }),
+          in: mockUsersUpdateIn,
+        };
+      },
     }),
     auth: {
       admin: {
         createUser: mockCreateUser,
+        getUserById: mockGetUserById,
         updateUserById: mockUpdateUserById,
       },
     },
@@ -73,6 +81,9 @@ describe("Admin Users RBAC y Vigencia", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUsersUpdateIn.mockResolvedValue({ error: null });
+    mockGetUserById.mockResolvedValue({
+      data: { user: { id: "auth-target-1", app_metadata: {} } },
+    });
     mockUpdateUserById.mockResolvedValue({ error: null });
     mockCreateUser.mockResolvedValue({
       data: { user: { id: "22222222-2222-4222-8222-222222222222" } },
@@ -235,5 +246,107 @@ describe("Admin Users RBAC y Vigencia", () => {
       "u-contra",
       "u-agent",
     ]);
+  });
+
+  it("limpia privilegios residuales de coordinación y revoca PIN al quitar is_vip a un ex-coordinador", async () => {
+    mockVerifyPermissions.mockResolvedValue(true);
+    mockUsersSelectOrMaybeSingle.mockResolvedValue({
+      data: {
+        id: "44444444-4444-4444-8444-444444444444",
+        auth_id: "55555555-5555-4555-8555-555555555555",
+        username: "excoordplanta",
+        role: "coordinator",
+        job_category: "coordinador",
+        is_vip: true,
+        perm_manage_assignments: true,
+      },
+    });
+    mockGetUserById.mockResolvedValue({
+      data: {
+        user: {
+          id: "55555555-5555-4555-8555-555555555555",
+          app_metadata: { kiosk_pin_hash: "scrypt:abc:def" },
+        },
+      },
+    });
+
+    const req = new NextRequest("http://localhost/api/admin/users", {
+      method: "PUT",
+      body: JSON.stringify({
+        id: "44444444-4444-4444-8444-444444444444",
+        is_vip: false,
+      }),
+    });
+
+    const res = await PUT(req);
+    expect(res.status).toBe(200);
+    expect(mockUsersUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        is_vip: false,
+        job_category: "funcionario",
+        perm_manage_assignments: false,
+        role: "user",
+      }),
+    );
+    expect(mockUpdateUserById).toHaveBeenCalledWith(
+      "55555555-5555-4555-8555-555555555555",
+      expect.objectContaining({
+        app_metadata: expect.objectContaining({
+          kiosk_pin_hash: null,
+          kiosk_pin_revoked_pending_notice: true,
+        }),
+      }),
+    );
+  });
+
+  it("limpia is_vip, perm_manage_assignments y revoca PIN al degradar cargo de coordinador a funcionario", async () => {
+    mockVerifyPermissions.mockResolvedValue(true);
+    mockUsersSelectOrMaybeSingle.mockResolvedValue({
+      data: {
+        id: "66666666-6666-4666-8666-666666666666",
+        auth_id: "77777777-7777-4777-8777-777777777777",
+        username: "excoordcargo",
+        role: "coordinator",
+        job_category: "coordinador",
+        is_vip: true,
+        perm_manage_assignments: true,
+      },
+    });
+    mockGetUserById.mockResolvedValue({
+      data: {
+        user: {
+          id: "77777777-7777-4777-8777-777777777777",
+          app_metadata: { kiosk_pin_hash: "scrypt:abc:def" },
+        },
+      },
+    });
+
+    const req = new NextRequest("http://localhost/api/admin/users", {
+      method: "PUT",
+      body: JSON.stringify({
+        id: "66666666-6666-4666-8666-666666666666",
+        job_category: "funcionario",
+      }),
+    });
+
+    const res = await PUT(req);
+    expect(res.status).toBe(200);
+    expect(mockUsersUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        is_vip: false,
+        job_category: "funcionario",
+        perm_manage_assignments: false,
+        role: "user",
+      }),
+    );
+    expect(mockUpdateUserById).toHaveBeenCalledWith(
+      "77777777-7777-4777-8777-777777777777",
+      expect.objectContaining({
+        app_metadata: expect.objectContaining({
+          kiosk_pin_hash: null,
+          kiosk_pin_revoked_pending_notice: true,
+        }),
+      }),
+    );
   });
 });
