@@ -44,6 +44,8 @@ import {
   SpaceMaintenanceConfig,
   EnvironmentsGlobalConfig,
 } from "@/features/reservations/types";
+import AssignmentManager from "@/features/assignments/components/AssignmentManager";
+import { safeGetItem, safeSetItem } from "@/lib/storage";
 import { User } from "./types";
 
 const SupportRedirectMessage = ({
@@ -203,6 +205,22 @@ export default function UserRequestForm({
     startTime: string;
     endTime: string;
   } | null>(null);
+  const [servicesCalendarModel, setServicesCalendarModel] = useState<
+    "classic" | "new"
+  >("classic");
+
+  useEffect(() => {
+    const saved = safeGetItem("cadph_services_calendar_model");
+    if (saved === "new") {
+      const t = setTimeout(() => setServicesCalendarModel("new"), 0);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  const handleServicesModelChange = (model: "classic" | "new") => {
+    setServicesCalendarModel(model);
+    safeSetItem("cadph_services_calendar_model", model);
+  };
 
   interface TodayReservation {
     id: number;
@@ -1117,15 +1135,22 @@ export default function UserRequestForm({
   }
 
   // --- VISTA DE FORMULARIO (WRAPPER COMÚN CON TRANSICIÓN <1s) ---
+  const isServicesConsultation =
+    view === "AVAILABILITY" && calendarInitialSpace === "ALL";
+  const isClassicServicesView =
+    isServicesConsultation && servicesCalendarModel === "classic";
+
   return (
     <div
       key={view}
       className={`swiss-view-enter w-full mx-auto ${
-        view === "AVAILABILITY"
-          ? "max-w-6xl"
-          : view === "RESERVATION"
-            ? "max-w-2xl"
-            : "max-w-4xl"
+        isClassicServicesView
+          ? "max-w-[1560px]"
+          : view === "AVAILABILITY"
+            ? "max-w-6xl"
+            : view === "RESERVATION"
+              ? "max-w-2xl"
+              : "max-w-4xl"
       }`}
     >
       <div className="mb-4 sm:mb-6 flex flex-wrap items-center justify-between gap-2">
@@ -1159,61 +1184,100 @@ export default function UserRequestForm({
 
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
         {/* HEADER DEL FORMULARIO */}
-        <div className="bg-gray-50 p-6 border-b border-gray-100 flex items-center gap-4">
-          <div
-            className={`p-3 rounded-full ${
-              view === "TICKET"
-                ? "bg-green-100 text-sena-green"
-                : view === "RESERVATION"
-                  ? "bg-blue-100 text-sena-blue"
-                  : view === "AVAILABILITY"
-                    ? "bg-sena-blue/10 text-sena-blue"
-                    : "bg-sena-green/10 text-sena-green"
-            }`}
-          >
-            {view === "TICKET" ? (
-              <Monitor className="w-6 h-6" />
-            ) : view === "RESERVATION" ? (
-              <Calendar className="w-6 h-6" />
-            ) : view === "AVAILABILITY" ? (
-              <CalendarRange className="w-6 h-6" />
-            ) : (
-              <Book className="w-6 h-6" />
-            )}
+        <div className="bg-gray-50 p-6 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div
+              className={`p-3 rounded-full ${
+                view === "TICKET"
+                  ? "bg-green-100 text-sena-green"
+                  : view === "RESERVATION"
+                    ? "bg-blue-100 text-sena-blue"
+                    : view === "AVAILABILITY"
+                      ? "bg-sena-blue/10 text-sena-blue"
+                      : "bg-sena-green/10 text-sena-green"
+              }`}
+            >
+              {view === "TICKET" ? (
+                <Monitor className="w-6 h-6" />
+              ) : view === "RESERVATION" ? (
+                <Calendar className="w-6 h-6" />
+              ) : view === "AVAILABILITY" ? (
+                <CalendarRange className="w-6 h-6" />
+              ) : (
+                <Book className="w-6 h-6" />
+              )}
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">
+                {view === "TICKET"
+                  ? "Servicio Técnico"
+                  : view === "RESERVATION"
+                    ? selectedReservationSpace === "1"
+                      ? "Reservar Auditorio 103"
+                      : selectedReservationSpace === "3"
+                        ? "Reservar Biblioteca"
+                        : selectedReservationSpace === "4"
+                          ? "Reservar Ambiente 107"
+                          : selectedReservationSpace === "5"
+                            ? "Reservar Ambiente de Cocina"
+                            : "Reservar Subdirección"
+                    : calendarInitialSpace !== "ALL"
+                      ? `Disponibilidad y Reserva — ${resolveSpaceDisplayName(calendarInitialSpace)}`
+                      : "Disponibilidad de Ambientes"}
+              </h2>
+              <p className="text-sm text-gray-500">
+                {view === "TICKET"
+                  ? "Completa los detalles para asignar un técnico."
+                  : view === "RESERVATION"
+                    ? "Verifica disponibilidad y agenda tu evento."
+                    : isClassicServicesView
+                      ? "Consulta y gestión de asignaciones de instructores y ambientes (Vista Clásica)."
+                      : "Consulta la programación (Diaria, Semanal o Mensual) y haz clic en una hora libre para reservar."}
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-gray-800">
-              {view === "TICKET"
-                ? "Servicio Técnico"
-                : view === "RESERVATION"
-                  ? selectedReservationSpace === "1"
-                    ? "Reservar Auditorio 103"
-                    : selectedReservationSpace === "3"
-                      ? "Reservar Biblioteca"
-                      : selectedReservationSpace === "4"
-                        ? "Reservar Ambiente 107"
-                        : selectedReservationSpace === "5"
-                          ? "Reservar Ambiente de Cocina"
-                          : "Reservar Subdirección"
-                  : calendarInitialSpace !== "ALL"
-                    ? `Disponibilidad y Reserva — ${resolveSpaceDisplayName(calendarInitialSpace)}`
-                    : "Disponibilidad de Ambientes"}
-            </h2>
-            <p className="text-sm text-gray-500">
-              {view === "TICKET"
-                ? "Completa los detalles para asignar un técnico."
-                : view === "RESERVATION"
-                  ? "Verifica disponibilidad y agenda tu evento."
-                  : "Consulta la programación (Diaria, Semanal o Mensual) y haz clic en una hora libre para reservar."}
-            </p>
-          </div>
+
+          {isServicesConsultation && (
+            <div
+              className="inline-flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-2xs gap-1"
+              role="group"
+              aria-label="Seleccionar modelo de vista de disponibilidad"
+            >
+              <button
+                type="button"
+                onClick={() => handleServicesModelChange("classic")}
+                aria-pressed={servicesCalendarModel === "classic"}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  servicesCalendarModel === "classic"
+                    ? "bg-[#043263] text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Vista Clásica
+              </button>
+              <button
+                type="button"
+                onClick={() => handleServicesModelChange("new")}
+                aria-pressed={servicesCalendarModel === "new"}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  servicesCalendarModel === "new"
+                    ? "bg-[#39A900] text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Vista Nueva
+              </button>
+            </div>
+          )}
         </div>
 
         <div
           className={
-            view === "AVAILABILITY" || view === "RESERVATION"
-              ? "p-4 sm:p-6 bg-slate-50/70"
-              : "p-8"
+            isClassicServicesView
+              ? "p-4 sm:p-8"
+              : view === "AVAILABILITY" || view === "RESERVATION"
+                ? "p-4 sm:p-6 bg-slate-50/70"
+                : "p-8"
           }
         >
           {view === "RESERVATION" ? (
@@ -1227,6 +1291,30 @@ export default function UserRequestForm({
               onCancel={() => handleViewChange("AVAILABILITY")}
               onSuccess={onCancel}
             />
+          ) : isClassicServicesView ? (
+            <div className="min-h-[600px]">
+              <AssignmentManager
+                canManage={
+                  user.role === "admin" ||
+                  user.role === "superadmin" ||
+                  user.role === "coordinator" ||
+                  (
+                    user as { job_category?: string }
+                  )?.job_category?.toLowerCase() === "coordinador" ||
+                  !!user.is_vip ||
+                  !!user.perm_manage_assignments
+                }
+                canDeleteAuditorium={
+                  user.role === "superadmin" ||
+                  user.role === "admin" ||
+                  (
+                    user as { job_category?: string }
+                  )?.job_category?.toLowerCase() === "coordinador" ||
+                  !!user.is_vip
+                }
+                user={user}
+              />
+            </div>
           ) : view === "AVAILABILITY" ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs min-w-0">
               <UnifiedAvailabilityCalendar
