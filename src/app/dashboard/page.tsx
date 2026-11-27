@@ -7,6 +7,7 @@ import { safeGetItem, safeRemoveItem } from "@/lib/storage";
 import { useRouter } from "next/navigation";
 import NotificationManager from "@/components/NotificationManager";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { toast } from "sonner";
 
 // --- HOOKS ---
 import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
@@ -95,7 +96,9 @@ export default function AgentDashboard() {
     } catch (error) {
       console.error("Error actualizando estado:", error);
       setIsAvailable(!newStatus); // Revertir
-      alert("No se pudo actualizar tu estado. Revisa tu conexión o permisos.");
+      toast.error(
+        "No se pudo actualizar tu estado. Revisa tu conexión o permisos.",
+      );
     }
   };
 

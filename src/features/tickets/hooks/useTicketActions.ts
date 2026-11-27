@@ -3,6 +3,7 @@ import { Ticket } from "@/app/admin/admin.types";
 import { User } from "@supabase/supabase-js";
 import { safeGetItem } from "@/lib/storage";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export function useTicketActions(
   tickets: Ticket[],
@@ -50,7 +51,7 @@ export function useTicketActions(
           context.previousTickets,
         );
       }
-      alert(
+      toast.error(
         `Error: ${err instanceof Error ? err.message : "Error al actualizar"}`,
       );
     },

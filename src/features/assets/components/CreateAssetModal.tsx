@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { Upload, X, Loader2, Save } from "lucide-react";
+import { toast } from "sonner";
 
 interface CreateAssetModalProps {
   onClose: () => void;
@@ -59,11 +60,13 @@ export default function CreateAssetModal({
 
       if (error) throw error;
 
-      alert("Activo creado correctamente.");
+      toast.success("Activo creado correctamente.");
       onSuccess();
     } catch (error) {
       console.error("Error creating asset:", error);
-      alert("Error al crear el activo. Verifique que el serial no exista.");
+      toast.error(
+        "Error al crear el activo. Verifique que el serial no exista.",
+      );
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import { render } from "@react-email/render";
 import React from "react";
+import Logger from "@/lib/logger";
 
 export interface EmailPayload {
   to: string | string[];
@@ -62,9 +63,9 @@ export class EmailService {
 
       const info = await transporter.sendMail(mailOptions);
 
-      console.log(
-        `✅ Correo enviado exitosamente a ${payload.to}. MessageId: ${info.messageId}`,
-      );
+      Logger.info("Correo enviado exitosamente", {
+        messageId: info.messageId,
+      });
       return { success: true, data: info };
     } catch (error) {
       console.error("⚠️ EmailService (Nodemailer) Exception:", error);

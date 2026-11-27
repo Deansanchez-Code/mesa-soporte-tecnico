@@ -98,14 +98,13 @@ export function useSessionMonitor() {
     // 1. Verificar si YA existe una sesión abierta para este usuario
     const { data: existingSession } = await supabase
       .from("work_sessions")
-      .select("*")
+      .select("id, user_id, session_start, session_end, is_overtime")
       .eq("user_id", user.id)
       .is("session_end", null)
       .maybeSingle();
 
     if (existingSession) {
       // REANUDAR SESIÓN EXISTENTE
-      console.log("Reanudando sesión existente:", existingSession.id);
       setSession((prev) => ({
         ...prev,
         isActive: true,

@@ -2,7 +2,7 @@ import { Ticket } from "@/app/admin/admin.types";
 import { calculateSLADueDate, getSLAHours } from "@/lib/domain/sla-calculator";
 import { createClient } from "@/lib/supabase/server";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { Database } from "@/app/admin/types";
+import { Database } from "@/types/supabase";
 
 export class SlaService {
   /**
@@ -18,9 +18,6 @@ export class SlaService {
     const hour = colombiaTime.getUTCHours();
 
     if (hour < 7 || hour >= 21) {
-      console.log(
-        `Cron omitido: Hora actual ${hour}:00 COT fuera del rango 07:00-21:00`,
-      );
       return 0;
     }
 

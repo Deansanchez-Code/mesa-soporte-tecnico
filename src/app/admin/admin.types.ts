@@ -1,4 +1,4 @@
-import { Tables, Json } from "./types";
+import { Tables, Json } from "@/types/supabase";
 
 export interface Ticket extends Tables<"tickets"> {
   users: {

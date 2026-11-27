@@ -13,7 +13,9 @@ export default function AuditTab() {
     setLoading(true);
     let query = supabase
       .from("audit_logs")
-      .select("*, users(full_name, email)")
+      .select(
+        "id, created_at, action, resource, resource_id, details, users(full_name, email)",
+      )
       .order("created_at", { ascending: false })
       .limit(50);
 
@@ -32,8 +34,10 @@ export default function AuditTab() {
   }, [actionFilter]);
 
   useEffect(() => {
-    // eslint-disable-next-line
-    fetchLogs();
+    const t = setTimeout(() => {
+      void fetchLogs();
+    }, 0);
+    return () => clearTimeout(t);
   }, [fetchLogs]);
 
   const uniqueActions = Array.from(new Set(logs.map((l) => l.action)));

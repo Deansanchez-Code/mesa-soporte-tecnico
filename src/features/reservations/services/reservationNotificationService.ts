@@ -1,7 +1,12 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { EmailService } from "@/lib/email/email-service";
 import ReservationReminder from "@/lib/email/templates/ReservationReminder";
-import { getSpaceCoordinator } from "@/features/reservations/actions/reservationActions";
+import { getSpaceCoordinator } from "@/features/reservations/actions/spaceConfigActions";
+import {
+  getSpaceDisplayName,
+  hasValidDescription,
+  resolveReservationUserEmail,
+} from "@/features/reservations/rules/reservationHelpers";
 import { isColombianHoliday } from "@/lib/domain/holidays";
 import {
   isWeekend,
@@ -11,88 +16,26 @@ import {
   isAfter,
   isBefore,
 } from "date-fns";
-import { Database } from "@/app/admin/types";
+import { Database } from "@/types/supabase";
 import { SupabaseClient } from "@supabase/supabase-js";
 
-function hasValidDescription(desc: string | null | undefined): boolean {
-  if (!desc) return false;
-  const trimmed = desc.trim();
-  if (trimmed.length === 0) return false;
-  // Normalize by removing common punctuation and extra spaces, then lowercase
-  const normalized = trimmed
-    .toLowerCase()
-    .replace(/[.,\-_/]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  const blacklist = [
-    "ninguno",
-    "ninguna",
-    "no",
-    "na",
-    "no aplica",
-    "sin requerimientos",
-    "ningun",
-    "0",
-    "ningunos",
-    "ningunas",
-    "nada",
-    "sin novedad",
-  ];
-  return !blacklist.includes(normalized) && normalized.length > 0;
+interface ReservationWithUser {
+  id: number;
+  title: string;
+  start_time: string;
+  end_time: string;
+  auditorium_id: string | null;
+  resources: string[] | null;
+  description?: string | null;
+  users: {
+    full_name: string;
+    email: string | null;
+    username: string;
+    employment_type: string | null;
+    job_category: string | null;
+    role: string | null;
+  } | null;
 }
-
-function resolveReservationUserEmail(
-  user:
-    | {
-        email?: string | null;
-        username?: string | null;
-        employment_type?: string | null;
-        job_category?: string | null;
-      }
-    | null
-    | undefined,
-): string {
-  if (!user) return "";
-  const empType = (user.employment_type || "").toLowerCase();
-  const jobCat = (user.job_category || "").toLowerCase();
-  const isOfficial =
-    empType.includes("planta") ||
-    empType.includes("funcionario") ||
-    empType.includes("oficial") ||
-    jobCat.includes("coordinador");
-
-  const rawEmail = (user.email || "").trim().toLowerCase();
-  const cleanUser = (user.username || "").trim().toLowerCase();
-
-  if (isOfficial && cleanUser) {
-    return `${cleanUser}@sena.edu.co`;
-  }
-  if (
-    rawEmail &&
-    rawEmail.includes("@") &&
-    !rawEmail.endsWith("@sistema.local")
-  ) {
-    return rawEmail;
-  }
-  if (cleanUser) {
-    return `${cleanUser}@sena.edu.co`;
-  }
-  return "";
-}
-
-function getSpaceDisplayName(auditoriumId?: string | number | null): string {
-  const id = String(auditoriumId || "1");
-  if (id === "2") return "Subdirección";
-  if (id === "3") return "Biblioteca";
-  if (id === "4") return "Ambiente 107";
-  if (id === "5") return "Ambiente de Cocina";
-  return "Auditorio 103";
-}
-
-type ReservationWithUser =
-  Database["public"]["Tables"]["reservations"]["Row"] & {
-    users: Database["public"]["Tables"]["users"]["Row"] | null;
-  };
 
 export class ReservationNotificationService {
   /**
@@ -100,7 +43,6 @@ export class ReservationNotificationService {
    * Utiliza getSupabaseAdmin() para garantizar lectura/escritura consistente en audit_logs sin bloqueo por RLS.
    */
   static async processNotifications() {
-    console.log("🔔 Iniciando procesamiento de notificaciones de reserva...");
     const supabase = getSupabaseAdmin() as unknown as SupabaseClient<Database>;
     const now = new Date();
 
@@ -108,12 +50,7 @@ export class ReservationNotificationService {
     const { data: reservations, error } = await supabase
       .from("reservations")
       .select(
-        `
-        *,
-        users!reservations_user_id_fkey (
-          *
-        )
-      `,
+        "id, title, start_time, end_time, auditorium_id, resources, description, users!reservations_user_id_fkey(full_name, email, username, employment_type, job_category, role)",
       )
       .eq("status", "APPROVED")
       .gt("start_time", subDays(now, 1).toISOString());
@@ -323,8 +260,7 @@ export class ReservationNotificationService {
     })}`;
 
     const recipients = [recipientEmail];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const description = (res as any).description;
+    const description = res.description;
     const hasSpecialRequirements = hasValidDescription(description);
 
     // Si hay requerimientos especiales, enviar copia al destinatario / coordinador configurado del espacio

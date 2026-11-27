@@ -22,7 +22,7 @@ import {
   cancelLibraryReservation,
   requestModificationAction,
 } from "@/features/reservations/actions/libraryApprovalActions";
-import { getEnvironmentsGlobalConfigAction } from "@/features/reservations/actions/reservationActions";
+import { getEnvironmentsGlobalConfigAction } from "@/features/reservations/actions/spaceConfigActions";
 import { SpaceCoordinatorAssignment } from "@/features/reservations/types";
 
 interface PendingReservation {

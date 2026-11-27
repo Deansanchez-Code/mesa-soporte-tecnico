@@ -26,9 +26,15 @@ import {
   getAssignableUsersAction,
   AssignableUser,
   updateInstructorAssignmentAction,
+} from "@/features/reservations/actions/assignmentAdminActions";
+import {
   saveEnvironmentsTabOrderAction,
   toggleSpaceStatusBySuperAdminAction,
-} from "@/features/reservations/actions/reservationActions";
+} from "@/features/reservations/actions/spaceConfigActions";
+import {
+  isCoordinatorPrivilegeUsername,
+  isLibraryStaffEmail,
+} from "@/features/reservations/rules/reservationHelpers";
 import {
   getEnvironmentsGlobalConfig,
   getAllSpacesMaintenanceConfig,
@@ -36,6 +42,7 @@ import {
 } from "@/features/reservations/services/maintenanceService";
 import {
   EnvironmentsGlobalConfig,
+  Reservation,
   SpaceMaintenanceConfig,
 } from "@/features/reservations/types";
 import { TIME_BLOCKS, TimeBlock } from "@/lib/scheduling";
@@ -135,9 +142,7 @@ export default function AssignmentManager({
     userJobCatLower === "coordinador" ||
     userRoleLower === "coordinator" ||
     !!uProfile?.perm_manage_assignments ||
-    ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].includes(
-      userCleanUsername,
-    );
+    isCoordinatorPrivilegeUsername(userCleanUsername);
 
   // REGLA 1: Solo las Coordinaciones y el SuperAdmin pueden modificar y fijar el orden de las pestañas
   const canReorderTabs = isCoordinator || isSuperAdmin;
@@ -463,10 +468,7 @@ export default function AssignmentManager({
                         const isAdmin = ["admin", "superadmin"].includes(
                           userRole,
                         );
-                        const isAllowed = [
-                          "egutierrezn@sistema.local",
-                          "rbiblioteca@sistema.local",
-                        ].includes(userEmail);
+                        const isAllowed = isLibraryStaffEmail(userEmail);
 
                         if (
                           !isAllowed &&
@@ -664,13 +666,28 @@ export default function AssignmentManager({
             selectedEnv?.name.toUpperCase().includes("COCINA");
 
           if (editingRes.is_reservation || isSpecialSpace) {
+            const reservationToEdit: Reservation & {
+              is_reservation?: boolean;
+            } = {
+              id: editingRes.id,
+              title: editingRes.title || "",
+              start_time: editingRes.start_time || "",
+              end_time: editingRes.end_time || "",
+              status: editingRes.status || "APPROVED",
+              user_id: editingRes.user_id || "",
+              auditorium_id: editingRes.auditorium_id || undefined,
+              resources: editingRes.resources || undefined,
+              description: editingRes.description ?? null,
+              users: editingRes.users,
+              is_reservation: editingRes.is_reservation,
+            };
+
             return (
               <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in">
                 <div className="bg-white w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95">
                   <AuditoriumReservationForm
                     user={user}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    reservationToEdit={editingRes as any}
+                    reservationToEdit={reservationToEdit}
                     legacyAssignmentIdToReplace={
                       !editingRes.is_reservation ? editingRes.id : undefined
                     }

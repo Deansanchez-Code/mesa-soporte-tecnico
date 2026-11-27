@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/env";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
+import { isCoordinatorPrivilegeUsername } from "@/features/reservations/rules/reservationHelpers";
 
 const ALLOWED_PERMISSION_COLUMNS = new Set([
   "perm_manage_assignments",
@@ -122,9 +123,7 @@ export async function verifyUserPermissions(
         jobCat === "coordinador" ||
         roleLower === "coordinator" ||
         Boolean(userProfile.is_vip) ||
-        ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].includes(
-          uname,
-        )
+        isCoordinatorPrivilegeUsername(uname)
       ) {
         return true;
       }

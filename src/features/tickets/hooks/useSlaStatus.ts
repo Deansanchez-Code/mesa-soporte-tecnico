@@ -46,7 +46,6 @@ export function useSlaStatus() {
         // Validar horario local (7-21)
         const hour = new Date().getHours();
         if (hour >= 7 && hour < 21) {
-          console.log("Sincronización pasiva activada por inactividad > 1h");
           await checkAndActivateTicketsAction();
           // También procesamos las notificaciones de reserva
           const { processReservationNotificationsAction } =

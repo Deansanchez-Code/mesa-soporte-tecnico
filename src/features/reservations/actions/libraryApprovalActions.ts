@@ -9,7 +9,12 @@ import Logger from "@/lib/logger";
 import {
   isUserSpaceCoordinator,
   getSpaceCoordinator,
-} from "./reservationActions";
+} from "./spaceConfigActions";
+import {
+  isBackupAdminIdentity,
+  isLibraryApproverIdentity,
+  resolveReservationUserEmail,
+} from "../rules/reservationHelpers";
 import { createTicketForApprovedReservation } from "../services/reservationTicketService";
 
 async function verifyLibraryCoordinator() {
@@ -38,68 +43,20 @@ async function verifyLibraryCoordinator() {
   if (
     role === "admin" ||
     role === "superadmin" ||
-    username === "dasanchezh" ||
-    email.includes("dasanchezh")
+    isBackupAdminIdentity(username, email)
   ) {
     return;
   }
 
   const isDynamicCoord = await isUserSpaceCoordinator(username, email, "3");
-  const allowed = [
-    "dasanchezh@sena.edu.co",
-    "egutierrezn@sena.edu.co",
-    "egutierrezn@sistema.local",
-    "emgutierrezn@sena.edu.co",
-    "emgutierrezn@sistema.local",
-  ];
 
   if (
     !isDynamicCoord &&
-    !allowed.includes(email) &&
-    !allowed.includes(username) &&
+    !isLibraryApproverIdentity(username, email) &&
     role !== "coordinator"
   ) {
     throw new Error("No autorizado para gestionar reservas de biblioteca");
   }
-}
-
-function resolveReservationUserEmail(
-  user:
-    | {
-        email?: string | null;
-        username?: string | null;
-        employment_type?: string | null;
-        job_category?: string | null;
-      }
-    | null
-    | undefined,
-): string {
-  if (!user) return "";
-  const empType = (user.employment_type || "").toLowerCase();
-  const jobCat = (user.job_category || "").toLowerCase();
-  const isOfficial =
-    empType.includes("planta") ||
-    empType.includes("funcionario") ||
-    empType.includes("oficial") ||
-    jobCat.includes("coordinador");
-
-  const rawEmail = (user.email || "").trim().toLowerCase();
-  const cleanUser = (user.username || "").trim().toLowerCase();
-
-  if (isOfficial && cleanUser) {
-    return `${cleanUser}@sena.edu.co`;
-  }
-  if (
-    rawEmail &&
-    rawEmail.includes("@") &&
-    !rawEmail.endsWith("@sistema.local")
-  ) {
-    return rawEmail;
-  }
-  if (cleanUser) {
-    return `${cleanUser}@sena.edu.co`;
-  }
-  return "";
 }
 
 interface ReservationData {
@@ -173,7 +130,7 @@ export async function approveLibraryReservation(id: number) {
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
       .select(
-        "*, users(full_name, email, username, employment_type, job_category, is_vip)",
+        "id, title, start_time, end_time, auditorium_id, status, user_id, description, resources, users(full_name, email, username, employment_type, job_category, is_vip)",
       )
       .eq("id", id)
       .single();
@@ -264,7 +221,7 @@ export async function cancelLibraryReservation(id: number, reason: string) {
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
       .select(
-        "*, users(full_name, email, username, employment_type, job_category)",
+        "id, title, start_time, end_time, auditorium_id, user_id, users(full_name, email, username, employment_type, job_category)",
       )
       .eq("id", id)
       .single();
@@ -378,7 +335,7 @@ export async function requestModificationAction(
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
       .select(
-        "*, users(full_name, email, username, employment_type, job_category)",
+        "id, title, start_time, end_time, auditorium_id, user_id, users(full_name, email, username, employment_type, job_category)",
       )
       .eq("id", id)
       .single();

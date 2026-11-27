@@ -6,6 +6,7 @@ import { forbidden, verifyUserPermissions } from "@/lib/auth-check";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { buildUserIdOrFilter, UUID_SCHEMA } from "@/lib/security";
 import { hashKioskPin, KIOSK_PIN_REGEX } from "@/lib/kiosk-pin";
+import { markKioskPinCachedStatus } from "@/lib/kiosk-pin-cache";
 import Logger from "@/lib/logger";
 
 const AssignPinSchema = z.object({
@@ -177,6 +178,8 @@ async function assignKioskPinHandler(
         .eq("id", targetUser.id);
     }
   }
+
+  markKioskPinCachedStatus(targetAuthId, true);
 
   try {
     await supabaseAdmin.from("audit_logs").insert({

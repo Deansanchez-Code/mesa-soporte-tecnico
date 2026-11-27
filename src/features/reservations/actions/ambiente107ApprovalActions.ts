@@ -9,57 +9,16 @@ import Logger from "@/lib/logger";
 import {
   isUserSpaceCoordinator,
   getSpaceCoordinator,
-} from "./reservationActions";
+} from "./spaceConfigActions";
+import {
+  isAmbiente107ApproverIdentity,
+  isBackupAdminIdentity,
+  resolveReservationUserEmail,
+} from "../rules/reservationHelpers";
 import {
   createTicketForApprovedReservation,
   cancelTicketForReservation,
 } from "../services/reservationTicketService";
-
-const ALLOWED_107_APPROVERS = [
-  "nbarrerac@sena.edu.co",
-  "nbarrerac",
-  "dasanchezh@sena.edu.co", // Admin backup
-  "dasanchezh",
-];
-
-function resolveReservationUserEmail(
-  user:
-    | {
-        email?: string | null;
-        username?: string | null;
-        employment_type?: string | null;
-        job_category?: string | null;
-      }
-    | null
-    | undefined,
-): string {
-  if (!user) return "";
-  const empType = (user.employment_type || "").toLowerCase();
-  const jobCat = (user.job_category || "").toLowerCase();
-  const isOfficial =
-    empType.includes("planta") ||
-    empType.includes("funcionario") ||
-    empType.includes("oficial") ||
-    jobCat.includes("coordinador");
-
-  const rawEmail = (user.email || "").trim().toLowerCase();
-  const cleanUser = (user.username || "").trim().toLowerCase();
-
-  if (isOfficial && cleanUser) {
-    return `${cleanUser}@sena.edu.co`;
-  }
-  if (
-    rawEmail &&
-    rawEmail.includes("@") &&
-    !rawEmail.endsWith("@sistema.local")
-  ) {
-    return rawEmail;
-  }
-  if (cleanUser) {
-    return `${cleanUser}@sena.edu.co`;
-  }
-  return "";
-}
 
 async function verifyAmbiente107Coordinator(spaceId?: string | number) {
   const supabase = await createClient();
@@ -88,8 +47,7 @@ async function verifyAmbiente107Coordinator(spaceId?: string | number) {
   if (
     role === "admin" ||
     role === "superadmin" ||
-    username === "dasanchezh" ||
-    email.includes("dasanchezh")
+    isBackupAdminIdentity(username, email)
   ) {
     return { isSuperAdmin: true, allowedSpaces: ["4", "5"] };
   }
@@ -97,11 +55,7 @@ async function verifyAmbiente107Coordinator(spaceId?: string | number) {
   const isCoord4 = await isUserSpaceCoordinator(username, email, "4");
   const isCoord5 = await isUserSpaceCoordinator(username, email, "5");
 
-  const isExplicitAllowed = ALLOWED_107_APPROVERS.some(
-    (allowed) =>
-      email.includes(allowed.toLowerCase()) ||
-      username.includes(allowed.toLowerCase()),
-  );
+  const isExplicitAllowed = isAmbiente107ApproverIdentity(username, email);
 
   const allowedSpaces: string[] = [];
   if (isCoord4 || isExplicitAllowed) allowedSpaces.push("4");
@@ -207,7 +161,7 @@ export async function approveAmbiente107Reservation(id: number) {
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
       .select(
-        "*, users(full_name, email, username, employment_type, job_category, is_vip)",
+        "id, title, start_time, end_time, auditorium_id, status, user_id, description, resources, users(full_name, email, username, employment_type, job_category, is_vip)",
       )
       .eq("id", id)
       .single();
@@ -314,7 +268,7 @@ export async function cancelAmbiente107Reservation(id: number, reason: string) {
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
       .select(
-        "*, users(full_name, email, username, employment_type, job_category)",
+        "id, title, start_time, end_time, auditorium_id, user_id, users(full_name, email, username, employment_type, job_category)",
       )
       .eq("id", id)
       .single();
@@ -415,7 +369,7 @@ export async function suggestModification107Action(
     const { data: reservation, error: fetchError } = await supabaseAdmin
       .from("reservations")
       .select(
-        "*, users(full_name, email, username, employment_type, job_category)",
+        "id, title, start_time, end_time, auditorium_id, user_id, users(full_name, email, username, employment_type, job_category)",
       )
       .eq("id", id)
       .single();

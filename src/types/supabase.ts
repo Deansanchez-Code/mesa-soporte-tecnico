@@ -870,4 +870,4 @@ export type {
   AdminTab,
   TicketFilterType,
   AuditLog,
-} from "./admin.types";
+} from "@/app/admin/admin.types";

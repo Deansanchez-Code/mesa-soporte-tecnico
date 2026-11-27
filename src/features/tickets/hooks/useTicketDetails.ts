@@ -6,6 +6,7 @@ import {
   calculateSLADueDate,
   calculateBusinessMinutesBetween,
 } from "@/lib/domain/sla-calculator";
+import { toast } from "sonner";
 
 interface UseTicketDetailsProps {
   ticket: Ticket;
@@ -51,8 +52,10 @@ export function useTicketDetails({
           old_value: string | null;
           new_value: string | null;
           comment: string | null;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          actor: any; // Supabase might infer array or object, handle flexibly
+          actor:
+            | { id: string; full_name: string }
+            | { id: string; full_name: string }[]
+            | null;
         }) => {
           const actorObj = Array.isArray(e.actor) ? e.actor[0] : e.actor;
           return {
@@ -73,7 +76,7 @@ export function useTicketDetails({
     // 2. Fetch Pause Reasons
     const { data: reasonsData } = await supabase
       .from("pause_reasons")
-      .select("*")
+      .select("id, reason_code, description")
       .eq("is_active", true);
 
     if (reasonsData) {
@@ -134,7 +137,7 @@ export function useTicketDetails({
       if (onSuccess) onSuccess();
     } catch (e) {
       console.error("Error pausing ticket:", e);
-      alert("Error al pausar el ticket.");
+      toast.error("Error al pausar el ticket.");
     } finally {
       setProcessingAction(false);
     }
@@ -186,7 +189,7 @@ export function useTicketDetails({
       if (onSuccess) onSuccess();
     } catch (e) {
       console.error("Error resuming ticket:", e);
-      alert("Error al reanudar el ticket.");
+      toast.error("Error al reanudar el ticket.");
     } finally {
       setProcessingAction(false);
     }
