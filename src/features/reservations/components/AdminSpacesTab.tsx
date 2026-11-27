@@ -261,13 +261,13 @@ export default function AdminSpacesTab({
     if (error) {
       console.error(`Error adding ${type}:`, error);
       if (error.code === "23505") {
-        alert("Error: Este elemento ya existe (duplicado).");
+        toast.warning("Error: Este elemento ya existe (duplicado).");
       } else if (error.code === "42501") {
-        alert(
+        toast.error(
           "Error de permisos: No tienes autorización para crear este elemento.",
         );
       } else {
-        alert(`Error al guardar: ${error.message}`);
+        toast.error(`Error al guardar: ${error.message}`);
       }
     } else {
       setNewConfigItem("");

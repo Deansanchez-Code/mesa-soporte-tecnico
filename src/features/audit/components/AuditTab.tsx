@@ -34,8 +34,10 @@ export default function AuditTab() {
   }, [actionFilter]);
 
   useEffect(() => {
-    // eslint-disable-next-line
-    fetchLogs();
+    const t = setTimeout(() => {
+      void fetchLogs();
+    }, 0);
+    return () => clearTimeout(t);
   }, [fetchLogs]);
 
   const uniqueActions = Array.from(new Set(logs.map((l) => l.action)));

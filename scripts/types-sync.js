@@ -6,7 +6,7 @@ const fs = require("fs");
 const os = require("os");
 
 const PROJECT_ID = "ukoqpikpqzffqieomaoo";
-const OUTPUT_FILE = path.join(__dirname, "../app/admin/types.ts");
+const OUTPUT_FILE = path.join(__dirname, "../src/types/supabase.ts");
 
 const BIN_DIR = path.join(__dirname, "bin");
 const EXT = os.platform() === "win32" ? ".exe" : "";

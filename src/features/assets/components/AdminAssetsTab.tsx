@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { Asset, ConfigItem, User } from "@/app/admin/admin.types";
 import { NativeDialog } from "@/components/ui/NativeDialog";
+import { toast } from "sonner";
 import {
   Activity,
   ArrowRight,
@@ -49,8 +50,10 @@ export default function AdminAssetsTab({
   });
 
   const handleCreateAsset = async () => {
-    if (!newAsset.serial || !newAsset.userId)
-      return alert("Serial y Asignado A son obligatorios");
+    if (!newAsset.serial || !newAsset.userId) {
+      toast.warning("Serial y Asignado A son obligatorios");
+      return;
+    }
     try {
       const { error } = await supabase.from("assets").insert({
         serial_number: newAsset.serial,
@@ -69,7 +72,7 @@ export default function AdminAssetsTab({
         actor_id: currentUser?.id,
       });
 
-      alert("✅ Equipo registrado en inventario");
+      toast.success("Equipo registrado en inventario");
       setShowAssetModal(false);
       setNewAsset({
         serial: "",
@@ -89,13 +92,15 @@ export default function AdminAssetsTab({
       };
 
       if (sbError.code === "42501" || sbError.status === 403) {
-        alert(
-          "⛔ Error de permisos: No tienes autorización para crear equipos.",
+        toast.error(
+          "Error de permisos: No tienes autorización para crear equipos.",
         );
       } else if (sbError.code === "23505") {
-        alert("⚠️ Error: El serial ya existe en la base de datos.");
+        toast.warning("Error: El serial ya existe en la base de datos.");
       } else {
-        alert(`❌ Error desconocido: ${sbError.message || "Intenta de nuevo"}`);
+        toast.error(
+          `Error desconocido: ${sbError.message || "Intenta de nuevo"}`,
+        );
       }
     }
   };
@@ -157,8 +162,8 @@ export default function AdminAssetsTab({
         }
       }
 
-      alert(
-        `Carga finalizada:\n✅ ${successCount} creados\n❌ ${errorCount} fallidos (posibles duplicados)`,
+      toast.success(
+        `Carga finalizada: ${successCount} creados, ${errorCount} fallidos (posibles duplicados)`,
       );
       onRefresh();
     };

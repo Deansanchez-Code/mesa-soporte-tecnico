@@ -3,7 +3,7 @@ import { z } from "zod";
 import { AssignmentService } from "./assignment.service";
 import { SlaService } from "./sla.service";
 import Logger from "@/lib/logger";
-import { Database } from "@/app/admin/types";
+import { Database } from "@/types/supabase";
 import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
 import { isLegacyCoordinatorUsername } from "@/features/reservations/rules/reservationHelpers";
 

@@ -16,7 +16,7 @@ import {
   isAfter,
   isBefore,
 } from "date-fns";
-import { Database } from "@/app/admin/types";
+import { Database } from "@/types/supabase";
 import { SupabaseClient } from "@supabase/supabase-js";
 
 interface ReservationWithUser {

@@ -198,11 +198,11 @@ export default function AdminDashboard() {
 
     if (error) {
       console.error(error);
-      alert("Error al asignar el ticket");
+      toast.error("Error al asignar el ticket");
       throw error;
     }
 
-    alert("Agente asignado correctamente.");
+    toast.success("Agente asignado correctamente.");
     void queryClient.invalidateQueries({ queryKey: ["tickets"] });
   };
 
@@ -220,7 +220,7 @@ export default function AdminDashboard() {
 
     if (eventError) {
       console.error(eventError);
-      alert("Error al guardar el comentario.");
+      toast.error("Error al guardar el comentario.");
       throw eventError;
     }
 
@@ -249,7 +249,7 @@ export default function AdminDashboard() {
 
     if (eventError) {
       console.error(eventError);
-      alert("Error al registrar el cambio de estado.");
+      toast.error("Error al registrar el cambio de estado.");
       throw eventError;
     }
 
@@ -264,7 +264,7 @@ export default function AdminDashboard() {
 
     if (ticketError) {
       console.error(ticketError);
-      alert("Error actualizando estado del ticket.");
+      toast.error("Error actualizando estado del ticket.");
       throw ticketError;
     }
 
@@ -423,8 +423,10 @@ export default function AdminDashboard() {
         `);
 
       if (error) throw error;
-      if (!data || data.length === 0)
-        return alert("No hay datos para exportar");
+      if (!data || data.length === 0) {
+        toast.info("No hay datos para exportar");
+        return;
+      }
 
       // Definimos el tipo esperado de la respuesta de Supabase
       interface TicketExport {
@@ -495,7 +497,7 @@ export default function AdminDashboard() {
       document.body.removeChild(link);
     } catch (error) {
       console.error(error);
-      alert("Error generando el reporte");
+      toast.error("Error generando el reporte");
     } finally {
       setExporting(false);
     }

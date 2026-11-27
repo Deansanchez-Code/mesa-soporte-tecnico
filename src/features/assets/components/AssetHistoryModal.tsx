@@ -12,10 +12,28 @@ import {
   ArrowRightLeft,
 } from "lucide-react";
 import AssetActionModal from "./AssetActionModal";
+import { toast } from "sonner";
 
 interface AssetHistoryModalProps {
   serialNumber: string;
   onClose: () => void;
+}
+
+interface AssetHistoryDetails {
+  id: number;
+  serial_number: string;
+  type: string | null;
+  brand: string | null;
+  model: string | null;
+  location: string | null;
+  assigned_to_user_id: string | null;
+  created_at: string | null;
+}
+
+interface AssetHistoryUser {
+  id: string;
+  full_name: string | null;
+  perm_transfer_assets: boolean | null;
 }
 
 interface TicketHistory {
@@ -32,16 +50,13 @@ export default function AssetHistoryModal({
   onClose,
 }: AssetHistoryModalProps) {
   const [history, setHistory] = useState<TicketHistory[]>([]);
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const [assetDetails, setAssetDetails] = useState<any>(null); // Guardar detalles del activo
-  /* eslint-enable @typescript-eslint/no-explicit-any */
+  const [assetDetails, setAssetDetails] = useState<AssetHistoryDetails | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [showTransferModal, setShowTransferModal] = useState(false); // UI State
 
-  // Obtener usuario actual para chequear permisos (o pasarlo por props, pero hooks funcionan bien)
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  /* eslint-enable @typescript-eslint/no-explicit-any */
+  const [currentUser, setCurrentUser] = useState<AssetHistoryUser | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -136,13 +151,18 @@ export default function AssetHistoryModal({
 
         {showTransferModal && assetDetails && currentUser && (
           <AssetActionModal
-            asset={assetDetails}
+            asset={{
+              id: assetDetails.id,
+              serial_number: assetDetails.serial_number,
+              model: assetDetails.model || "",
+              assigned_to_user_id: assetDetails.assigned_to_user_id || "",
+            }}
             action="TRANSFER"
             onClose={() => setShowTransferModal(false)}
             onSuccess={() => {
               setShowTransferModal(false);
               onClose(); // Cerrar todo o refrescar
-              alert("Traslado exitoso. El historial se actualizará.");
+              toast.success("Traslado exitoso. El historial se actualizará.");
             }}
           />
         )}

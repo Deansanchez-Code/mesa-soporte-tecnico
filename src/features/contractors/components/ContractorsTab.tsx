@@ -14,6 +14,7 @@ import { User, ConfigItem } from "@/app/admin/admin.types";
 import { formatName } from "@/lib/utils";
 import { useUserManagement } from "../../users/hooks/useUserManagement";
 import UserModal from "../../users/components/UserModal";
+import { toast } from "sonner";
 
 interface ContractorsTabProps {
   users: User[];
@@ -93,13 +94,13 @@ export default function ContractorsTab({
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
 
-      alert(`✅ ${data.message}`);
+      toast.success(data.message);
       onRefresh();
     } catch (error: unknown) {
       if (error instanceof Error) {
-        alert(`Error: ${error.message}`);
+        toast.error(`Error: ${error.message}`);
       } else {
-        alert("Error desconocido");
+        toast.error("Error desconocido");
       }
     }
   };
@@ -121,7 +122,7 @@ export default function ContractorsTab({
       onRefresh();
     } catch (error: unknown) {
       if (error instanceof Error) {
-        alert(`Error: ${error.message}`);
+        toast.error(`Error: ${error.message}`);
       }
     }
   };

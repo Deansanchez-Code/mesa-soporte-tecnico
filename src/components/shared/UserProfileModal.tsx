@@ -12,6 +12,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase/client";
 import {
   startOfWeek,
@@ -145,7 +146,7 @@ export default function UserProfileModal({
               onMouseEnter={() => setIsHoveringAvatar(true)}
               onMouseLeave={() => setIsHoveringAvatar(false)}
               onClick={() =>
-                alert("Funcionalidad de carga de imagen próximamente...")
+                toast.info("Funcionalidad de carga de imagen próximamente...")
               }
             >
               <div className="w-24 h-24 rounded-full bg-white p-1 shadow-lg">

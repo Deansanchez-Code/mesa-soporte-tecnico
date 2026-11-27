@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { AlertTriangle, User, Users, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface User {
   id: string;
@@ -29,7 +30,7 @@ export default function PanicButtonModal({
 
   const handleMassReport = async () => {
     if (!location) {
-      alert("Por favor selecciona una ubicación antes de reportar.");
+      toast.warning("Por favor selecciona una ubicación antes de reportar.");
       return;
     }
 
@@ -45,11 +46,13 @@ export default function PanicButtonModal({
 
       if (error) throw error;
 
-      alert("✅ Reporte enviado. Estamos verificando si es una falla general.");
+      toast.success(
+        "Reporte enviado. Estamos verificando si es una falla general.",
+      );
       onSuccess(); // Cierra el modal y notifica al padre
     } catch (error) {
       console.error("Error reportando falla:", error);
-      alert("Error enviando el reporte.");
+      toast.error("Error enviando el reporte.");
     } finally {
       setIsSubmitting(false);
     }
