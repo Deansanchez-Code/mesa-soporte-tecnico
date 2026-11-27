@@ -39,6 +39,7 @@ import LibraryApprovalModal from "@/features/reservations/components/LibraryAppr
 import Ambiente107ApprovalModal from "@/features/reservations/components/Ambiente107ApprovalModal";
 import UpcomingReservationBanner from "@/components/UpcomingReservationBanner";
 import { useUpcomingReservationAlert } from "@/hooks/useUpcomingReservationAlert";
+import { isDbPrivilegedUser } from "@/features/reservations/rules/reservationHelpers";
 
 export default function DashboardContent({
   viewMode,
@@ -67,11 +68,25 @@ export default function DashboardContent({
   const { upcomingAlert, dismissAlert } = useUpcomingReservationAlert(profile);
 
   const activeEmail = currentUser?.email || (profile?.email as string) || "";
+  const canApproveSpaces = isDbPrivilegedUser({
+    role: profile?.role || role,
+    job_category: profile?.job_category as string | undefined,
+    is_vip: profile?.is_vip,
+    perm_manage_assignments:
+      Boolean(profile?.perm_manage_assignments) ||
+      Boolean(permissions?.manage_assignments),
+  });
 
   return (
     <>
-      <LibraryApprovalModal userEmail={activeEmail} />
-      <Ambiente107ApprovalModal userEmail={activeEmail} />
+      <LibraryApprovalModal
+        userEmail={activeEmail}
+        canApprove={canApproveSpaces}
+      />
+      <Ambiente107ApprovalModal
+        userEmail={activeEmail}
+        canApprove={canApproveSpaces}
+      />
       {upcomingAlert && profile && (
         <UpcomingReservationBanner
           alertData={upcomingAlert}

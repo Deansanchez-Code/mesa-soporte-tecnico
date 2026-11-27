@@ -53,6 +53,13 @@ describe("Seguridad PIN Kiosko VIP y clasificación de dominios", () => {
         job_category: "funcionario",
       }),
     ).toBe(false);
+    expect(
+      isPrivilegedKioskUser({
+        username: "egutierrezn",
+        role: "user",
+        job_category: "funcionario",
+      }),
+    ).toBe(false);
 
     expect(isInstitutionalDomainEmail("docente@sena.edu.co")).toBe(true);
     expect(isInstitutionalDomainEmail("contratista@gmail.com")).toBe(false);

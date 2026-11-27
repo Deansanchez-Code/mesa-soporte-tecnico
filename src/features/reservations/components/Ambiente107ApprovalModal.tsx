@@ -22,6 +22,7 @@ import {
 } from "@/features/reservations/actions/ambiente107ApprovalActions";
 import { getEnvironmentsGlobalConfigAction } from "@/features/reservations/actions/spaceConfigActions";
 import { SpaceCoordinatorAssignment } from "@/features/reservations/types";
+import { DEFAULT_SPACE_COORDINATORS } from "@/features/reservations/constants";
 
 import { supabase } from "@/lib/supabase/client";
 
@@ -42,8 +43,10 @@ interface PendingReservation {
 
 export default function Ambiente107ApprovalModal({
   userEmail,
+  canApprove = false,
 }: {
   userEmail: string;
+  canApprove?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [pending, setPending] = useState<PendingReservation[]>([]);
@@ -59,36 +62,32 @@ export default function Ambiente107ApprovalModal({
   } | null>(null);
   const [actionText, setActionText] = useState("");
 
-  const [authorizedEmails, setAuthorizedEmails] = useState<string[]>([
-    "nbarrerac@sena.edu.co",
-    "nbarrerac",
-    "dasanchezh@sena.edu.co",
-    "dasanchezh",
-  ]);
+  const [authorizedEmails, setAuthorizedEmails] = useState<string[]>([]);
 
   useEffect(() => {
     getEnvironmentsGlobalConfigAction().then((res) => {
-      if (res.config?.coordinators) {
-        const coords = res.config.coordinators as Record<
-          string,
-          SpaceCoordinatorAssignment
-        >;
-        const list = [
-          "nbarrerac@sena.edu.co",
-          "nbarrerac",
-          "dasanchezh@sena.edu.co",
-          "dasanchezh",
-        ];
-        const c4 = coords["4"];
-        const c5 = coords["5"];
-        if (c4?.email) list.push(c4.email.toLowerCase());
-        if (c4?.username) list.push(c4.username.toLowerCase());
-        if (c5?.email) list.push(c5.email.toLowerCase());
-        if (c5?.username) list.push(c5.username.toLowerCase());
-        setAuthorizedEmails(Array.from(new Set(list)));
+      const coords = (res.config?.coordinators || {}) as Record<
+        string,
+        SpaceCoordinatorAssignment
+      >;
+      const list = ["dasanchezh@sena.edu.co", "dasanchezh"];
+      for (const sid of ["4", "5"]) {
+        const coord = coords[sid];
+        if (coord) {
+          if (coord.email) list.push(coord.email.toLowerCase());
+          if (coord.username) list.push(coord.username.toLowerCase());
+        } else if (canApprove && DEFAULT_SPACE_COORDINATORS[sid]) {
+          if (DEFAULT_SPACE_COORDINATORS[sid].email) {
+            list.push(DEFAULT_SPACE_COORDINATORS[sid].email.toLowerCase());
+          }
+          if (DEFAULT_SPACE_COORDINATORS[sid].username) {
+            list.push(DEFAULT_SPACE_COORDINATORS[sid].username.toLowerCase());
+          }
+        }
       }
+      setAuthorizedEmails(Array.from(new Set(list)));
     });
-  }, []);
+  }, [canApprove]);
 
   useEffect(() => {
     if (userEmail) {
@@ -104,9 +103,11 @@ export default function Ambiente107ApprovalModal({
   }, [userEmail]);
 
   // Autorizados: Coordinadores dinámicos asignados (107 / Cocina), fallback institucional o SuperAdmin
-  const isCoordinator = authorizedEmails.some((allowed) =>
-    (detectedEmail || "").toLowerCase().includes(allowed.toLowerCase()),
-  );
+  const isCoordinator =
+    Boolean(canApprove) &&
+    authorizedEmails.some((allowed) =>
+      (detectedEmail || "").toLowerCase().includes(allowed.toLowerCase()),
+    );
 
   useEffect(() => {
     if (!isCoordinator) return;

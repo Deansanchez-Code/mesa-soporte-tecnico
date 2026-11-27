@@ -11,7 +11,7 @@ import { isValidUuid } from "@/lib/security";
 import {
   getSpaceDisplayName,
   isBackupAdminIdentity,
-  isCoordinatorPrivilegeUsername,
+  isDbCoordinator,
   resolveReservationUserEmail,
 } from "../rules/reservationHelpers";
 import { resolveAuthenticatedPublicUser } from "../services/reservationAuthServer";
@@ -53,6 +53,7 @@ export async function isUserSpaceCoordinator(
   username?: string | null,
   email?: string | null,
   spaceId?: string | number,
+  allowDefaultFallback = true,
 ): Promise<boolean> {
   const cleanU = (username || "").toLowerCase().trim();
   const cleanE = (email || "").toLowerCase().trim();
@@ -85,14 +86,23 @@ export async function isUserSpaceCoordinator(
 
     if (spaceId) {
       const sid = String(spaceId);
-      const coord = coordinators[sid] || DEFAULT_SPACE_COORDINATORS[sid];
-      if (coord && checkMatch(coord)) return true;
+      const explicitCoord = coordinators[sid];
+      if (explicitCoord) {
+        return checkMatch(explicitCoord);
+      }
+      if (allowDefaultFallback && DEFAULT_SPACE_COORDINATORS[sid]) {
+        return checkMatch(DEFAULT_SPACE_COORDINATORS[sid]);
+      }
       return false;
     }
 
     for (const sid of ["3", "4", "5"]) {
-      const coord = coordinators[sid] || DEFAULT_SPACE_COORDINATORS[sid];
-      if (coord && checkMatch(coord)) return true;
+      const explicitCoord = coordinators[sid];
+      if (explicitCoord) {
+        if (checkMatch(explicitCoord)) return true;
+      } else if (allowDefaultFallback && DEFAULT_SPACE_COORDINATORS[sid]) {
+        if (checkMatch(DEFAULT_SPACE_COORDINATORS[sid])) return true;
+      }
     }
   } catch (err) {
     console.error("Error en isUserSpaceCoordinator:", err);
@@ -163,15 +173,10 @@ export async function saveEnvironmentsTabOrderAction(
     if (!publicUser) throw new Error("No autenticado");
 
     const roleLower = (publicUser?.role || "").toLowerCase();
-    const jobCatLower = (publicUser?.job_category || "").toLowerCase();
     const cleanUsername = (publicUser?.username || "").toLowerCase().trim();
 
     const isSuperAdmin = roleLower === "superadmin";
-    const isCoordinator =
-      jobCatLower === "coordinador" ||
-      roleLower === "coordinator" ||
-      !!publicUser?.perm_manage_assignments ||
-      isCoordinatorPrivilegeUsername(cleanUsername);
+    const isCoordinator = isDbCoordinator(publicUser);
 
     if (!isSuperAdmin && !isCoordinator) {
       throw new Error(

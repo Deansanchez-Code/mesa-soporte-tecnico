@@ -42,9 +42,9 @@ import {
 import { toggleSpaceStatusBySuperAdminAction } from "@/features/reservations/actions/spaceConfigActions";
 import {
   SUBDIRECCION_AUTHORIZED_EMAIL,
-  isAmbiente107ApproverIdentity,
-  isLegacyCoordinatorUsername,
-  isLibraryVisibleIdentity,
+  isDbCoordinator,
+  isDbPrivilegedUser,
+  isLibraryStaffEmail,
 } from "@/features/reservations/rules/reservationHelpers";
 import {
   SpaceMaintenanceConfig,
@@ -448,11 +448,7 @@ export default function UserRequestForm({
     (user as never as { employment_type?: string })?.employment_type || ""
   ).toLowerCase();
 
-  const isCoordinator =
-    jobCatStr.includes("coordinador") ||
-    roleStr.includes("coordinator") ||
-    !!user?.perm_manage_assignments ||
-    isLegacyCoordinatorUsername(usernameStr);
+  const isCoordinator = isDbCoordinator(user);
 
   const isInstructor =
     jobCatStr.includes("instructor") ||
@@ -462,7 +458,7 @@ export default function UserRequestForm({
 
   const isPlanta = empTypeStr.includes("planta");
   const canSeeBiblioteca =
-    isLibraryVisibleIdentity(usernameStr, userEmail) ||
+    isLibraryStaffEmail(userEmail) ||
     isAdmin ||
     isCoordinator ||
     isInstructor ||
@@ -470,12 +466,7 @@ export default function UserRequestForm({
     isVip;
 
   const canSeeAmbiente107 =
-    isAmbiente107ApproverIdentity(usernameStr, userEmail) ||
-    isAdmin ||
-    isCoordinator ||
-    isInstructor ||
-    isPlanta ||
-    isVip;
+    isAdmin || isCoordinator || isInstructor || isPlanta || isVip;
 
   // --- VISTA DE SELECCIÓN (BENTO ASIMÉTRICO 12 COLUMNAS - IMPECCABLE DESIGN POLISH) ---
   if (view === "SELECTION") {
@@ -1100,8 +1091,14 @@ export default function UserRequestForm({
         </div>
 
         {/* Modal de Aprobaciones de Biblioteca y Ambiente 107 / Cocina */}
-        <LibraryApprovalModal userEmail={userEmail || usernameStr} />
-        <Ambiente107ApprovalModal userEmail={userEmail || usernameStr} />
+        <LibraryApprovalModal
+          userEmail={userEmail || usernameStr}
+          canApprove={isDbPrivilegedUser(user)}
+        />
+        <Ambiente107ApprovalModal
+          userEmail={userEmail || usernameStr}
+          canApprove={isDbPrivilegedUser(user)}
+        />
 
         {/* Modal de Pánico */}
         {showPanicModal && (
