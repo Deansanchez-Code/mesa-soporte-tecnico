@@ -10,6 +10,7 @@ import {
   Mail,
   Settings2,
   Loader2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase/client";
@@ -56,6 +57,7 @@ interface AuditoriumReservationFormProps {
   initialStartTime?: string;
   initialEndTime?: string;
   variant?: "default" | "split";
+  isModal?: boolean;
   onSelectionChange?: (selection: {
     spaceId: string;
     date: string;
@@ -83,6 +85,7 @@ export default function AuditoriumReservationForm({
   initialStartTime,
   initialEndTime,
   variant = "default",
+  isModal = false,
   onSelectionChange,
 }: AuditoriumReservationFormProps) {
   const isSplit = variant === "split";
@@ -765,18 +768,30 @@ export default function AuditoriumReservationForm({
           <div className="flex items-center gap-2.5">
             <span className="w-1.5 h-5 rounded-full bg-[#043263]" />
             <h3 className="text-sm font-extrabold text-slate-900 tracking-tight">
-              Solicitar Reserva
+              {reservationToEdit ? "Editar Reserva" : "Solicitar Reserva"}
             </h3>
           </div>
-          <span
-            className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
-              isPrerreservaSpace
-                ? "bg-amber-50 text-amber-800 border-amber-200"
-                : "bg-emerald-50 text-emerald-800 border-emerald-200"
-            }`}
-          >
-            {isPrerreservaSpace ? "Prerreserva" : "Confirmación Directa"}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                isPrerreservaSpace
+                  ? "bg-amber-50 text-amber-800 border-amber-200"
+                  : "bg-emerald-50 text-emerald-800 border-emerald-200"
+              }`}
+            >
+              {isPrerreservaSpace ? "Prerreserva" : "Confirmación Directa"}
+            </span>
+            {isModal && (
+              <button
+                type="button"
+                onClick={onCancel}
+                aria-label="Cerrar modal de reserva"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
       )}
 
