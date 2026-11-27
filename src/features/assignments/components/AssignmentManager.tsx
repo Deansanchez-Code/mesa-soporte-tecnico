@@ -113,6 +113,22 @@ export default function AssignmentManager({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReservationModalOpen, setIsReservationModalOpen] = useState(false);
 
+  useEffect(() => {
+    if (!isReservationModalOpen && !editingRes) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (isReservationModalOpen) {
+          setIsReservationModalOpen(false);
+          setSelectedDateForCreate(undefined);
+        } else if (editingRes) {
+          setEditingRes(null);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isReservationModalOpen, editingRes]);
+
   // Global Order & Disable Config State
   const [globalConfig, setGlobalConfig] = useState<EnvironmentsGlobalConfig>(
     DEFAULT_ENVIRONMENTS_CONFIG,
@@ -624,9 +640,19 @@ export default function AssignmentManager({
 
       {/* NEW RESERVATION MODAL */}
       {isReservationModalOpen && selectedEnv && user && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in">
-          <div className="bg-white w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsReservationModalOpen(false);
+              setSelectedDateForCreate(undefined);
+            }
+          }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in"
+        >
+          <div className="w-full max-w-2xl max-h-[90dvh] overflow-y-auto rounded-2xl shadow-2xl animate-in zoom-in-95">
             <AuditoriumReservationForm
+              variant="split"
+              isModal
               user={user}
               initialDate={selectedDateForCreate}
               initialSpace={
@@ -683,9 +709,18 @@ export default function AssignmentManager({
             };
 
             return (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in">
-                <div className="bg-white w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95">
+              <div
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) {
+                    setEditingRes(null);
+                  }
+                }}
+                className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in"
+              >
+                <div className="w-full max-w-2xl max-h-[90dvh] overflow-y-auto rounded-2xl shadow-2xl animate-in zoom-in-95">
                   <AuditoriumReservationForm
+                    variant="split"
+                    isModal
                     user={user}
                     reservationToEdit={reservationToEdit}
                     legacyAssignmentIdToReplace={
