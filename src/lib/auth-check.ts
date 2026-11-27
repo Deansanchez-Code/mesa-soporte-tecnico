@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/env";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
-import { isCoordinatorPrivilegeUsername } from "@/features/reservations/rules/reservationHelpers";
 
 const ALLOWED_PERMISSION_COLUMNS = new Set([
   "perm_manage_assignments",
@@ -116,14 +115,10 @@ export async function verifyUserPermissions(
     // Coordinators also have assignment management privileges
     if (safePermCol === "perm_manage_assignments") {
       const jobCat = String(userProfile.job_category || "").toLowerCase();
-      const uname = String(userProfile.username || "")
-        .toLowerCase()
-        .trim();
       if (
-        jobCat === "coordinador" ||
+        jobCat.includes("coordinador") ||
         roleLower === "coordinator" ||
-        Boolean(userProfile.is_vip) ||
-        isCoordinatorPrivilegeUsername(uname)
+        Boolean(userProfile.is_vip)
       ) {
         return true;
       }

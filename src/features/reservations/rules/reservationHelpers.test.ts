@@ -2,11 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   getSpaceDisplayName,
   hasValidDescription,
-  isAmbiente107ApproverIdentity,
   isBackupAdminIdentity,
-  isCoordinatorPrivilegeUsername,
-  isLegacyCoordinatorUsername,
-  isLibraryApproverIdentity,
+  isDbCoordinator,
+  isDbPrivilegedUser,
+  isLibraryStaffEmail,
   resolveReservationUserEmail,
 } from "./reservationHelpers";
 
@@ -37,18 +36,30 @@ describe("Helpers puros de reservas y coordinaciones", () => {
     expect(hasValidDescription("Video beam y sonido")).toBe(true);
   });
 
-  it("identifica nombres de espacios e identidades de coordinación", () => {
+  it("evalúa privilegios por campos autoritativos de BD y no por username hardcoded", () => {
     expect(getSpaceDisplayName("4")).toBe("Ambiente 107");
     expect(getSpaceDisplayName("5")).toBe("Ambiente de Cocina");
     expect(getSpaceDisplayName("99", "Sala Juntas")).toBe("Sala Juntas");
 
-    expect(isLegacyCoordinatorUsername("egutierrezn")).toBe(true);
-    expect(isCoordinatorPrivilegeUsername("dasanchezh")).toBe(true);
     expect(isBackupAdminIdentity("dasanchezh", null)).toBe(true);
-    expect(isLibraryApproverIdentity("egutierrezn", null)).toBe(true);
-    expect(isAmbiente107ApproverIdentity("nbarrerac", null)).toBe(true);
-    expect(isAmbiente107ApproverIdentity("jperez", "jperez@sena.edu.co")).toBe(
-      false,
+    expect(isLibraryStaffEmail("rbiblioteca@sistema.local")).toBe(true);
+    expect(isLibraryStaffEmail("egutierrezn@sistema.local")).toBe(false);
+
+    // Ex-coordinadora egutierrezn con flags revocados en BD no conserva privilegios
+    const revokedUser = {
+      role: "user",
+      job_category: "funcionario",
+      is_vip: false,
+      perm_manage_assignments: false,
+    };
+    expect(isDbCoordinator(revokedUser)).toBe(false);
+    expect(isDbPrivilegedUser(revokedUser)).toBe(false);
+
+    expect(isDbCoordinator({ perm_manage_assignments: true })).toBe(true);
+    expect(isDbCoordinator({ job_category: "Coordinador Académico" })).toBe(
+      true,
     );
+    expect(isDbPrivilegedUser({ is_vip: true, role: "user" })).toBe(true);
+    expect(isDbPrivilegedUser({ role: "admin" })).toBe(true);
   });
 });

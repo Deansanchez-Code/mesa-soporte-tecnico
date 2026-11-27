@@ -4,46 +4,16 @@ export const BACKUP_ADMIN_USERNAMES = [
   "dasanchezh",
 ] as const;
 
-export const LEGACY_COORDINATOR_USERNAMES = [
-  "nbarrerac",
-  "egutierrezn",
-  "emgutierrezn",
-] as const;
-
-export const COORDINATOR_PRIVILEGE_USERNAMES = [
-  "nbarrerac",
-  "egutierrezn",
-  "emgutierrezn",
-  "dasanchezh",
-] as const;
-
-export const LIBRARY_STAFF_EMAILS = [
-  "egutierrezn@sistema.local",
-  "rbiblioteca@sistema.local",
-] as const;
-
-export const LIBRARY_APPROVER_EMAILS = [
-  "dasanchezh@sena.edu.co",
-  "egutierrezn@sena.edu.co",
-  "egutierrezn@sistema.local",
-  "emgutierrezn@sena.edu.co",
-  "emgutierrezn@sistema.local",
-] as const;
-
-export const LIBRARY_STAFF_USERNAMES = [
-  "egutierrezn",
-  "rbiblioteca",
-  "emgutierrezn",
-] as const;
-
-export const AMBIENTE_107_APPROVER_IDENTIFIERS = [
-  "nbarrerac@sena.edu.co",
-  "nbarrerac",
-  "dasanchezh@sena.edu.co",
-  "dasanchezh",
-] as const;
+export const LIBRARY_STAFF_EMAILS = ["rbiblioteca@sistema.local"] as const;
 
 export const SUBDIRECCION_AUTHORIZED_EMAIL = "emgutierrezn@sena.edu.co";
+
+export interface DbPrivilegeSubject {
+  role?: string | null;
+  job_category?: string | null;
+  is_vip?: boolean | null;
+  perm_manage_assignments?: boolean | null;
+}
 
 function norm(value?: string | null): string {
   return String(value || "")
@@ -51,26 +21,24 @@ function norm(value?: string | null): string {
     .trim();
 }
 
-export function isLegacyCoordinatorUsername(username?: string | null): boolean {
-  const clean = norm(username);
-  return (LEGACY_COORDINATOR_USERNAMES as readonly string[]).includes(clean);
+export function isDbCoordinator(user?: DbPrivilegeSubject | null): boolean {
+  if (!user) return false;
+  const role = norm(user.role);
+  const jobCat = norm(user.job_category);
+  return (
+    role === "coordinator" ||
+    jobCat.includes("coordinador") ||
+    Boolean(user.perm_manage_assignments)
+  );
 }
 
-export function isCoordinatorPrivilegeUsername(
-  username?: string | null,
-): boolean {
-  const clean = norm(username);
-  return (COORDINATOR_PRIVILEGE_USERNAMES as readonly string[]).includes(clean);
-}
-
-export function isCoordinatorIdentityMatch(
-  username?: string | null,
-  email?: string | null,
-): boolean {
-  const cleanU = norm(username);
-  const cleanE = norm(email);
-  return COORDINATOR_PRIVILEGE_USERNAMES.some(
-    (allowed) => cleanU.includes(allowed) || cleanE.includes(allowed),
+export function isDbPrivilegedUser(user?: DbPrivilegeSubject | null): boolean {
+  if (!user) return false;
+  const role = norm(user.role);
+  return (
+    ["admin", "superadmin", "coordinator", "vip"].includes(role) ||
+    Boolean(user.is_vip) ||
+    isDbCoordinator(user)
   );
 }
 
@@ -88,43 +56,6 @@ export function isBackupAdminIdentity(
 
 export function isLibraryStaffEmail(email?: string | null): boolean {
   return (LIBRARY_STAFF_EMAILS as readonly string[]).includes(norm(email));
-}
-
-export function isLibraryApproverIdentity(
-  username?: string | null,
-  email?: string | null,
-): boolean {
-  const cleanU = norm(username);
-  const cleanE = norm(email);
-  return (
-    (LIBRARY_APPROVER_EMAILS as readonly string[]).includes(cleanE) ||
-    (LIBRARY_STAFF_USERNAMES as readonly string[]).includes(cleanU)
-  );
-}
-
-export function isLibraryVisibleIdentity(
-  username?: string | null,
-  email?: string | null,
-): boolean {
-  const cleanU = norm(username);
-  const cleanE = norm(email);
-  return (
-    (
-      [...LIBRARY_STAFF_EMAILS, "emgutierrezn@sena.edu.co"] as readonly string[]
-    ).includes(cleanE) ||
-    (LIBRARY_STAFF_USERNAMES as readonly string[]).includes(cleanU)
-  );
-}
-
-export function isAmbiente107ApproverIdentity(
-  username?: string | null,
-  email?: string | null,
-): boolean {
-  const cleanU = norm(username);
-  const cleanE = norm(email);
-  return AMBIENTE_107_APPROVER_IDENTIFIERS.some(
-    (allowed) => cleanE.includes(allowed) || cleanU.includes(allowed),
-  );
 }
 
 export function hasValidDescription(desc: string | null | undefined): boolean {

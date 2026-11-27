@@ -32,7 +32,7 @@ import {
   toggleSpaceStatusBySuperAdminAction,
 } from "@/features/reservations/actions/spaceConfigActions";
 import {
-  isCoordinatorPrivilegeUsername,
+  isDbCoordinator,
   isLibraryStaffEmail,
 } from "@/features/reservations/rules/reservationHelpers";
 import {
@@ -150,15 +150,9 @@ export default function AssignmentManager({
       }
     | undefined;
   const userRoleLower = (uProfile?.role || "").toLowerCase();
-  const userJobCatLower = (uProfile?.job_category || "").toLowerCase();
-  const userCleanUsername = (uProfile?.username || "").toLowerCase().trim();
 
   const isSuperAdmin = userRoleLower === "superadmin";
-  const isCoordinator =
-    userJobCatLower === "coordinador" ||
-    userRoleLower === "coordinator" ||
-    !!uProfile?.perm_manage_assignments ||
-    isCoordinatorPrivilegeUsername(userCleanUsername);
+  const isCoordinator = isDbCoordinator(uProfile);
 
   // REGLA 1: Solo las Coordinaciones y el SuperAdmin pueden modificar y fijar el orden de las pestañas
   const canReorderTabs = isCoordinator || isSuperAdmin;

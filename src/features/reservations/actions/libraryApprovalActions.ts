@@ -12,7 +12,7 @@ import {
 } from "./spaceConfigActions";
 import {
   isBackupAdminIdentity,
-  isLibraryApproverIdentity,
+  isDbPrivilegedUser,
   resolveReservationUserEmail,
 } from "../rules/reservationHelpers";
 import { createTicketForApprovedReservation } from "../services/reservationTicketService";
@@ -28,7 +28,9 @@ async function verifyLibraryCoordinator() {
   const supabaseAdmin = getSupabaseAdmin();
   const { data: publicUser } = await supabaseAdmin
     .from("users")
-    .select("username, email, role, is_active")
+    .select(
+      "username, email, role, job_category, is_vip, perm_manage_assignments, is_active",
+    )
     .eq("auth_id", user.id)
     .maybeSingle();
 
@@ -48,13 +50,15 @@ async function verifyLibraryCoordinator() {
     return;
   }
 
-  const isDynamicCoord = await isUserSpaceCoordinator(username, email, "3");
+  const hasDbPrivilege = isDbPrivilegedUser(publicUser);
+  const isDynamicCoord = await isUserSpaceCoordinator(
+    username,
+    email,
+    "3",
+    hasDbPrivilege,
+  );
 
-  if (
-    !isDynamicCoord &&
-    !isLibraryApproverIdentity(username, email) &&
-    role !== "coordinator"
-  ) {
+  if (!isDynamicCoord && role !== "coordinator") {
     throw new Error("No autorizado para gestionar reservas de biblioteca");
   }
 }

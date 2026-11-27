@@ -24,7 +24,7 @@ import {
   deleteInstructorAssignmentAction,
 } from "../actions/assignmentAdminActions";
 import { assignSpaceCoordinatorAction } from "../actions/spaceConfigActions";
-import { isCoordinatorIdentityMatch } from "../rules/reservationHelpers";
+import { isDbPrivilegedUser } from "../rules/reservationHelpers";
 import { DEFAULT_SPACE_COORDINATORS } from "../constants";
 
 import { UserProfile } from "@/features/auth/hooks/useUserProfile";
@@ -276,28 +276,7 @@ export default function AuditoriumReservationForm({
     ((user?.role as string) || "").toLowerCase() === "superadmin";
 
   // Verificar si el usuario actual es Coordinador(a) o Administrador para permitir asignar reservas a terceros
-  const canAssignToOthers = (() => {
-    const u = user as {
-      role?: string;
-      job_category?: string;
-      perm_manage_assignments?: boolean;
-      is_vip?: boolean;
-      username?: string;
-      email?: string;
-    } | null;
-    if (!u) return false;
-    const role = (u.role || "").toLowerCase();
-    const jobCat = (u.job_category || "").toLowerCase();
-    const uname = (u.username || "").toLowerCase();
-    const email = (u.email || "").toLowerCase();
-    return (
-      ["admin", "superadmin", "coordinator", "vip"].includes(role) ||
-      jobCat.includes("coordinador") ||
-      !!u.perm_manage_assignments ||
-      !!u.is_vip ||
-      isCoordinatorIdentityMatch(uname, email)
-    );
-  })();
+  const canAssignToOthers = isDbPrivilegedUser(user);
 
   useEffect(() => {
     if (user?.id && !reservationToEdit) {

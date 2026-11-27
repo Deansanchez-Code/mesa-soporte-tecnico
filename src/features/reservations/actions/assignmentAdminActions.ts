@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import { isCoordinatorPrivilegeUsername } from "../rules/reservationHelpers";
+import { isDbPrivilegedUser } from "../rules/reservationHelpers";
 import { resolveAuthenticatedPublicUser } from "../services/reservationAuthServer";
 
 export interface AssignableUser {
@@ -28,7 +28,9 @@ export async function getAssignableUsersAction(accessToken?: string): Promise<{
 }> {
   try {
     const caller = await resolveAuthenticatedPublicUser(accessToken);
-    if (!caller) return { success: false, users: [] };
+    if (!caller || !isDbPrivilegedUser(caller)) {
+      return { success: false, users: [] };
+    }
 
     const adminSupabase = getSupabaseAdmin();
     const { data, error } = await adminSupabase
@@ -71,15 +73,7 @@ export async function updateInstructorAssignmentAction(params: {
       .eq("auth_id", authUser.id)
       .single();
 
-    const cleanUsername = (publicUser?.username || "").toLowerCase().trim();
-    const canManage =
-      ["admin", "superadmin", "coordinator", "vip"].includes(
-        (publicUser?.role || "").toLowerCase(),
-      ) ||
-      (publicUser?.job_category || "").toLowerCase() === "coordinador" ||
-      !!publicUser?.perm_manage_assignments ||
-      !!publicUser?.is_vip ||
-      isCoordinatorPrivilegeUsername(cleanUsername);
+    const canManage = isDbPrivilegedUser(publicUser);
 
     if (!canManage) {
       throw new Error(
@@ -153,15 +147,7 @@ export async function deleteInstructorAssignmentAction(assignmentId: number) {
       .eq("auth_id", authUser.id)
       .single();
 
-    const cleanUsername = (publicUser?.username || "").toLowerCase().trim();
-    const canManage =
-      ["admin", "superadmin", "coordinator", "vip"].includes(
-        (publicUser?.role || "").toLowerCase(),
-      ) ||
-      (publicUser?.job_category || "").toLowerCase() === "coordinador" ||
-      !!publicUser?.perm_manage_assignments ||
-      !!publicUser?.is_vip ||
-      isCoordinatorPrivilegeUsername(cleanUsername);
+    const canManage = isDbPrivilegedUser(publicUser);
 
     if (!canManage) {
       throw new Error("No tienes permisos para eliminar asignaciones");

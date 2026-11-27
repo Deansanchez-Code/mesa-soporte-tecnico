@@ -25,8 +25,7 @@ import {
 import {
   getSpaceDisplayName,
   hasValidDescription,
-  isAmbiente107ApproverIdentity,
-  isCoordinatorPrivilegeUsername,
+  isDbCoordinator,
   isLibraryStaffEmail,
   resolveReservationUserEmail,
 } from "../rules/reservationHelpers";
@@ -387,12 +386,7 @@ export async function createReservationAction(
       .single();
 
     const publicUser = publicUserRaw as unknown as PublicUser;
-    const cleanUsername = (publicUser?.username || "").toLowerCase().trim();
-    const isCoordinator =
-      !!publicUser?.perm_manage_assignments ||
-      publicUser?.job_category?.toLowerCase() === "coordinador" ||
-      publicUser?.role?.toLowerCase() === "coordinator" ||
-      isCoordinatorPrivilegeUsername(cleanUsername);
+    const isCoordinator = isDbCoordinator(publicUser);
 
     if (publicUser?.id !== user_id && authUser.id !== user_id) {
       const isAdmin = ["admin", "superadmin"].includes(
@@ -638,7 +632,6 @@ export async function createReservationAction(
       // Regla de Negocio: Ambiente 107 (ID 4) y Ambiente de Cocina (ID 5) (Coordinadora: Nury Mildret Barrera nbarrerac@sena.edu.co)
       const spaceLabel =
         currentSpace === "5" ? "Ambiente de Cocina" : "Ambiente 107";
-      const userEmail = (publicUser?.email || "").toLowerCase();
       const isAdmin = ["admin", "superadmin"].includes(
         publicUser?.role?.toLowerCase() || "",
       );
@@ -657,9 +650,7 @@ export async function createReservationAction(
         ?.toLowerCase()
         .includes("planta");
 
-      const isStaff107 =
-        isAmbiente107ApproverIdentity(cleanUsername, userEmail) ||
-        isCoordinator;
+      const isStaff107 = isCoordinator;
 
       if (!isStaff107 && !isAdmin && !isVip && !isInstructor && !isPlanta) {
         throw new Error(
@@ -961,12 +952,7 @@ export async function updateReservationAction(
       .eq("auth_id", authUser.id)
       .single();
 
-    const cleanUsername = (publicUser?.username || "").toLowerCase().trim();
-    const isCoordinator =
-      !!publicUser?.perm_manage_assignments ||
-      publicUser?.job_category?.toLowerCase() === "coordinador" ||
-      publicUser?.role?.toLowerCase() === "coordinator" ||
-      isCoordinatorPrivilegeUsername(cleanUsername);
+    const isCoordinator = isDbCoordinator(publicUser);
 
     const isOwner = publicUser?.id === existing.user_id;
     const isVip =
@@ -1159,12 +1145,7 @@ export async function createReservationBatchAction(
       throw new Error("Usuario no encontrado en base de datos");
 
     const publicUser = publicUserRaw as unknown as PublicUser;
-    const cleanUsername = (publicUser.username || "").toLowerCase().trim();
-    const isCoordinator =
-      !!publicUser.perm_manage_assignments ||
-      publicUser.job_category?.toLowerCase() === "coordinador" ||
-      publicUser.role?.toLowerCase() === "coordinator" ||
-      isCoordinatorPrivilegeUsername(cleanUsername);
+    const isCoordinator = isDbCoordinator(publicUser);
 
     const isVip =
       !!publicUser.is_vip ||
@@ -1415,7 +1396,6 @@ export async function createReservationBatchAction(
       } else if (targetSpace === "4" || targetSpace === "5") {
         const spaceLabel =
           targetSpace === "5" ? "Ambiente de Cocina" : "Ambiente 107";
-        const userEmail = (publicUser.email || "").toLowerCase();
         const isInstructor =
           (publicUser.job_category || "")
             .toLowerCase()
@@ -1429,9 +1409,7 @@ export async function createReservationBatchAction(
           ?.toLowerCase()
           .includes("planta");
 
-        const isStaff107 =
-          isAmbiente107ApproverIdentity(cleanUsername, userEmail) ||
-          isCoordinator;
+        const isStaff107 = isCoordinator;
 
         if (!isStaff107 && !isAdmin && !isVip && !isInstructor && !isPlanta) {
           throw new Error(

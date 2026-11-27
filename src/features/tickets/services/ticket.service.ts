@@ -5,7 +5,6 @@ import { SlaService } from "./sla.service";
 import Logger from "@/lib/logger";
 import { Database } from "@/types/supabase";
 import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
-import { isLegacyCoordinatorUsername } from "@/features/reservations/rules/reservationHelpers";
 
 type TicketRow = Database["public"]["Tables"]["tickets"]["Row"];
 type CreatedTicketSummary = Pick<
@@ -79,8 +78,7 @@ export class TicketService {
 
     const isVip =
       !!publicUser.is_vip ||
-      publicUser.job_category?.toLowerCase() === "coordinador" ||
-      isLegacyCoordinatorUsername(publicUser.username);
+      publicUser.job_category?.toLowerCase().includes("coordinador");
 
     // 2. Determinar estado inicial y SLA Status
     const { status, slaStatus } = SlaService.determineInitialStatus(

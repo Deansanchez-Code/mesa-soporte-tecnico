@@ -11,8 +11,8 @@ import {
   getSpaceCoordinator,
 } from "./spaceConfigActions";
 import {
-  isAmbiente107ApproverIdentity,
   isBackupAdminIdentity,
+  isDbPrivilegedUser,
   resolveReservationUserEmail,
 } from "../rules/reservationHelpers";
 import {
@@ -31,7 +31,9 @@ async function verifyAmbiente107Coordinator(spaceId?: string | number) {
   const supabaseAdmin = getSupabaseAdmin();
   const { data: publicUser } = await supabaseAdmin
     .from("users")
-    .select("username, email, role, job_category, is_active")
+    .select(
+      "username, email, role, job_category, is_vip, perm_manage_assignments, is_active",
+    )
     .eq("auth_id", user.id)
     .maybeSingle();
 
@@ -52,15 +54,24 @@ async function verifyAmbiente107Coordinator(spaceId?: string | number) {
     return { isSuperAdmin: true, allowedSpaces: ["4", "5"] };
   }
 
-  const isCoord4 = await isUserSpaceCoordinator(username, email, "4");
-  const isCoord5 = await isUserSpaceCoordinator(username, email, "5");
-
-  const isExplicitAllowed = isAmbiente107ApproverIdentity(username, email);
+  const hasDbPrivilege = isDbPrivilegedUser(publicUser);
+  const isCoord4 = await isUserSpaceCoordinator(
+    username,
+    email,
+    "4",
+    hasDbPrivilege,
+  );
+  const isCoord5 = await isUserSpaceCoordinator(
+    username,
+    email,
+    "5",
+    hasDbPrivilege,
+  );
 
   const allowedSpaces: string[] = [];
-  if (isCoord4 || isExplicitAllowed) allowedSpaces.push("4");
-  if (isCoord5 || isExplicitAllowed) allowedSpaces.push("5");
-  if (role === "coordinator" || jobCategory === "coordinador") {
+  if (isCoord4) allowedSpaces.push("4");
+  if (isCoord5) allowedSpaces.push("5");
+  if (role === "coordinator" || jobCategory.includes("coordinador")) {
     if (!allowedSpaces.includes("4")) allowedSpaces.push("4");
     if (!allowedSpaces.includes("5")) allowedSpaces.push("5");
   }

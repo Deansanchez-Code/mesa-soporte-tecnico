@@ -24,6 +24,7 @@ import {
 } from "@/features/reservations/actions/libraryApprovalActions";
 import { getEnvironmentsGlobalConfigAction } from "@/features/reservations/actions/spaceConfigActions";
 import { SpaceCoordinatorAssignment } from "@/features/reservations/types";
+import { DEFAULT_SPACE_COORDINATORS } from "@/features/reservations/constants";
 
 interface PendingReservation {
   id: number;
@@ -40,8 +41,10 @@ interface PendingReservation {
 
 export default function LibraryApprovalModal({
   userEmail,
+  canApprove = false,
 }: {
   userEmail: string;
+  canApprove?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [pending, setPending] = useState<PendingReservation[]>([]);
@@ -56,41 +59,36 @@ export default function LibraryApprovalModal({
   } | null>(null);
   const [actionText, setActionText] = useState("");
 
-  const [authorizedEmails, setAuthorizedEmails] = useState<string[]>([
-    "dasanchezh@sena.edu.co",
-    "dasanchezh",
-    "egutierrezn@sena.edu.co",
-    "egutierrezn@sistema.local",
-    "emgutierrezn@sena.edu.co",
-    "emgutierrezn@sistema.local",
-  ]);
+  const [authorizedEmails, setAuthorizedEmails] = useState<string[]>([]);
 
   useEffect(() => {
     getEnvironmentsGlobalConfigAction().then((res) => {
-      if (res.config?.coordinators) {
-        const coords = res.config.coordinators as Record<
-          string,
-          SpaceCoordinatorAssignment
-        >;
-        const list = [
-          "dasanchezh@sena.edu.co",
-          "dasanchezh",
-          "egutierrezn@sena.edu.co",
-          "egutierrezn@sistema.local",
-          "emgutierrezn@sena.edu.co",
-          "emgutierrezn@sistema.local",
-        ];
-        const c3 = coords["3"];
-        if (c3?.email) list.push(c3.email.toLowerCase());
-        if (c3?.username) list.push(c3.username.toLowerCase());
-        setAuthorizedEmails(Array.from(new Set(list)));
+      const coords = (res.config?.coordinators || {}) as Record<
+        string,
+        SpaceCoordinatorAssignment
+      >;
+      const list = ["dasanchezh@sena.edu.co", "dasanchezh"];
+      const c3 = coords["3"];
+      if (c3) {
+        if (c3.email) list.push(c3.email.toLowerCase());
+        if (c3.username) list.push(c3.username.toLowerCase());
+      } else if (canApprove && DEFAULT_SPACE_COORDINATORS["3"]) {
+        if (DEFAULT_SPACE_COORDINATORS["3"].email) {
+          list.push(DEFAULT_SPACE_COORDINATORS["3"].email.toLowerCase());
+        }
+        if (DEFAULT_SPACE_COORDINATORS["3"].username) {
+          list.push(DEFAULT_SPACE_COORDINATORS["3"].username.toLowerCase());
+        }
       }
+      setAuthorizedEmails(Array.from(new Set(list)));
     });
-  }, []);
+  }, [canApprove]);
 
-  const isCoordinator = authorizedEmails.some((allowed) =>
-    (userEmail || "").toLowerCase().includes(allowed.toLowerCase()),
-  );
+  const isCoordinator =
+    Boolean(canApprove) &&
+    authorizedEmails.some((allowed) =>
+      (userEmail || "").toLowerCase().includes(allowed.toLowerCase()),
+    );
 
   useEffect(() => {
     if (!isCoordinator) return;
