@@ -20,7 +20,7 @@ import {
   cancelAmbiente107Reservation,
   suggestModification107Action,
 } from "@/features/reservations/actions/ambiente107ApprovalActions";
-import { getEnvironmentsGlobalConfigAction } from "@/features/reservations/actions/reservationActions";
+import { getEnvironmentsGlobalConfigAction } from "@/features/reservations/actions/spaceConfigActions";
 import { SpaceCoordinatorAssignment } from "@/features/reservations/types";
 
 import { supabase } from "@/lib/supabase/client";

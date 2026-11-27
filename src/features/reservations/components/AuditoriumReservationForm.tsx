@@ -21,8 +21,9 @@ import {
   getAssignableUsersAction,
   AssignableUser,
   deleteInstructorAssignmentAction,
-  assignSpaceCoordinatorAction,
-} from "../actions/reservationActions";
+} from "../actions/assignmentAdminActions";
+import { assignSpaceCoordinatorAction } from "../actions/spaceConfigActions";
+import { isCoordinatorIdentityMatch } from "../rules/reservationHelpers";
 import { DEFAULT_SPACE_COORDINATORS } from "../constants";
 
 import { UserProfile } from "@/features/auth/hooks/useUserProfile";
@@ -291,9 +292,7 @@ export default function AuditoriumReservationForm({
       jobCat.includes("coordinador") ||
       !!u.perm_manage_assignments ||
       !!u.is_vip ||
-      ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].some(
-        (allowed) => uname.includes(allowed) || email.includes(allowed),
-      )
+      isCoordinatorIdentityMatch(uname, email)
     );
   })();
 

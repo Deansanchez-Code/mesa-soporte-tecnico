@@ -16,6 +16,7 @@ import { getSLAHours, calculateSLADueDate } from "@/lib/domain/sla-calculator";
 import { Ticket } from "@/app/admin/admin.types";
 import Logger from "@/lib/logger";
 import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
+import { isLegacyCoordinatorUsername } from "@/features/reservations/rules/reservationHelpers";
 
 export async function createTicketAction(data: CreateTicketInput) {
   try {
@@ -76,9 +77,7 @@ export async function createTicketsBatchAction(
       !!creatorUser?.is_vip ||
       !!creatorUser?.perm_manage_assignments ||
       creatorUser?.job_category?.toLowerCase() === "coordinador" ||
-      ["nbarrerac", "egutierrezn", "emgutierrezn"].includes(
-        (creatorUser?.username || "").toLowerCase().trim(),
-      );
+      isLegacyCoordinatorUsername(creatorUser?.username);
 
     // ISO 27001 A.8.2: Solo personal autorizado/VIP puede generar tickets/SLA a nombre de terceros
     const requestedUserId = ticketsData[0]?.user_id;
@@ -110,15 +109,11 @@ export async function createTicketsBatchAction(
     const creatorIsVip =
       !!creatorUser?.is_vip ||
       creatorUser?.job_category?.toLowerCase() === "coordinador" ||
-      ["nbarrerac", "egutierrezn", "emgutierrezn"].includes(
-        (creatorUser?.username || "").toLowerCase().trim(),
-      );
+      isLegacyCoordinatorUsername(creatorUser?.username);
     const targetIsVip =
       !!targetPublicUser?.is_vip ||
       targetPublicUser?.job_category?.toLowerCase() === "coordinador" ||
-      ["nbarrerac", "egutierrezn", "emgutierrezn"].includes(
-        (targetPublicUser?.username || "").toLowerCase().trim(),
-      );
+      isLegacyCoordinatorUsername(targetPublicUser?.username);
 
     const isVip = creatorIsPrivileged
       ? creatorIsVip || targetIsVip

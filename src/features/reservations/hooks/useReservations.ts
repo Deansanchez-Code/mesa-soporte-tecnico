@@ -7,8 +7,8 @@ import {
   createReservationAction,
   updateReservationAction,
   createReservationBatchAction,
-  syncReservationTicketAction,
 } from "../actions/reservationActions";
+import { syncReservationTicketAction } from "../actions/assignmentAdminActions";
 import { ReservationSchema } from "../schemas";
 import { z } from "zod";
 import {

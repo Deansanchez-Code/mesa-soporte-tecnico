@@ -26,9 +26,15 @@ import {
   getAssignableUsersAction,
   AssignableUser,
   updateInstructorAssignmentAction,
+} from "@/features/reservations/actions/assignmentAdminActions";
+import {
   saveEnvironmentsTabOrderAction,
   toggleSpaceStatusBySuperAdminAction,
-} from "@/features/reservations/actions/reservationActions";
+} from "@/features/reservations/actions/spaceConfigActions";
+import {
+  isCoordinatorPrivilegeUsername,
+  isLibraryStaffEmail,
+} from "@/features/reservations/rules/reservationHelpers";
 import {
   getEnvironmentsGlobalConfig,
   getAllSpacesMaintenanceConfig,
@@ -135,9 +141,7 @@ export default function AssignmentManager({
     userJobCatLower === "coordinador" ||
     userRoleLower === "coordinator" ||
     !!uProfile?.perm_manage_assignments ||
-    ["nbarrerac", "egutierrezn", "emgutierrezn", "dasanchezh"].includes(
-      userCleanUsername,
-    );
+    isCoordinatorPrivilegeUsername(userCleanUsername);
 
   // REGLA 1: Solo las Coordinaciones y el SuperAdmin pueden modificar y fijar el orden de las pestañas
   const canReorderTabs = isCoordinator || isSuperAdmin;
@@ -463,10 +467,7 @@ export default function AssignmentManager({
                         const isAdmin = ["admin", "superadmin"].includes(
                           userRole,
                         );
-                        const isAllowed = [
-                          "egutierrezn@sistema.local",
-                          "rbiblioteca@sistema.local",
-                        ].includes(userEmail);
+                        const isAllowed = isLibraryStaffEmail(userEmail);
 
                         if (
                           !isAllowed &&

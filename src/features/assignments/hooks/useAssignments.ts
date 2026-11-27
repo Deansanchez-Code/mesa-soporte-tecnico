@@ -6,10 +6,8 @@ import { toast } from "sonner";
 import { formatDateForDB, TimeBlock } from "@/lib/scheduling";
 
 import { Assignment } from "../types";
-import {
-  cancelReservationAction,
-  deleteInstructorAssignmentAction,
-} from "@/features/reservations/actions/reservationActions";
+import { cancelReservationAction } from "@/features/reservations/actions/reservationActions";
+import { deleteInstructorAssignmentAction } from "@/features/reservations/actions/assignmentAdminActions";
 import {
   getTimeBlockBounds,
   mapAreaNameToSpaceId,

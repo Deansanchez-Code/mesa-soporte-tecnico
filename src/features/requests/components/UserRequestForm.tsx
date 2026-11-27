@@ -39,7 +39,13 @@ import {
   DEFAULT_ENVIRONMENTS_CONFIG,
   resolveSpaceDisplayName,
 } from "@/features/reservations/services/maintenanceService";
-import { toggleSpaceStatusBySuperAdminAction } from "@/features/reservations/actions/reservationActions";
+import { toggleSpaceStatusBySuperAdminAction } from "@/features/reservations/actions/spaceConfigActions";
+import {
+  SUBDIRECCION_AUTHORIZED_EMAIL,
+  isAmbiente107ApproverIdentity,
+  isLegacyCoordinatorUsername,
+  isLibraryVisibleIdentity,
+} from "@/features/reservations/rules/reservationHelpers";
 import {
   SpaceMaintenanceConfig,
   EnvironmentsGlobalConfig,
@@ -427,7 +433,7 @@ export default function UserRequestForm({
     isVip ||
     isAdmin ||
     ((user?.email as string) || "").toLowerCase() ===
-      "emgutierrezn@sena.edu.co";
+      SUBDIRECCION_AUTHORIZED_EMAIL;
 
   const userEmail = ((user?.email as string) || "").toLowerCase();
   const usernameStr = ((user?.username as string) || "").toLowerCase();
@@ -446,7 +452,7 @@ export default function UserRequestForm({
     jobCatStr.includes("coordinador") ||
     roleStr.includes("coordinator") ||
     !!user?.perm_manage_assignments ||
-    ["nbarrerac", "egutierrezn", "emgutierrezn"].includes(usernameStr);
+    isLegacyCoordinatorUsername(usernameStr);
 
   const isInstructor =
     jobCatStr.includes("instructor") ||
@@ -456,12 +462,7 @@ export default function UserRequestForm({
 
   const isPlanta = empTypeStr.includes("planta");
   const canSeeBiblioteca =
-    [
-      "egutierrezn@sistema.local",
-      "rbiblioteca@sistema.local",
-      "emgutierrezn@sena.edu.co",
-    ].includes(userEmail) ||
-    ["egutierrezn", "rbiblioteca", "emgutierrezn"].includes(usernameStr) ||
+    isLibraryVisibleIdentity(usernameStr, userEmail) ||
     isAdmin ||
     isCoordinator ||
     isInstructor ||
@@ -469,10 +470,7 @@ export default function UserRequestForm({
     isVip;
 
   const canSeeAmbiente107 =
-    ["nbarrerac@sena.edu.co", "dasanchezh@sena.edu.co"].some((mail) =>
-      userEmail.includes(mail.toLowerCase()),
-    ) ||
-    ["nbarrerac", "dasanchezh"].includes(usernameStr) ||
+    isAmbiente107ApproverIdentity(usernameStr, userEmail) ||
     isAdmin ||
     isCoordinator ||
     isInstructor ||

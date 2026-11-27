@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { isLegacyCoordinatorUsername } from "@/features/reservations/rules/reservationHelpers";
 
 export const KIOSK_PIN_REGEX = /^\d{6}$/;
 
@@ -35,10 +36,7 @@ export function isPrivilegedKioskUser(user: KioskIdentityCandidate): boolean {
   if (jobCatLower.includes("coordinador")) {
     return true;
   }
-  if (
-    user.is_vip !== false &&
-    ["nbarrerac", "egutierrezn", "emgutierrezn"].includes(usernameLower)
-  ) {
+  if (user.is_vip !== false && isLegacyCoordinatorUsername(usernameLower)) {
     return true;
   }
   return false;
