@@ -33,14 +33,52 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import QRGenerator from "@/features/tickets/components/QRGenerator";
-import AgentsTab from "@/features/users/components/AgentsTab";
-import StaffTab from "@/features/users/components/StaffTab";
-import ContractorsTab from "@/features/contractors/components/ContractorsTab";
-import MetricsTab from "@/features/monitoring/components/MetricsTab";
-import ShiftsTab from "@/features/shifts/components/ShiftsTab";
-import AuditTab from "@/features/audit/components/AuditTab";
+import dynamic from "next/dynamic";
+import { useQueryClient } from "@tanstack/react-query";
 import { NativeDialog } from "@/components/ui/NativeDialog";
+
+function TabLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center p-12 text-slate-500 gap-2">
+      <Loader2 className="w-5 h-5 animate-spin text-[#39A900]" />
+      <span className="text-sm font-medium">Cargando módulo...</span>
+    </div>
+  );
+}
+
+const QRGenerator = dynamic(
+  () => import("@/features/tickets/components/QRGenerator"),
+  { ssr: false, loading: () => <TabLoadingFallback /> },
+);
+const AgentsTab = dynamic(
+  () => import("@/features/users/components/AgentsTab"),
+  { ssr: false, loading: () => <TabLoadingFallback /> },
+);
+const StaffTab = dynamic(() => import("@/features/users/components/StaffTab"), {
+  ssr: false,
+  loading: () => <TabLoadingFallback />,
+});
+const ContractorsTab = dynamic(
+  () => import("@/features/contractors/components/ContractorsTab"),
+  { ssr: false, loading: () => <TabLoadingFallback /> },
+);
+const MetricsTab = dynamic(
+  () => import("@/features/monitoring/components/MetricsTab"),
+  { ssr: false, loading: () => <TabLoadingFallback /> },
+);
+const ShiftsTab = dynamic(
+  () => import("@/features/shifts/components/ShiftsTab"),
+  { ssr: false, loading: () => <TabLoadingFallback /> },
+);
+const AuditTab = dynamic(() => import("@/features/audit/components/AuditTab"), {
+  ssr: false,
+  loading: () => <TabLoadingFallback />,
+});
+const DraggableDashboard = dynamic(
+  () =>
+    import("@/features/monitoring/components/Dashboards/DraggableDashboard"),
+  { ssr: false, loading: () => <TabLoadingFallback /> },
+);
 import {
   getAllSpacesMaintenanceAction,
   saveSpaceMaintenanceAction,
@@ -71,7 +109,6 @@ import {
   TicketFilterType,
 } from "@/app/admin/admin.types";
 import { TicketsTableSkeleton } from "@/components/ui/skeletons/TicketsTableSkeleton";
-import DraggableDashboard from "@/features/monitoring/components/Dashboards/DraggableDashboard";
 import AssetHistoryTimeline from "@/features/assets/components/AssetHistoryTimeline";
 
 const AssetHistoryModal = React.lazy(
@@ -97,6 +134,7 @@ import { useUserProfile } from "@/features/auth/hooks/useUserProfile";
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user: sbUser, profile } = useUserProfile();
 
   const currentUser = useMemo(() => {
@@ -394,7 +432,7 @@ export default function AdminDashboard() {
     }
 
     alert("Agente asignado correctamente.");
-    fetchData(); // Refresh list
+    void queryClient.invalidateQueries({ queryKey: ["tickets"] });
   };
 
   // Función para agregar comentario/trazabilidad
@@ -421,7 +459,7 @@ export default function AdminDashboard() {
       .update({ updated_at: new Date().toISOString() })
       .eq("id", ticketId);
 
-    fetchData(); // Refresh list (background)
+    void queryClient.invalidateQueries({ queryKey: ["tickets"] });
   };
 
   // Función para actualizar estado con trazabilidad
@@ -464,7 +502,7 @@ export default function AdminDashboard() {
       ...selectedTicket,
       status: newStatus,
     });
-    fetchData();
+    void queryClient.invalidateQueries({ queryKey: ["tickets"] });
   };
 
   // --- 1. CARGA INICIAL DE DATOS ---
@@ -580,7 +618,11 @@ export default function AdminDashboard() {
   }, [currentUser, router, totalTicketsCount]);
 
   useEffect(() => {
-    if (currentUser) fetchData();
+    if (!currentUser) return;
+    const timer = setTimeout(() => {
+      void fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [currentUser, fetchData]);
 
   // --- 2. LOGICA AGENTES / USUARIOS ---

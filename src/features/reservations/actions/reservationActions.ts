@@ -1447,6 +1447,36 @@ export async function createReservationBatchAction(
       publicUser?.job_category?.toLowerCase() === "instructor" ||
       publicUser?.role?.toLowerCase() === "instructor";
 
+    // Precargar configuración global y de mantenimiento una sola vez por lote (evita N+1 en reservas recurrentes)
+    const { data: batchSettingsRows } = await supabase
+      .from("system_settings")
+      .select("key, value")
+      .in("key", [
+        "environments_global_config",
+        "spaces_maintenance",
+        "auditorium_maintenance",
+      ]);
+
+    const settingsByKey = new Map<string, unknown>(
+      (batchSettingsRows || []).map((row) => [row.key, row.value]),
+    );
+    const globalCfg = settingsByKey.get("environments_global_config") as
+      | EnvironmentsGlobalConfig
+      | undefined;
+    const disabledSpacesSet = new Set(
+      Array.isArray(globalCfg?.disabled_special_spaces)
+        ? globalCfg.disabled_special_spaces.map(String)
+        : [],
+    );
+    const spacesMaintenanceRaw = settingsByKey.get("spaces_maintenance");
+    const spacesMaintenanceMap =
+      spacesMaintenanceRaw && typeof spacesMaintenanceRaw === "object"
+        ? (spacesMaintenanceRaw as Record<string, SpaceMaintenanceConfig>)
+        : {};
+    const legacyAudMaintenance = settingsByKey.get("auditorium_maintenance") as
+      | SpaceMaintenanceConfig
+      | undefined;
+
     // Pre-validate all
     const validReservations = [];
     for (const res of reservations) {
@@ -1490,68 +1520,29 @@ export async function createReservationBatchAction(
       }
 
       // Validación estricta de Remodelación / Pausa / Deshabilitación (aplica a todos los roles hasta habilitar)
-      const targetSpaceForMaintenance = data.auditorium_id || "1";
-      {
-        const { data: globalSetting } = await supabase
-          .from("system_settings")
-          .select("value")
-          .eq("key", "environments_global_config")
-          .maybeSingle();
+      const targetSpaceForMaintenance = String(data.auditorium_id || "1");
+      if (disabledSpacesSet.has(targetSpaceForMaintenance)) {
+        const spaceName = getSpaceDisplayName(targetSpaceForMaintenance);
+        throw new Error(
+          `${spaceName} se encuentra temporalmente deshabilitado. No es posible realizar reservas de ningún tipo hasta que sea habilitado de nuevo.`,
+        );
+      }
 
-        const globalCfg = globalSetting?.value as
-          | EnvironmentsGlobalConfig
-          | undefined;
-        if (
-          Array.isArray(globalCfg?.disabled_special_spaces) &&
-          globalCfg.disabled_special_spaces
-            .map(String)
-            .includes(String(targetSpaceForMaintenance))
-        ) {
-          const spaceName = getSpaceDisplayName(targetSpaceForMaintenance);
-          throw new Error(
-            `${spaceName} se encuentra temporalmente deshabilitado. No es posible realizar reservas de ningún tipo hasta que sea habilitado de nuevo.`,
-          );
-        }
+      const mConfig: SpaceMaintenanceConfig | null =
+        spacesMaintenanceMap[targetSpaceForMaintenance] ||
+        (targetSpaceForMaintenance === "1"
+          ? legacyAudMaintenance || null
+          : null);
 
-        let mConfig: SpaceMaintenanceConfig | null = null;
-        const { data: spacesSetting } = await supabase
-          .from("system_settings")
-          .select("value")
-          .eq("key", "spaces_maintenance")
-          .maybeSingle();
-
-        if (spacesSetting?.value && typeof spacesSetting.value === "object") {
-          const map = spacesSetting.value as Record<
-            string,
-            SpaceMaintenanceConfig
-          >;
-          if (map[targetSpaceForMaintenance]) {
-            mConfig = map[targetSpaceForMaintenance];
-          }
-        }
-
-        if (!mConfig && targetSpaceForMaintenance === "1") {
-          const { data: mSetting } = await supabase
-            .from("system_settings")
-            .select("value")
-            .eq("key", "auditorium_maintenance")
-            .maybeSingle();
-          if (mSetting?.value) {
-            mConfig = mSetting.value as unknown as SpaceMaintenanceConfig;
-          }
-        }
-
-        if (mConfig?.is_active) {
-          const endMsg = mConfig.end_date
-            ? `hasta el ${mConfig.end_date}`
-            : "hasta nuevo aviso";
-          const spaceName =
-            mConfig.space_name ||
-            getSpaceDisplayName(targetSpaceForMaintenance);
-          throw new Error(
-            `${spaceName} se encuentra fuera de servicio por pausa/remodelación (${endMsg}). No se pueden realizar reservas de ningún tipo hasta que sea habilitado nuevamente.`,
-          );
-        }
+      if (mConfig?.is_active) {
+        const endMsg = mConfig.end_date
+          ? `hasta el ${mConfig.end_date}`
+          : "hasta nuevo aviso";
+        const spaceName =
+          mConfig.space_name || getSpaceDisplayName(targetSpaceForMaintenance);
+        throw new Error(
+          `${spaceName} se encuentra fuera de servicio por pausa/remodelación (${endMsg}). No se pueden realizar reservas de ningún tipo hasta que sea habilitado nuevamente.`,
+        );
       }
 
       validReservations.push(data);
@@ -1581,6 +1572,65 @@ export async function createReservationBatchAction(
     };
     const visibleSpacesBatch = getVisibleSpaceIdsForUser(batchActor);
     const batchCanNextVigencia = canAccessNextVigencia(batchActor);
+
+    // Precargar asignaciones heredadas del rango del lote (1 consulta vs 2*N en el bucle)
+    const legacyBoundsBySpaceDate = new Map<
+      string,
+      Array<{ bStart: number; bEnd: number }>
+    >();
+    if (!forceVipOverride && validReservations.length > 0) {
+      try {
+        const { data: areasData } = await supabase
+          .from("areas")
+          .select("id, name");
+
+        const spaceIdByAreaId = new Map<number, string>();
+        const targetSpacesInBatch = new Set(
+          validReservations.map((r) => String(r.auditorium_id || "1")),
+        );
+
+        for (const area of areasData || []) {
+          const mappedSpace = mapAreaNameToSpaceId(area.name);
+          if (mappedSpace && targetSpacesInBatch.has(mappedSpace)) {
+            spaceIdByAreaId.set(area.id, mappedSpace);
+          }
+        }
+
+        const relevantAreaIds = Array.from(spaceIdByAreaId.keys());
+        if (relevantAreaIds.length > 0) {
+          const bogotaDates = validReservations
+            .map((r) => getBogotaDateString(new Date(r.start_time)))
+            .sort();
+          const minBogotaDate = bogotaDates[0];
+          const maxBogotaDate = bogotaDates[bogotaDates.length - 1];
+
+          const { data: legacyRows } = await supabase
+            .from("instructor_assignments")
+            .select("id, area_id, assignment_date, time_block")
+            .in("area_id", relevantAreaIds)
+            .gte("assignment_date", minBogotaDate)
+            .lte("assignment_date", maxBogotaDate);
+
+          for (const row of legacyRows || []) {
+            const spaceId = spaceIdByAreaId.get(row.area_id);
+            if (!spaceId) continue;
+            const bounds = getTimeBlockBounds(
+              row.assignment_date,
+              row.time_block,
+            );
+            const key = `${spaceId}|${row.assignment_date}`;
+            const list = legacyBoundsBySpaceDate.get(key) || [];
+            list.push({
+              bStart: new Date(bounds.startIso).getTime(),
+              bEnd: new Date(bounds.endIso).getTime(),
+            });
+            legacyBoundsBySpaceDate.set(key, list);
+          }
+        }
+      } catch {
+        // Mantener comportamiento no bloqueante si falla consulta auxiliar
+      }
+    }
 
     for (const res of validReservations) {
       const targetSpace = res.auditorium_id || "1";
@@ -1678,7 +1728,9 @@ export async function createReservationBatchAction(
       // Conflict Check (Scoped to space)
       let query = supabase
         .from("reservations")
-        .select("*, users(id, full_name, is_vip, role)") // Select user details to check their status
+        .select(
+          "id, auditorium_id, start_time, end_time, status, user_id, title, users(id, full_name, is_vip, role)",
+        )
         .in("status", ["APPROVED", "PENDING"])
         .eq("auditorium_id", targetSpace)
         .lt("start_time", res.end_time)
@@ -1752,18 +1804,21 @@ export async function createReservationBatchAction(
         }
       }
 
-      if (
-        !forceVipOverride &&
-        (await hasLegacyAssignmentConflict(
-          supabase,
-          String(targetSpace),
-          res.start_time,
-          res.end_time,
-        ))
-      ) {
-        throw new Error(
-          `Horario no disponible (existe una asignación de formación registrada en este ambiente el ${new Date(res.start_time).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })})`,
+      if (!forceVipOverride) {
+        const resDate = getBogotaDateString(new Date(res.start_time));
+        const resStartMs = new Date(res.start_time).getTime();
+        const resEndMs = new Date(res.end_time).getTime();
+        const dayBounds =
+          legacyBoundsBySpaceDate.get(`${String(targetSpace)}|${resDate}`) ||
+          [];
+        const hasLegacyOverlap = dayBounds.some(
+          ({ bStart, bEnd }) => resStartMs < bEnd && resEndMs > bStart,
         );
+        if (hasLegacyOverlap) {
+          throw new Error(
+            `Horario no disponible (existe una asignación de formación registrada en este ambiente el ${new Date(res.start_time).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })})`,
+          );
+        }
       }
 
       // Evitar multi-reservas simultáneas del mismo usuario en otros ambientes
@@ -2216,40 +2271,6 @@ export async function getAllSpacesMaintenanceAction(): Promise<{
   }
 }
 
-export async function getAuditoriumMaintenanceAction() {
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from("system_settings")
-      .select("value")
-      .eq("key", "auditorium_maintenance")
-      .maybeSingle();
-
-    if (data && data.value) {
-      return { success: true, config: data.value };
-    }
-    return {
-      success: true,
-      config: {
-        is_active: false,
-        space_id: "1",
-        space_name: "Auditorio 103",
-        start_date: "2026-09-01",
-        end_date: null,
-        custom_title: "Auditorio 103 en Remodelación",
-        custom_message: "",
-      },
-    };
-  } catch (err: unknown) {
-    return {
-      error:
-        err instanceof Error
-          ? err.message
-          : "Error al consultar configuración de remodelación",
-    };
-  }
-}
-
 export async function saveSpaceMaintenanceAction(config: {
   is_active: boolean;
   space_id: string;
@@ -2691,19 +2712,6 @@ export async function disableSpaceMaintenanceAction(params: {
           : "Error al desactivar la pausa/remodelación",
     };
   }
-}
-
-export async function saveAuditoriumMaintenanceAction(config: {
-  is_active: boolean;
-  space_id: string;
-  space_name?: string;
-  start_date: string;
-  end_date?: string | null;
-  custom_title?: string;
-  custom_message?: string;
-  accessToken?: string;
-}) {
-  return saveSpaceMaintenanceAction(config);
 }
 
 export async function updateInstructorAssignmentAction(params: {

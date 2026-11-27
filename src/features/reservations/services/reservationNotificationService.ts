@@ -100,7 +100,6 @@ export class ReservationNotificationService {
    * Utiliza getSupabaseAdmin() para garantizar lectura/escritura consistente en audit_logs sin bloqueo por RLS.
    */
   static async processNotifications() {
-    console.log("🔔 Iniciando procesamiento de notificaciones de reserva...");
     const supabase = getSupabaseAdmin() as unknown as SupabaseClient<Database>;
     const now = new Date();
 

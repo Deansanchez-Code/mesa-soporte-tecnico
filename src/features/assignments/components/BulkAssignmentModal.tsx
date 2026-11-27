@@ -161,10 +161,6 @@ export default function BulkAssignmentModal({
       });
 
       const data = await res.json();
-      console.log("[BulkAssignment] API Response:", {
-        status: res.status,
-        data,
-      });
 
       if (!res.ok) {
         throw new Error(data.error || `Error ${res.status}: Falló el servidor`);

@@ -55,9 +55,9 @@ export function NotificationProvider({
     const playSound = () => {
       try {
         const audio = new Audio(NOTIFICATION_SOUND);
-        audio.play().catch((e) => console.log("Audio play failed", e));
+        audio.play().catch(() => {});
       } catch {
-        // console.error("Audio error", e);
+        // Reproducción automática bloqueada por el navegador
       }
     };
 

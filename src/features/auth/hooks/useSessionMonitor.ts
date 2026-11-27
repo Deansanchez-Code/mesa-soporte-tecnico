@@ -105,7 +105,6 @@ export function useSessionMonitor() {
 
     if (existingSession) {
       // REANUDAR SESIÓN EXISTENTE
-      console.log("Reanudando sesión existente:", existingSession.id);
       setSession((prev) => ({
         ...prev,
         isActive: true,

@@ -18,9 +18,6 @@ export class SlaService {
     const hour = colombiaTime.getUTCHours();
 
     if (hour < 7 || hour >= 21) {
-      console.log(
-        `Cron omitido: Hora actual ${hour}:00 COT fuera del rango 07:00-21:00`,
-      );
       return 0;
     }
 
