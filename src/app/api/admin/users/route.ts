@@ -6,6 +6,11 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { buildUserIdOrFilter, UUID_SCHEMA } from "@/lib/security";
 import { isPrivilegedKioskUser } from "@/lib/kiosk-pin";
 import {
+  getCachedKioskPinSet,
+  markKioskPinCachedStatus,
+  setCachedKioskPinSet,
+} from "@/lib/kiosk-pin-cache";
+import {
   isSuperAdminRole,
   isSupportRole,
   shouldDeactivateOnVigenciaRollover,
@@ -134,25 +139,34 @@ async function listUsersHandler(
 
   if (error) throw error;
 
-  const pinSetByAuthId = new Set<string>();
-  try {
-    for (let page = 1; page <= 3; page++) {
-      const { data: authList } = await supabaseAdmin.auth.admin.listUsers({
-        page,
-        perPage: 1000,
-      });
-      const batch = authList?.users || [];
-      for (const au of batch) {
-        const hash = (au.app_metadata as Record<string, unknown> | undefined)
-          ?.kiosk_pin_hash;
-        if (typeof hash === "string" && hash.length > 0) {
-          pinSetByAuthId.add(au.id);
+  let pinSetByAuthId = getCachedKioskPinSet();
+  if (!pinSetByAuthId) {
+    const freshPinSet = new Set<string>();
+    let listSucceeded = false;
+    try {
+      for (let page = 1; page <= 3; page++) {
+        const { data: authList } = await supabaseAdmin.auth.admin.listUsers({
+          page,
+          perPage: 1000,
+        });
+        const batch = authList?.users || [];
+        listSucceeded = true;
+        for (const au of batch) {
+          const hash = (au.app_metadata as Record<string, unknown> | undefined)
+            ?.kiosk_pin_hash;
+          if (typeof hash === "string" && hash.length > 0) {
+            freshPinSet.add(au.id);
+          }
         }
+        if (batch.length < 1000) break;
       }
-      if (batch.length < 1000) break;
+    } catch (pinLookupErr) {
+      Logger.warn("No se pudo consultar estado de PIN Kiosko", pinLookupErr);
     }
-  } catch (pinLookupErr) {
-    Logger.warn("No se pudo consultar estado de PIN Kiosko", pinLookupErr);
+    if (listSucceeded) {
+      setCachedKioskPinSet(freshPinSet);
+    }
+    pinSetByAuthId = freshPinSet;
   }
 
   const enrichedUsers = (users || []).map((u) => ({
@@ -497,6 +511,7 @@ async function updateUserHandler(
             kiosk_pin_revoked_at: new Date().toISOString(),
           },
         });
+        markKioskPinCachedStatus(targetAuthLookupId, false);
       } catch (revokeErr) {
         Logger.warn(
           "No se pudo limpiar PIN al retirar privilegio VIP",

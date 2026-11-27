@@ -257,7 +257,9 @@ export default function UserRequestForm({
 
         const { data } = await supabase
           .from("reservations")
-          .select("*, users(full_name)")
+          .select(
+            "id, start_time, end_time, title, auditorium_id, users(full_name)",
+          )
           .eq("status", "APPROVED")
           .gte("start_time", yesterday.toISOString())
           .lte("start_time", tomorrow.toISOString())

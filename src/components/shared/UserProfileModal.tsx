@@ -47,7 +47,7 @@ export default function UserProfileModal({
 
       const { data: sessions } = await supabase
         .from("work_sessions")
-        .select("*")
+        .select("id, session_start, session_end, is_overtime")
         .eq("user_id", user.id)
         .gte("session_start", weekStart); // Fetch week data
 

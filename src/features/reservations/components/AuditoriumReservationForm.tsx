@@ -99,11 +99,20 @@ export default function AuditoriumReservationForm({
     initialDate && initialDate >= todayStr ? initialDate : todayStr,
   );
 
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [currentMinuteEpoch, setCurrentMinuteEpoch] = useState(() =>
+    Math.floor(Date.now() / 60000),
+  );
+  const isTodayInRange = startDate === todayStr || finalDate === todayStr;
   useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 30000);
+    if (!isTodayInRange) return;
+    const id = setInterval(() => {
+      const nextMinute = Math.floor(Date.now() / 60000);
+      setCurrentMinuteEpoch((prev) =>
+        prev === nextMinute ? prev : nextMinute,
+      );
+    }, 30000);
     return () => clearInterval(id);
-  }, []);
+  }, [isTodayInRange]);
 
   // Helper para verificar si un horario en una fecha específica ya pasó
   const isPastSlot = (dateStr: string, timeStr: string) => {
@@ -111,7 +120,7 @@ export default function AuditoriumReservationForm({
     const [h, m] = timeStr.split(":").map(Number);
     const [y, mon, d] = dateStr.split("-").map(Number);
     const slotDate = new Date(y, mon - 1, d, h, m, 0);
-    return slotDate.getTime() <= nowMs;
+    return Math.floor(slotDate.getTime() / 60000) <= currentMinuteEpoch;
   };
 
   // Calcular hora de inicio por defecto futura si la fecha seleccionada es hoy

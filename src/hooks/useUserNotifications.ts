@@ -91,7 +91,7 @@ export function useUserNotifications(userId?: string) {
     const fetchNotifications = async () => {
       const { data } = await supabase
         .from("user_notifications")
-        .select("*")
+        .select("id, user_id, title, message, read, created_at")
         .eq("user_id", userId)
         .eq("read", false)
         .order("created_at", { ascending: false });

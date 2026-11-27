@@ -81,6 +81,16 @@ function formatShortDate(dateStr: string): string {
   return `${d}/${m}`;
 }
 
+function getBogotaCurrentHour(): number {
+  const str = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Bogota",
+    hour: "2-digit",
+    hour12: false,
+  }).format(new Date());
+  const parsed = Number(str);
+  return parsed === 24 ? 0 : parsed;
+}
+
 export default function UnifiedAvailabilityCalendar({
   user,
   initialSpaceId,
@@ -89,20 +99,15 @@ export default function UnifiedAvailabilityCalendar({
   onDateChange,
 }: UnifiedAvailabilityCalendarProps) {
   const todayStr = getBogotaDateString();
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [currentBogotaHour, setCurrentBogotaHour] =
+    useState<number>(getBogotaCurrentHour);
   useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 30000);
+    const id = setInterval(() => {
+      const nextHour = getBogotaCurrentHour();
+      setCurrentBogotaHour((prev) => (prev === nextHour ? prev : nextHour));
+    }, 60000);
     return () => clearInterval(id);
   }, []);
-
-  const currentBogotaHour = useMemo(() => {
-    const str = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "America/Bogota",
-      hour: "2-digit",
-      hour12: false,
-    }).format(new Date(nowMs));
-    return Number(str);
-  }, [nowMs]);
 
   const allowNextVigencia = canAccessNextVigencia(user);
   const currentVigenciaMax = getCurrentVigenciaEndDateStr();

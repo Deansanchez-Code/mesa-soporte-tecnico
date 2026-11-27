@@ -47,7 +47,9 @@ export function useUpcomingReservationAlert(
 
     const { data, error } = await supabase
       .from("reservations")
-      .select("*, users(full_name, is_vip, role)")
+      .select(
+        "id, title, start_time, end_time, status, user_id, auditorium_id, resources, users(full_name, is_vip, role)",
+      )
       .eq("user_id", dbUserId)
       .in("status", ["APPROVED", "PENDING"])
       .gte("start_time", startOfToday)

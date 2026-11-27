@@ -62,7 +62,9 @@ export default function AssetHistoryModal({
       // 2. Buscar detalles del activo
       const { data: assetData } = await supabase
         .from("assets")
-        .select("*")
+        .select(
+          "id, serial_number, type, brand, model, location, assigned_to_user_id, created_at",
+        )
         .eq("serial_number", serialNumber)
         .single();
 

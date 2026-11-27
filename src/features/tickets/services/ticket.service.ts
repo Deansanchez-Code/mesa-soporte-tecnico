@@ -7,7 +7,20 @@ import { Database } from "@/app/admin/types";
 import { buildUserIdOrFilter, isValidUuid } from "@/lib/security";
 
 type TicketRow = Database["public"]["Tables"]["tickets"]["Row"];
-type UserRow = Database["public"]["Tables"]["users"]["Row"];
+type CreatedTicketSummary = Pick<
+  TicketRow,
+  "id" | "user_id" | "category" | "description" | "location" | "is_vip_ticket"
+>;
+interface ResolvedTicketSummary {
+  id: number;
+  category: string | null;
+  users: {
+    full_name: string;
+    email: string | null;
+    employment_type: string | null;
+    username: string;
+  } | null;
+}
 
 export const TicketSchema = z.object({
   category: z.string().min(1, "La categoría es requerida"),
@@ -110,7 +123,9 @@ export class TicketService {
           sla_status: slaStatus,
         },
       ])
-      .select()
+      .select(
+        "id, category, ticket_type, asset_serial, location, description, user_id, status, assigned_agent_id, is_vip_ticket, sla_start_at, sla_expected_end_at, sla_status, created_at",
+      )
       .single();
 
     if (error) throw error;
@@ -127,7 +142,7 @@ export class TicketService {
   /**
    * Envía el correo de notificación de creación de ticket.
    */
-  private static async sendTicketCreationEmail(ticket: TicketRow) {
+  private static async sendTicketCreationEmail(ticket: CreatedTicketSummary) {
     try {
       const { EmailService } = await import("@/lib/email/email-service");
       const { TicketNotification } =
@@ -184,10 +199,12 @@ export class TicketService {
   ) {
     const supabase = await createClient();
 
-    // 1. Obtener ticket y datos del usuario
+    // 1. Obtener ticket y datos mínimos del usuario (minimización PII)
     const { data: ticket, error: ticketError } = await supabase
       .from("tickets")
-      .select("*, users(*)")
+      .select(
+        "id, category, users(full_name, email, employment_type, username)",
+      )
       .eq("id", ticketId)
       .single();
 
@@ -208,9 +225,10 @@ export class TicketService {
     if (updateError) throw updateError;
 
     // 3. Notificación por Correo (Async)
-    this.sendTicketResolutionEmail(ticket, solution).catch((e) =>
-      Logger.error("Failed to send ticket resolution email", e),
-    );
+    this.sendTicketResolutionEmail(
+      ticket as unknown as ResolvedTicketSummary,
+      solution,
+    ).catch((e) => Logger.error("Failed to send ticket resolution email", e));
 
     return { success: true };
   }
@@ -219,7 +237,7 @@ export class TicketService {
    * Envía el correo de notificación de resolución.
    */
   private static async sendTicketResolutionEmail(
-    ticket: TicketRow & { users: UserRow | null },
+    ticket: ResolvedTicketSummary,
     solution: string,
   ) {
     try {

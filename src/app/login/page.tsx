@@ -59,10 +59,12 @@ export default function LoginPage() {
       // Aunque Supabase ya maneja la sesión, mantenemos esto por ahora para no romper AuthGuard viejo
       // Idealmente, AuthGuard debería migrarse a usar supabase.auth.getSession()
 
-      // Buscamos el rol en la tabla pública (ya que auth.users no tiene rol por defecto a menos que usemos custom claims)
+      // Buscamos el rol y permisos autoritativos en la tabla pública (sin traer columna password)
       const { data: publicUser } = await supabase
         .from("users")
-        .select("*")
+        .select(
+          "id, auth_id, full_name, username, email, role, area, is_active, is_vip, employment_type, job_category, perm_create_assets, perm_transfer_assets, perm_decommission_assets, perm_manage_assignments",
+        )
         .eq("auth_id", user.id)
         .single();
 

@@ -110,7 +110,7 @@ export default function ShiftsTab() {
 
       const { data: dbSchedules, error } = await supabase
         .from("weekly_schedules")
-        .select("*")
+        .select("id, user_id, week_start_date, schedule_config")
         .eq("week_start_date", startIso);
 
       if (error) {

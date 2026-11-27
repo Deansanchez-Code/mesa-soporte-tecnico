@@ -73,7 +73,7 @@ export function useTicketDetails({
     // 2. Fetch Pause Reasons
     const { data: reasonsData } = await supabase
       .from("pause_reasons")
-      .select("*")
+      .select("id, reason_code, description")
       .eq("is_active", true);
 
     if (reasonsData) {

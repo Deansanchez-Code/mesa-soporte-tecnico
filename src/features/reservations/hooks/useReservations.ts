@@ -100,7 +100,9 @@ export function useReservations({
 
       const { data, error } = await supabase
         .from("reservations")
-        .select("*, users(full_name, is_vip, role)")
+        .select(
+          "id, title, start_time, end_time, status, user_id, auditorium_id, resources, description, users(full_name, is_vip, role)",
+        )
         .in("status", ["APPROVED", "PENDING"])
         .gte("start_time", startOfDay)
         .lte("start_time", endOfDay)

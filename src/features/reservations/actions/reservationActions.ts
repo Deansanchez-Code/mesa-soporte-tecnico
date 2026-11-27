@@ -2882,7 +2882,7 @@ export async function syncReservationTicketAction(params: {
 
     let query = adminSupabase
       .from("tickets")
-      .select("*")
+      .select("id, status, sla_status, user_id")
       .eq("category", "Reserva Auditorio")
       .ilike("description", `%${oldDescSubstring}%`)
       .order("created_at", { ascending: false })

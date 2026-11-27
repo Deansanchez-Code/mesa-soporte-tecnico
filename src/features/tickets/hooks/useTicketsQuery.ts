@@ -29,7 +29,7 @@ export const useTicketsQuery = ({
       let query = supabase
         .from("tickets")
         .select(
-          "*, users:users!tickets_user_id_fkey(full_name), assigned_agent:users!tickets_assigned_agent_id_fkey(full_name)",
+          "id, ticket_code, category, ticket_type, description, location, status, is_vip_ticket, asset_serial, user_id, assigned_agent_id, sla_status, sla_start_at, sla_expected_end_at, sla_last_paused_at, sla_pause_reason, sla_clock_stopped_at, sla_total_paused_duration, hold_reason, solution, created_at, updated_at, users:users!tickets_user_id_fkey(full_name, area, is_vip), assigned_agent:users!tickets_assigned_agent_id_fkey(full_name)",
           { count: "exact" },
         )
         .order("created_at", { ascending: false })
